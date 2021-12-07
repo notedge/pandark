@@ -1,0 +1,21 @@
+# OS
+.DS_Store/
+
+# IDE
+.vscode/
+.vs/
+.idea/
+*.iml
+*.log
+
+# Rust
+target/
+.cargo/config.toml
+
+# Node
+node_modules/
+distribution/
+coverage/
+package-lock.json
+yarn.lock
+yarn-error.log
