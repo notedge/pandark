@@ -1,0 +1,16 @@
+[package]
+name = "pandark-core"
+version.workspace = true
+authors.workspace = true
+description = "Pandark crawl orchestration over notedown-ir"
+license.workspace = true
+edition.workspace = true
+readme = "readme.md"
+publish = false
+
+[dependencies]
+pandark-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
