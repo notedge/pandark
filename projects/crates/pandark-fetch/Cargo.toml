@@ -1,0 +1,16 @@
+[package]
+name = "pandark-fetch"
+version.workspace = true
+authors.workspace = true
+description = "Pandark fetch transport, cache, and FetchArtifact construction"
+license.workspace = true
+edition.workspace = true
+readme = "readme.md"
+publish = false
+
+[dependencies]
+pandark-types = { workspace = true }
+serde = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]

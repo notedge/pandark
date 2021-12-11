@@ -11,6 +11,7 @@ edition = "2021"
 [workspace.dependencies]
 pandark-types = { path = "projects/crates/pandark-types" }
 pandark-core = { path = "projects/crates/pandark-core" }
+pandark-fetch = { path = "projects/crates/pandark-fetch" }
 notedown-ir = { git = "https://github.com/notedge/notedown.git", branch = "dev" }
 diagnostic = { git = "https://github.com/oovm/diagnostic-rs", branch = "dev", package = "diagnostic", default-features = false, features = ["std", "serde"] }
 serde = { version = "1.0", features = ["derive"] }

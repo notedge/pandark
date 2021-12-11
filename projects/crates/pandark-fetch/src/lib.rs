@@ -1,0 +1,90 @@
+use std::collections::BTreeMap;
+
+use pandark_types::{
+    BodyStorage, CrawlError, FetchArtifact, RedirectHop, Result, TransportProvenance,
+    now_epoch,
+};
+use url::Url;
+
+mod cache;
+mod client;
+mod file;
+mod memory;
+mod robots;
+
+pub use cache::ResponseCache;
+pub use client::{FetchClient, fetch_url};
+pub use file::FileTransport;
+pub use memory::{MemoryEntry, MemoryTransport};
+pub use robots::RobotsPolicy;
+
+/// Fetch request passed to a transport.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FetchRequest {
+    /// Request URL.
+    pub url: Url,
+    /// Optional request headers.
+    pub headers: BTreeMap<String, String>,
+}
+
+/// Transport that materializes response bytes without semantic parsing.
+pub trait Transport {
+    /// Perform one fetch for the request URL.
+    fn fetch(&self, request: &FetchRequest) -> Result<FetchArtifact>;
+}
+
+/// Build a cache key from the request URL and optional validator.
+pub fn cache_key_for(url: &Url, validator: Option<&str>) -> String {
+    match validator {
+        Some(tag) => format!("{}|etag={tag}", url),
+        None => url.to_string(),
+    }
+}
+
+/// Construct a fetch artifact from raw response parts.
+pub fn build_artifact(
+    request_url: Url,
+    final_url: Url,
+    status: u16,
+    headers: BTreeMap<String, String>,
+    body: BodyStorage,
+    redirect_chain: Vec<RedirectHop>,
+    provenance: TransportProvenance,
+    validator: Option<&str>,
+) -> FetchArtifact {
+    let content_type = headers
+        .get("content-type")
+        .cloned()
+        .or_else(|| infer_content_type(&final_url));
+    let cache_key = cache_key_for(&request_url, validator);
+    FetchArtifact {
+        request_url,
+        final_url,
+        status,
+        response_headers: headers,
+        content_type,
+        body,
+        redirect_chain,
+        retrieved_at_epoch: now_epoch(),
+        transport_provenance: provenance,
+        cache_key,
+    }
+}
+
+fn infer_content_type(url: &Url) -> Option<String> {
+    let path = url.path().to_ascii_lowercase();
+    if path.ends_with(".html") || path.ends_with(".htm") {
+        Some("text/html".into())
+    } else if path.ends_with(".css") {
+        Some("text/css".into())
+    } else if path.ends_with(".json") {
+        Some("application/json".into())
+    } else {
+        None
+    }
+}
+
+/// Map transport failures into crawl errors.
+pub fn map_transport_error(message: impl Into<String>) -> CrawlError {
+    CrawlError::InvalidInput(message.into())
+}
