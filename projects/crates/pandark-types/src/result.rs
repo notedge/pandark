@@ -1,26 +1,7 @@
-use notedown_ir::DocumentGraph;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-/// Outcome of a single fetch operation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FetchOutcome {
-    /// Final response URL after redirects.
-    pub final_url: Url,
-    /// Response media type when known.
-    pub content_type: Option<String>,
-    /// Raw body bytes.
-    pub body: Vec<u8>,
-}
-
-/// Outcome of semantic extraction into Notedown IR.
-#[derive(Debug, Clone)]
-pub struct ExtractOutcome {
-    /// Source page URL.
-    pub source_url: Url,
-    /// Extracted semantic document.
-    pub document: DocumentGraph,
-}
+use crate::events::EventLog;
 
 /// Per-page crawl status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -49,6 +30,10 @@ pub struct CrawlReport {
     pub failed: u32,
     /// Pages skipped by policy or budget.
     pub skipped: u32,
+    /// Pages committed to persistent storage.
+    pub committed: u32,
+    /// Structured event log snapshot.
+    pub events: EventLog,
 }
 
 impl CrawlReport {
@@ -60,6 +45,8 @@ impl CrawlReport {
             extracted: 0,
             failed: 0,
             skipped: 0,
+            committed: 0,
+            events: EventLog::new(),
         }
     }
 }
