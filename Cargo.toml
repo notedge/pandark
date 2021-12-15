@@ -12,11 +12,14 @@ edition = "2021"
 pandark-types = { path = "projects/crates/pandark-types" }
 pandark-core = { path = "projects/crates/pandark-core" }
 pandark-fetch = { path = "projects/crates/pandark-fetch" }
+pandark-napi = { path = "projects/crates/pandark-napi" }
 notedown-ir = { git = "https://github.com/notedge/notedown.git", branch = "dev" }
 diagnostic = { git = "https://github.com/oovm/diagnostic-rs", branch = "dev", package = "diagnostic", default-features = false, features = ["std", "serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 url = { version = "2.5", features = ["serde"] }
+napi = { version = "2", default-features = false, features = ["napi4"] }
+napi-derive = "2"
 
 [profile.release]
 lto = true
