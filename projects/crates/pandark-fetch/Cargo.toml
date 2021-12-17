@@ -12,5 +12,6 @@ publish = false
 pandark-types = { workspace = true }
 serde = { workspace = true }
 url = { workspace = true }
+ureq = { version = "2.12", default-features = true }
 
 [dev-dependencies]

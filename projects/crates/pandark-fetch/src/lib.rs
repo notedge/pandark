@@ -9,14 +9,18 @@ use url::Url;
 mod cache;
 mod client;
 mod file;
+mod http;
 mod memory;
 mod robots;
+mod select;
 
 pub use cache::ResponseCache;
 pub use client::{FetchClient, fetch_url};
 pub use file::FileTransport;
+pub use http::HttpTransport;
 pub use memory::{MemoryEntry, MemoryTransport};
 pub use robots::RobotsPolicy;
+pub use select::{SeedTransport, transport_for_url};
 
 /// Fetch request passed to a transport.
 #[derive(Debug, Clone, PartialEq, Eq)]
