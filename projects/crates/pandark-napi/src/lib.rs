@@ -7,7 +7,11 @@ use napi_derive::napi;
 use pandark_core::{
     Extractor, HtmlExtractor, initial_report, plan_crawl as build_plan, run_crawl, run_extract,
 };
-use pandark_fetch::{FetchRequest, FileTransport, Transport};
+use pandark_fetch::{
+    FetchClient, FetchRequest, FileTransport, RobotsPolicy, Transport,
+    transport_for_url,
+};
+use pandark_types::PolitenessProfile;
 use pandark_types::{
     CrawlRequest, ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact,
 };
@@ -35,6 +39,13 @@ pub struct CrawlResponse {
     pub exit_code: u32,
     pub report_json: String,
     pub committed_pages: Vec<String>,
+}
+
+/// N-API fetch response.
+#[napi(object)]
+pub struct FetchResponse {
+    pub exit_code: u32,
+    pub artifact_json: String,
 }
 
 /// Returns the Pandark N-API binding version.
@@ -74,7 +85,26 @@ pub fn extract_file(input_path: String, source_url: Option<String>) -> Result<Ex
     build_extract_response(result)
 }
 
-/// Crawl linked local HTML pages through the `file://` transport.
+/// Fetch one URL through the default transport for its scheme.
+#[napi]
+pub fn fetch_seed(seed: String) -> Result<FetchResponse> {
+    let seed_url = normalize_seed_url(&seed)?;
+    let url = Url::parse(&seed_url).map_err(|error| Error::from_reason(error.to_string()))?;
+    let transport = transport_for_url(&url).map_err(map_crawl_error)?;
+    let mut client = FetchClient::new(transport, RobotsPolicy::from_profile(PolitenessProfile::Conservative));
+    let artifact = client
+        .fetch(&FetchRequest {
+            url,
+            headers: Default::default(),
+        })
+        .map_err(map_crawl_error)?;
+    Ok(FetchResponse {
+        exit_code: 0,
+        artifact_json: serde_json::to_string(&artifact).map_err(map_serde_error)?,
+    })
+}
+
+/// Crawl linked HTML pages through the transport implied by the seed URL.
 #[napi]
 pub fn crawl_file(
     seed: String,
@@ -82,7 +112,11 @@ pub fn crawl_file(
     max_requests: Option<u32>,
 ) -> Result<CrawlResponse> {
     let request = parse_request(&seed, max_depth, max_requests)?;
-    let transport = FileTransport::new();
+    let seed_url = request
+        .seeds
+        .first()
+        .ok_or_else(|| Error::from_reason("at least one seed is required"))?;
+    let transport = transport_for_url(&seed_url.url).map_err(map_crawl_error)?;
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
     let output = run_crawl(request, transport, &extractors).map_err(map_crawl_error)?;
