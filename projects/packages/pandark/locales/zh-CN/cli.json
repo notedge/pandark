@@ -1,0 +1,13 @@
+{
+    "cli.intro": "pandark — 面向 notedown-ir::DocumentGraph 的采集与抽取编排器",
+    "cli.cmd.plan": "生成采集计划，不执行网络 I/O",
+    "cli.cmd.fetch": "抓取单个 URL 或本地路径并输出 FetchArtifact",
+    "cli.cmd.crawl": "按种子 URL 选择 transport 抓取链接 HTML 页面",
+    "cli.cmd.extract": "从本地 HTML 文件抽取 notedown-ir",
+    "cli.cmd.doctor": "检查 CLI 安装、原生绑定与环境",
+    "cli.opt.output": "输出文件路径",
+    "cli.opt.report": "将 JSON 报告写入文件",
+    "cli.opt.json": "向标准输出打印机器可读 JSON",
+    "cli.opt.depth": "从种子出发的最大抓取深度",
+    "cli.opt.budget": "包含资产在内的最大 HTTP 请求数"
+}

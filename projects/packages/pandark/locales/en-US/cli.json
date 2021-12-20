@@ -1,0 +1,13 @@
+{
+    "cli.intro": "pandark — crawl and extraction orchestrator for notedown-ir::DocumentGraph",
+    "cli.cmd.plan": "Build a crawl plan without network I/O",
+    "cli.cmd.fetch": "Fetch one URL or local path into a FetchArtifact",
+    "cli.cmd.crawl": "Crawl linked HTML pages through the transport implied by the seed",
+    "cli.cmd.extract": "Extract notedown-ir from a local HTML file",
+    "cli.cmd.doctor": "Check CLI install, native bindings, and environment",
+    "cli.opt.output": "Output file path",
+    "cli.opt.report": "Write JSON report to a file",
+    "cli.opt.json": "Emit machine-readable JSON on stdout",
+    "cli.opt.depth": "Maximum crawl depth from seeds",
+    "cli.opt.budget": "Maximum HTTP requests including assets"
+}

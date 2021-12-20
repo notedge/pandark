@@ -1,0 +1,43 @@
+{
+    "name": "@notedge/pandark",
+    "version": "0.1.0",
+    "description": "Pandark crawl bindings (Node-API + TypeScript)",
+    "type": "module",
+    "license": "MPL-2.0",
+    "bin": {
+        "pandark": "./bin/pandark.mjs"
+    },
+    "exports": {
+        ".": "./src/index.ts",
+        "./node": "./src/node/index.ts",
+        "./cli": "./src/cli/index.ts"
+    },
+    "files": [
+        "bin",
+        "locales",
+        "src"
+    ],
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "typecheck": "tsc --noEmit",
+        "test:e2e": "tsx --test tests/**/*.test.ts"
+    },
+    "dependencies": {
+        "@vmz/commander": "^0.2.0",
+        "jiti": "^2.4.2"
+    },
+    "optionalDependencies": {
+        "@notedge/pandark-darwin-arm64": "workspace:*",
+        "@notedge/pandark-darwin-x64": "workspace:*",
+        "@notedge/pandark-linux-arm64": "workspace:*",
+        "@notedge/pandark-linux-x64": "workspace:*",
+        "@notedge/pandark-win32-x64": "workspace:*"
+    },
+    "devDependencies": {
+        "@types/node": "^22.13.10",
+        "tsx": "^4.19.3",
+        "typescript": "^5.8.3"
+    }
+}
