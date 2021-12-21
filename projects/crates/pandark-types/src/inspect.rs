@@ -1,0 +1,54 @@
+use serde::{Deserialize, Serialize};
+use url::Url;
+
+use crate::extract::ProbeResult;
+use crate::frontier::LinkCandidate;
+
+/// Inspect report for probe, link discovery, and extract planning.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InspectReport {
+    /// Report schema identifier.
+    pub schema_version: String,
+    /// Source URL under inspection.
+    pub source_url: Url,
+    /// Requested inspect stage.
+    pub stage: InspectStage,
+    /// Extractor probe outcome.
+    pub probe: ProbeResult,
+    /// Link candidates discovered without committing IR.
+    pub discovered_links: Vec<LinkCandidate>,
+    /// Response media type when known.
+    pub content_type: Option<String>,
+    /// Artifact body size in bytes when known.
+    pub body_bytes: u64,
+}
+
+/// Inspect stage requested by CLI or API callers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InspectStage {
+    /// Probe extractors and media type only.
+    Probe,
+    /// Discover links without extraction.
+    Links,
+    /// Build an extract plan without writing IR.
+    ExtractPlan,
+}
+
+impl InspectReport {
+    /// Empty inspect report for a source URL.
+    pub fn empty(source_url: Url, stage: InspectStage) -> Self {
+        Self {
+            schema_version: "pandark.inspect/v1".into(),
+            source_url,
+            stage,
+            probe: ProbeResult {
+                status: crate::extract::ProbeStatus::Unsupported,
+                extractor: None,
+            },
+            discovered_links: Vec::new(),
+            content_type: None,
+            body_bytes: 0,
+        }
+    }
+}

@@ -3,16 +3,22 @@
 #![doc = include_str!("../readme.md")]
 
 mod artifact;
+mod browser;
 mod error;
 mod events;
 mod extract;
 mod frontier;
+mod inspect;
 mod request;
 mod result;
 mod url;
 
 pub use crate::artifact::{
     BodyStorage, FetchArtifact, HttpStatus, RedirectHop, TransportProvenance,
+};
+pub use crate::browser::{
+    AuthProfile, BrowserActionKind, BrowserSnapshot, ChallengePolicy, CredentialRef,
+    PageChallengeState, SessionPersistence,
 };
 pub use crate::error::{CrawlError, Result};
 pub use crate::events::{CrawlEvent, EventLog, PageTransaction};
@@ -23,6 +29,7 @@ pub use crate::extract::{
 pub use crate::frontier::{
     AdmissionDecision, DiscoverySource, FrontierItem, LinkCandidate, LinkRelation,
 };
+pub use crate::inspect::{InspectReport, InspectStage};
 pub use crate::request::{CrawlBudget, CrawlRequest, CrawlSeed, PolitenessProfile};
 pub use crate::result::{CrawlPageStatus, CrawlReport};
 pub use crate::url::{canonicalize_parsed_url, canonicalize_request_url, now_epoch, site_key};
