@@ -1,7 +1,7 @@
 use pandark_types::{CrawlError, Result};
 use url::Url;
 
-use crate::{FetchArtifact, FetchRequest, FileTransport, HttpTransport, Transport};
+use super::{FetchArtifact, FetchRequest, FileTransport, HttpTransport, Transport};
 
 /// Built-in transports selected from a seed URL scheme.
 #[derive(Debug, Clone)]

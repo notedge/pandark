@@ -28,7 +28,7 @@ function runDoctor(options: ParsedOptions): number {
         checks.push({
             id: "native",
             ok: true,
-            message: `pandark-napi ${ctx.bindings.pandarkVersion()}`,
+            message: `pandark ${ctx.bindings.pandarkVersion()}`,
         });
     } else {
         checks.push({

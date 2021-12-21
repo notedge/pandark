@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use pandark_types::{BodyStorage, FetchArtifact, Result, TransportProvenance};
 use url::Url;
 
-use crate::{FetchRequest, Transport, build_artifact, map_transport_error};
+use super::{FetchRequest, Transport, build_artifact, map_transport_error};
 
 /// In-memory transport for tests and offline fixtures.
 #[derive(Debug, Clone, Default)]

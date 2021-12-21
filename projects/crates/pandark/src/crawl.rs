@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use pandark_fetch::{FetchClient, FetchRequest, RobotsPolicy, Transport};
+use crate::fetch::{FetchClient, FetchRequest, RobotsPolicy, Transport};
 use pandark_types::{
     AdmissionDecision, CrawlEvent, CrawlReport, CrawlRequest, ExtractBudget, ExtractContext,
     ExtractStatus, FetchArtifact, FrontierItem, Result,
@@ -180,7 +180,7 @@ fn record_skipped(state: &mut CrawlState, item: &FrontierItem, reason: &str) {
 
 #[cfg(test)]
 mod tests {
-    use pandark_fetch::{MemoryEntry, MemoryTransport};
+    use crate::fetch::{MemoryEntry, MemoryTransport};
 
     use super::*;
     use crate::{HtmlExtractor, run_extract};
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn extract_mode_reuses_artifact_without_transport() {
-        let artifact = pandark_fetch::build_artifact(
+        let artifact = crate::fetch::build_artifact(
             url::Url::parse("https://example.com/page").expect("url"),
             url::Url::parse("https://example.com/page").expect("url"),
             200,

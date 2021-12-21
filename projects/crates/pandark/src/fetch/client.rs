@@ -3,9 +3,9 @@ use std::collections::BTreeMap;
 use pandark_types::{CrawlError, FetchArtifact, Result, TransportProvenance};
 use url::Url;
 
-use crate::cache::ResponseCache;
-use crate::robots::RobotsPolicy;
-use crate::{FetchRequest, Transport};
+use super::cache::ResponseCache;
+use super::robots::RobotsPolicy;
+use super::{FetchRequest, Transport};
 
 /// Fetch orchestration with robots checks and response caching.
 pub struct FetchClient<T: Transport> {
@@ -43,7 +43,7 @@ impl<T: Transport> FetchClient<T> {
             )));
         }
 
-        let cache_key = crate::cache_key_for(&request.url, None);
+        let cache_key = super::cache_key_for(&request.url, None);
         if let Some(cached) = self.cache.get(&cache_key).cloned() {
             return Ok(with_cache_provenance(cached));
         }
@@ -80,7 +80,7 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::memory::{MemoryEntry, MemoryTransport};
+    use crate::fetch::memory::{MemoryEntry, MemoryTransport};
 
     #[test]
     fn cache_hit_marks_provenance() {

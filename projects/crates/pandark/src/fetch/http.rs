@@ -3,7 +3,7 @@ use std::io::Read;
 use std::time::Duration;
 
 use pandark_types::{BodyStorage, RedirectHop, Result, TransportProvenance};
-use crate::{FetchRequest, Transport, build_artifact, map_transport_error};
+use super::{FetchRequest, Transport, build_artifact, map_transport_error};
 
 /// Network transport for `http://` and `https://` URLs.
 #[derive(Debug, Clone)]

@@ -5,13 +5,10 @@ Pandark collects and extracts web pages into `notedown-ir::DocumentGraph`. It is
 
 ## Crates
 
-- `pandark-types` — seeds, `FetchArtifact`, frontier, extract contracts, crawl reports
-- `pandark-fetch` — HTTP/file transport, robots, response cache
-- `pandark-core` — frontier admission, crawl orchestration, offline extract
-- `pandark-napi` — Node-API bindings
-- `@notedge/pandark` — TypeScript CLI and native loader
+- `pandark-types` — crawl contracts, `FetchArtifact`, frontier items, reports, and policies
+- `pandark` — fetch transport, frontier orchestration, extract pipeline, and Node-API bindings
 
-Browser sessions and controlled collection are specified separately via `BrowserProvider` and are not part of `pandark-core`.
+Browser sessions use a future `BrowserProvider` capability layer and are not part of the `pandark` crate surface yet.
 
 ## Developers
 

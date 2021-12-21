@@ -4,12 +4,19 @@
 mod admission;
 mod crawl;
 mod extract;
+mod fetch;
 mod frontier;
+mod napi;
 mod transaction;
 
 pub use admission::{admit_frontier_item, seed_frontier};
 pub use crawl::{CrawlOutput, CrawlState, run_crawl};
 pub use extract::{Extractor, HtmlExtractor, run_extract, select_extractor};
+pub use fetch::{
+    FetchClient, FetchRequest, FileTransport, HttpTransport, MemoryEntry, MemoryTransport,
+    ResponseCache, RobotsPolicy, SeedTransport, Transport, build_artifact, fetch_url,
+    map_transport_error, transport_for_url,
+};
 pub use frontier::{FrontierQueue, frontier_from_links};
 pub use transaction::commit_page;
 

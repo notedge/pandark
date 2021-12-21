@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use pandark_types::{BodyStorage, Result, TransportProvenance};
 use url::Url;
 
-use crate::{FetchRequest, Transport, build_artifact, map_transport_error};
+use super::{FetchRequest, Transport, build_artifact, map_transport_error};
 
 /// Read local files referenced by `file://` URLs.
 #[derive(Debug, Clone, Default)]

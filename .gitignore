@@ -20,7 +20,7 @@ package-lock.json
 pnpm-lock.yaml
 yarn.lock
 yarn-error.log
-projects/crates/pandark-napi/index.js
-projects/crates/pandark-napi/index.d.ts
-projects/crates/pandark-napi/*.node
+projects/crates/pandark/index.js
+projects/crates/pandark/index.d.ts
+projects/crates/pandark/*.node
 projects/packages/pandark-*/lib/

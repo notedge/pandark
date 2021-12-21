@@ -4,10 +4,10 @@ use std::path::PathBuf;
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use pandark_core::{
+use crate::{
     Extractor, HtmlExtractor, initial_report, plan_crawl as build_plan, run_crawl, run_extract,
 };
-use pandark_fetch::{
+use crate::fetch::{
     FetchClient, FetchRequest, FileTransport, RobotsPolicy, Transport,
     transport_for_url,
 };
