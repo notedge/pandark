@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::browser::PageChallengeState;
+use crate::challenge::ChallengeOutcome;
 use crate::extract::ProbeResult;
 use crate::frontier::LinkCandidate;
 
@@ -21,6 +23,10 @@ pub struct InspectReport {
     pub content_type: Option<String>,
     /// Artifact body size in bytes when known.
     pub body_bytes: u64,
+    /// Browser challenge state when inspecting a snapshot.
+    pub challenge_state: Option<PageChallengeState>,
+    /// Challenge policy outcome when a non-normal state is detected.
+    pub challenge_outcome: Option<ChallengeOutcome>,
 }
 
 /// Inspect stage requested by CLI or API callers.
@@ -49,6 +55,8 @@ impl InspectReport {
             discovered_links: Vec::new(),
             content_type: None,
             body_bytes: 0,
+            challenge_state: None,
+            challenge_outcome: None,
         }
     }
 }
