@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use crate::{
-    Extractor, HtmlExtractor, initial_report, plan_crawl as build_plan, run_crawl, run_extract,
+    Extractor, HtmlExtractor, initial_report, inspect_artifact, plan_crawl as build_plan,
+    run_crawl, run_extract,
 };
 use crate::fetch::{
     FetchClient, FetchRequest, FileTransport, RobotsPolicy, Transport,
@@ -13,7 +14,7 @@ use crate::fetch::{
 };
 use pandark_types::PolitenessProfile;
 use pandark_types::{
-    CrawlRequest, ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact,
+    CrawlRequest, ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact, InspectStage,
 };
 use url::Url;
 
@@ -46,6 +47,13 @@ pub struct CrawlResponse {
 pub struct FetchResponse {
     pub exit_code: u32,
     pub artifact_json: String,
+}
+
+/// N-API inspect response.
+#[napi(object)]
+pub struct InspectResponse {
+    pub exit_code: u32,
+    pub report_json: String,
 }
 
 /// Returns the Pandark N-API binding version.
@@ -83,6 +91,25 @@ pub fn extract_file(input_path: String, source_url: Option<String>) -> Result<Ex
         &ExtractContext::default(),
     );
     build_extract_response(result)
+}
+
+/// Inspect a local HTML file without writing IR.
+#[napi]
+pub fn inspect_file(input_path: String, stage: Option<String>) -> Result<InspectResponse> {
+    let artifact = artifact_from_path(&input_path, None)?;
+    let html = HtmlExtractor;
+    let extractors: [&dyn Extractor; 1] = [&html];
+    let inspect_stage = parse_inspect_stage(stage.as_deref())?;
+    let report = inspect_artifact(
+        &artifact,
+        &extractors,
+        inspect_stage,
+        ExtractBudget::default(),
+    );
+    Ok(InspectResponse {
+        exit_code: 0,
+        report_json: serde_json::to_string(&report).map_err(map_serde_error)?,
+    })
 }
 
 /// Fetch one URL through the default transport for its scheme.
@@ -208,6 +235,15 @@ fn build_extract_response(result: pandark_types::ExtractResult) -> Result<Extrac
         document_json,
         report_json,
     })
+}
+
+fn parse_inspect_stage(stage: Option<&str>) -> Result<InspectStage> {
+    match stage.unwrap_or("probe") {
+        "probe" => Ok(InspectStage::Probe),
+        "links" => Ok(InspectStage::Links),
+        "extract-plan" | "extract_plan" => Ok(InspectStage::ExtractPlan),
+        other => Err(Error::from_reason(format!("unsupported inspect stage `{other}`"))),
+    }
 }
 
 fn map_crawl_error(error: pandark_types::CrawlError) -> Error {

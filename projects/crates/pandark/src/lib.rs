@@ -2,14 +2,17 @@
 #![doc = include_str!("../readme.md")]
 
 mod admission;
+mod browser;
 mod crawl;
 mod extract;
 mod fetch;
 mod frontier;
+mod inspect;
 mod napi;
 mod transaction;
 
 pub use admission::{admit_frontier_item, seed_frontier};
+pub use browser::snapshot_to_fetch_artifact;
 pub use crawl::{CrawlOutput, CrawlState, run_crawl};
 pub use extract::{Extractor, HtmlExtractor, run_extract, select_extractor};
 pub use fetch::{
@@ -18,6 +21,7 @@ pub use fetch::{
     map_transport_error, transport_for_url,
 };
 pub use frontier::{FrontierQueue, frontier_from_links};
+pub use inspect::inspect_artifact;
 pub use transaction::commit_page;
 
 use pandark_types::{CrawlError, CrawlReport, CrawlRequest, Result};

@@ -23,6 +23,10 @@ type NativeBinding = {
         exitCode: number;
         artifactJson: string;
     };
+    inspectFile: (inputPath: string, stage?: string) => {
+        exitCode: number;
+        reportJson: string;
+    };
 };
 
 const PLATFORM_PACKAGES: Record<string, string> = {
@@ -48,5 +52,6 @@ export function loadPandarkNode(): PandarkBindings {
         extractFile: (inputPath, sourceUrl) => binding.extractFile(inputPath, sourceUrl),
         crawlFile: (seed, maxDepth, maxRequests) => binding.crawlFile(seed, maxDepth, maxRequests),
         fetchSeed: (seed) => binding.fetchSeed(seed),
+        inspectFile: (inputPath, stage) => binding.inspectFile(inputPath, stage),
     };
 }

@@ -6,6 +6,7 @@ use pandark_types::{
 mod html;
 
 pub use html::HtmlExtractor;
+pub(crate) use html::extract_hrefs;
 
 /// Semantic extractor over fetch artifacts.
 pub trait Extractor {

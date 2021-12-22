@@ -135,7 +135,7 @@ fn collapse_whitespace(input: String) -> String {
     input.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn extract_hrefs(html: &str) -> Vec<String> {
+pub(crate) fn extract_hrefs(html: &str) -> Vec<String> {
     let mut hrefs = Vec::new();
     let lower = html.to_ascii_lowercase();
     let mut cursor = 0;

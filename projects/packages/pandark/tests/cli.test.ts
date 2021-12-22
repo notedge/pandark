@@ -37,6 +37,22 @@ test("doctor reports native binding when available", async () => {
     assert.equal(payload.checks.some((check: { id: string }) => check.id === "native"), true);
 });
 
+test("inspect reports links from local html", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const input = join(dir, "page.html");
+    await writeFile(
+        input,
+        '<html><body><a href="/docs">docs</a></body></html>',
+        "utf8",
+    );
+
+    const result = await runCli(["inspect", input, "--stage", "links", "--json"]);
+    assert.equal(result.code, 0);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.report.stage, "links");
+    assert.ok(payload.report.discovered_links.length >= 1);
+});
+
 test("extract writes document json from local html", async () => {
     const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
     const input = join(dir, "page.html");

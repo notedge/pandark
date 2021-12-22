@@ -30,4 +30,11 @@ export type PandarkBindings = {
         exitCode: number;
         artifactJson: string;
     };
+    inspectFile: (
+        inputPath: string,
+        stage?: string,
+    ) => {
+        exitCode: number;
+        reportJson: string;
+    };
 };

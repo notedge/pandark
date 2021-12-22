@@ -7,6 +7,7 @@ import { registerCrawlCommand } from "./commands/crawl-cmd.js";
 import { registerDoctorCommand } from "./commands/doctor-cmd.js";
 import { registerExtractCommand } from "./commands/extract-cmd.js";
 import { registerFetchCommand } from "./commands/fetch-cmd.js";
+import { registerInspectCommand } from "./commands/inspect-cmd.js";
 import { registerPlanCommand } from "./commands/plan-cmd.js";
 
 export function buildPandarkCli() {
@@ -19,6 +20,7 @@ export function buildPandarkCli() {
     registerFetchCommand(cli);
     registerCrawlCommand(cli);
     registerExtractCommand(cli);
+    registerInspectCommand(cli);
     registerDoctorCommand(cli);
 
     return cli;
