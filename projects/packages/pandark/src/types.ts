@@ -17,6 +17,17 @@ export type PandarkBindings = {
         documentJson?: string;
         reportJson: string;
     };
+    extractInput: (
+        inputPath: string,
+        from?: string,
+        sourceUrl?: string,
+        challengePolicy?: string,
+    ) => {
+        exitCode: number;
+        status: string;
+        documentJson?: string;
+        reportJson: string;
+    };
     crawlFile: (
         seed: string,
         maxDepth?: number,
@@ -33,6 +44,15 @@ export type PandarkBindings = {
     inspectFile: (
         inputPath: string,
         stage?: string,
+    ) => {
+        exitCode: number;
+        reportJson: string;
+    };
+    inspectInput: (
+        inputPath: string,
+        stage?: string,
+        from?: string,
+        challengePolicy?: string,
     ) => {
         exitCode: number;
         reportJson: string;

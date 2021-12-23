@@ -14,6 +14,12 @@ type NativeBinding = {
         documentJson?: string;
         reportJson: string;
     };
+    extractInput: (inputPath: string, from?: string, sourceUrl?: string, challengePolicy?: string) => {
+        exitCode: number;
+        status: string;
+        documentJson?: string;
+        reportJson: string;
+    };
     crawlFile: (seed: string, maxDepth?: number, maxRequests?: number) => {
         exitCode: number;
         reportJson: string;
@@ -24,6 +30,10 @@ type NativeBinding = {
         artifactJson: string;
     };
     inspectFile: (inputPath: string, stage?: string) => {
+        exitCode: number;
+        reportJson: string;
+    };
+    inspectInput: (inputPath: string, stage?: string, from?: string, challengePolicy?: string) => {
         exitCode: number;
         reportJson: string;
     };
@@ -50,8 +60,12 @@ export function loadPandarkNode(): PandarkBindings {
         pandarkVersion: () => binding.pandarkVersion(),
         planCrawl: (seed, maxDepth, maxRequests) => binding.planCrawl(seed, maxDepth, maxRequests),
         extractFile: (inputPath, sourceUrl) => binding.extractFile(inputPath, sourceUrl),
+        extractInput: (inputPath, from, sourceUrl, challengePolicy) =>
+            binding.extractInput(inputPath, from, sourceUrl, challengePolicy),
         crawlFile: (seed, maxDepth, maxRequests) => binding.crawlFile(seed, maxDepth, maxRequests),
         fetchSeed: (seed) => binding.fetchSeed(seed),
         inspectFile: (inputPath, stage) => binding.inspectFile(inputPath, stage),
+        inspectInput: (inputPath, stage, from, challengePolicy) =>
+            binding.inspectInput(inputPath, stage, from, challengePolicy),
     };
 }

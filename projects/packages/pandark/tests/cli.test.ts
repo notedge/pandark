@@ -53,6 +53,32 @@ test("inspect reports links from local html", async () => {
     assert.ok(payload.report.discovered_links.length >= 1);
 });
 
+test("extract reads browser snapshot json", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const input = join(dir, "page.snapshot.json");
+    const output = join(dir, "page.json");
+    await writeFile(
+        input,
+        JSON.stringify({
+            requested_url: "https://example.com/",
+            final_url: "https://example.com/",
+            document_html:
+                "<html><head><title>Snap</title></head><body><p>snap</p></body></html>",
+            captured_at_epoch: 1,
+            browser_engine: "fixture",
+            profile_id: "test",
+            challenge_state: "normal",
+        }),
+        "utf8",
+    );
+
+    const result = await runCli(["extract", input, "--from", "snapshot", "-o", output, "--json"]);
+    assert.equal(result.code, 0);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.status, "complete");
+    assert.ok(payload.document);
+});
+
 test("extract writes document json from local html", async () => {
     const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
     const input = join(dir, "page.html");

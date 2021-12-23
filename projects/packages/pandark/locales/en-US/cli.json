@@ -7,6 +7,7 @@
     "cli.cmd.inspect": "Probe extractors, links, or extract plan without writing IR",
     "cli.cmd.doctor": "Check CLI install, native bindings, and environment",
     "cli.opt.stage": "Inspect stage: probe, links, or extract-plan",
+    "cli.opt.from": "Input format: html, snapshot, or auto",
     "cli.opt.output": "Output file path",
     "cli.opt.report": "Write JSON report to a file",
     "cli.opt.json": "Emit machine-readable JSON on stdout",
