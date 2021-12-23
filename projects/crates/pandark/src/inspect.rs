@@ -1,6 +1,6 @@
 use pandark_types::{
-    ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact, InspectReport, InspectStage,
-    ProbeStatus,
+    apply_challenge_policy, BrowserSnapshot, ChallengePolicy, ExtractBudget, ExtractContext,
+    ExtractStatus, FetchArtifact, InspectReport, InspectStage, ProbeStatus,
 };
 
 use crate::extract::{Extractor, link_candidates_from_hrefs, run_extract, select_extractor};
@@ -43,6 +43,25 @@ pub fn inspect_artifact(
         }
     }
 
+    report
+}
+
+/// Inspect a browser snapshot without committing IR.
+pub fn inspect_snapshot(
+    snapshot: &BrowserSnapshot,
+    policy: ChallengePolicy,
+    extractors: &[&dyn Extractor],
+    stage: InspectStage,
+    budget: ExtractBudget,
+) -> InspectReport {
+    let mut report = inspect_artifact(
+        &crate::browser::snapshot_to_fetch_artifact(snapshot),
+        extractors,
+        stage,
+        budget,
+    );
+    report.challenge_state = Some(snapshot.challenge_state);
+    report.challenge_outcome = Some(apply_challenge_policy(snapshot.challenge_state, policy));
     report
 }
 
