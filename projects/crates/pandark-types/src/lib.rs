@@ -32,7 +32,9 @@ pub use crate::frontier::{
     AdmissionDecision, DiscoverySource, FrontierItem, LinkCandidate, LinkRelation,
 };
 pub use crate::inspect::{InspectReport, InspectStage};
-pub use crate::request::{CrawlBudget, CrawlRequest, CrawlSeed, PolitenessProfile};
+pub use crate::request::{
+    BrowserFallbackPolicy, CrawlBudget, CrawlRequest, CrawlSeed, PolitenessProfile,
+};
 pub use crate::result::{CrawlPageStatus, CrawlReport};
 pub use crate::url::{canonicalize_parsed_url, canonicalize_request_url, now_epoch, site_key};
 

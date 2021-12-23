@@ -31,6 +31,15 @@ pub enum CrawlEvent {
         /// Whether response came from cache.
         cache_hit: bool,
     },
+    /// HTTP fetch failed and a browser snapshot was used instead.
+    BrowserFallback {
+        /// Request URL that failed over HTTP.
+        url: Url,
+        /// Original fetch error message.
+        fetch_error: String,
+        /// Browser engine label from the snapshot provider.
+        browser_engine: String,
+    },
     /// Extractor finished.
     Extracted {
         /// Source URL.

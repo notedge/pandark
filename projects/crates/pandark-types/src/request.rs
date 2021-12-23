@@ -48,6 +48,17 @@ impl Default for CrawlBudget {
     }
 }
 
+/// When to invoke a configured browser provider during crawl.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum BrowserFallbackPolicy {
+    /// Never invoke browser fallback.
+    #[default]
+    Never,
+    /// Capture a browser snapshot when HTTP fetch fails.
+    OnFetchFailure,
+}
+
 /// User-facing crawl request.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CrawlRequest {
