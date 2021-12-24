@@ -8,6 +8,7 @@ import { ExitCode } from "../exit-codes.js";
 export function registerExtractCommand(cli: Cli): void {
     cli.command("extract", "cli.cmd.extract")
         .option("--from <format>", "cli.opt.from")
+        .option("--challenge-policy <policy>", "cli.opt.challengePolicy")
         .option("-o, --output <file>", "cli.opt.output")
         .option("--report <file>", "cli.opt.report")
         .option("--json", "cli.opt.json")
@@ -28,7 +29,9 @@ async function runExtract(options: ParsedOptions): Promise<number> {
     }
 
     const from = typeof options.from === "string" ? options.from : undefined;
-    const response = ctx.bindings.extractInput(inputPath, from);
+    const challengePolicy =
+        typeof options.challengePolicy === "string" ? options.challengePolicy : undefined;
+    const response = ctx.bindings.extractInput(inputPath, from, undefined, challengePolicy);
     const outputPath = typeof options.output === "string" ? options.output : undefined;
     const reportPath = typeof options.report === "string" ? options.report : undefined;
 

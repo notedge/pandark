@@ -6,6 +6,7 @@ import { ExitCode } from "../exit-codes.js";
 export function registerInspectCommand(cli: Cli): void {
     cli.command("inspect", "cli.cmd.inspect")
         .option("--from <format>", "cli.opt.from")
+        .option("--challenge-policy <policy>", "cli.opt.challengePolicy")
         .option("--stage <stage>", "cli.opt.stage")
         .option("--json", "cli.opt.json")
         .action((options: ParsedOptions) => runInspect(options));
@@ -26,7 +27,9 @@ function runInspect(options: ParsedOptions): number {
 
     const stage = typeof options.stage === "string" ? options.stage : undefined;
     const from = typeof options.from === "string" ? options.from : undefined;
-    const response = ctx.bindings.inspectInput(inputPath, stage, from);
+    const challengePolicy =
+        typeof options.challengePolicy === "string" ? options.challengePolicy : undefined;
+    const response = ctx.bindings.inspectInput(inputPath, stage, from, challengePolicy);
 
     if (options.json) {
         console.log(

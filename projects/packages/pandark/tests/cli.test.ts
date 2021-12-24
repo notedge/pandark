@@ -53,6 +53,71 @@ test("inspect reports links from local html", async () => {
     assert.ok(payload.report.discovered_links.length >= 1);
 });
 
+test("extract blocks login_required snapshot with stop policy", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const input = join(dir, "login.snapshot.json");
+    await writeFile(
+        input,
+        JSON.stringify({
+            requested_url: "https://example.com/private",
+            final_url: "https://example.com/login",
+            document_html: "<html><body>login</body></html>",
+            captured_at_epoch: 1,
+            browser_engine: "fixture",
+            profile_id: "test",
+            challenge_state: "login_required",
+        }),
+        "utf8",
+    );
+
+    const result = await runCli([
+        "extract",
+        input,
+        "--from",
+        "snapshot",
+        "--challenge-policy",
+        "stop",
+        "--json",
+    ]);
+    assert.equal(result.code, 2);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.status, "challenge_blocked");
+    assert.equal(payload.report.challenge_state, "login_required");
+    assert.equal(payload.report.challenge_outcome, "stop");
+});
+
+test("inspect reports challenge outcome for login snapshot", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const input = join(dir, "login.snapshot.json");
+    await writeFile(
+        input,
+        JSON.stringify({
+            requested_url: "https://example.com/private",
+            final_url: "https://example.com/login",
+            document_html: "<html><body>login</body></html>",
+            captured_at_epoch: 1,
+            browser_engine: "fixture",
+            profile_id: "test",
+            challenge_state: "login_required",
+        }),
+        "utf8",
+    );
+
+    const result = await runCli([
+        "inspect",
+        input,
+        "--from",
+        "snapshot",
+        "--challenge-policy",
+        "stop",
+        "--json",
+    ]);
+    assert.equal(result.code, 2);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.report.challenge_state, "login_required");
+    assert.equal(payload.report.challenge_outcome, "stop");
+});
+
 test("extract reads browser snapshot json", async () => {
     const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
     const input = join(dir, "page.snapshot.json");

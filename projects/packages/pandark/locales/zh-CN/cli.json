@@ -8,6 +8,7 @@
     "cli.cmd.doctor": "检查 CLI 安装、原生绑定与环境",
     "cli.opt.stage": "inspect 阶段：probe、links 或 extract-plan",
     "cli.opt.from": "输入格式：html、snapshot 或 auto",
+    "cli.opt.challengePolicy": "挑战策略：stop、pause-for-operator、skip-page、fallback-http",
     "cli.opt.output": "输出文件路径",
     "cli.opt.report": "将 JSON 报告写入文件",
     "cli.opt.json": "向标准输出打印机器可读 JSON",

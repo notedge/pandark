@@ -8,6 +8,7 @@
     "cli.cmd.doctor": "Check CLI install, native bindings, and environment",
     "cli.opt.stage": "Inspect stage: probe, links, or extract-plan",
     "cli.opt.from": "Input format: html, snapshot, or auto",
+    "cli.opt.challengePolicy": "Challenge policy: stop, pause-for-operator, skip-page, fallback-http",
     "cli.opt.output": "Output file path",
     "cli.opt.report": "Write JSON report to a file",
     "cli.opt.json": "Emit machine-readable JSON on stdout",
