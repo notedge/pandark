@@ -10,7 +10,7 @@ use crate::{
     run_extract, run_extract_from_snapshot,
 };
 use crate::fetch::{
-    FetchClient, FetchRequest, RobotsPolicy, Transport,
+    FetchClient, FetchRequest, RobotsPolicy,
     transport_for_url,
 };
 use pandark_types::PolitenessProfile;
@@ -141,8 +141,16 @@ pub fn inspect_input(
             inspect_snapshot(&snapshot, policy, &extractors, inspect_stage, budget)
         }
     };
+    let exit_code = if report
+        .challenge_outcome
+        .is_some_and(|outcome| outcome == pandark_types::ChallengeOutcome::Stop)
+    {
+        2
+    } else {
+        0
+    };
     Ok(InspectResponse {
-        exit_code: 0,
+        exit_code,
         report_json: serde_json::to_string(&report).map_err(map_serde_error)?,
     })
 }

@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
+use crate::browser::{BrowserProvider, snapshot_to_fetch_artifact};
 use crate::fetch::{FetchClient, FetchRequest, RobotsPolicy, Transport};
 use pandark_types::{
-    AdmissionDecision, CrawlEvent, CrawlReport, CrawlRequest, ExtractBudget, ExtractContext,
-    ExtractStatus, FetchArtifact, FrontierItem, Result,
+    AdmissionDecision, BrowserFallbackPolicy, CrawlEvent, CrawlReport, CrawlRequest, ExtractBudget,
+    ExtractContext, ExtractStatus, FetchArtifact, FrontierItem, Result,
 };
 
 use crate::admission::{admit_frontier_item, seed_frontier};
@@ -12,6 +13,15 @@ use crate::frontier::{FrontierQueue, frontier_from_links};
 use crate::initial_report;
 use crate::transaction::commit_page;
 use pandark_types::PageTransaction;
+
+/// Optional browser and fallback settings for a crawl run.
+#[derive(Clone, Copy, Default)]
+pub struct CrawlOptions<'a> {
+    /// Browser provider used when fallback policy allows it.
+    pub browser: Option<&'a dyn BrowserProvider>,
+    /// When to invoke the browser provider.
+    pub browser_fallback: BrowserFallbackPolicy,
+}
 
 /// Mutable crawl session state for checkpointing.
 #[derive(Debug, Clone)]
@@ -42,6 +52,16 @@ pub fn run_crawl<T: Transport>(
     request: CrawlRequest,
     transport: T,
     extractors: &[&dyn Extractor],
+) -> Result<CrawlOutput> {
+    run_crawl_with_options(request, transport, extractors, CrawlOptions::default())
+}
+
+/// Run a bounded crawl with optional browser fallback.
+pub fn run_crawl_with_options<T: Transport>(
+    request: CrawlRequest,
+    transport: T,
+    extractors: &[&dyn Extractor],
+    options: CrawlOptions<'_>,
 ) -> Result<CrawlOutput> {
     let mut state = CrawlState {
         request: request.clone(),
@@ -87,80 +107,38 @@ pub fn run_crawl<T: Transport>(
         let artifact = match client.fetch(&fetch_request) {
             Ok(artifact) => artifact,
             Err(error) => {
-                state.report.failed += 1;
-                state.report.events.push(CrawlEvent::Failed {
-                    url: item.request_url.clone(),
-                    reason: error.to_string(),
-                });
-                continue;
+                let fetch_error = error.to_string();
+                match try_browser_fallback(&item, options) {
+                    Some((artifact, browser_engine)) => {
+                        state.report.events.push(CrawlEvent::BrowserFallback {
+                            url: item.request_url.clone(),
+                            fetch_error,
+                            browser_engine,
+                        });
+                        artifact
+                    }
+                    None => {
+                        state.report.failed += 1;
+                        state.report.events.push(CrawlEvent::Failed {
+                            url: item.request_url.clone(),
+                            reason: fetch_error,
+                        });
+                        continue;
+                    }
+                }
             }
         };
 
-        let cache_hit = artifact.transport_provenance
-            == pandark_types::TransportProvenance::CacheHit;
-        state.report.events.push(CrawlEvent::Fetched {
-            url: artifact.final_url.clone(),
-            status: artifact.status,
-            cache_hit,
-        });
-        artifacts.push(artifact.clone());
-
-        let extract = run_extract(
-            &artifact,
+        process_fetched_item(
+            &mut state,
+            &item,
+            artifact,
             extractors,
             extract_budget,
-            &ExtractContext {
-                page_identity: Some(item.request_url.to_string()),
-            },
-        );
-        state.report.events.push(CrawlEvent::Extracted {
-            url: extract.source_url.clone(),
-            status: extract.status,
-            extractor: extract.extractor.clone(),
-        });
-
-        if matches!(extract.status, ExtractStatus::Failed | ExtractStatus::Unsupported) {
-            state.report.failed += 1;
-            continue;
-        }
-
-        state.report.extracted += 1;
-        let discovered = extract.discovered_links.clone();
-        let page_identity = item.request_url.to_string();
-        let transaction = PageTransaction {
-            page_identity: page_identity.clone(),
-            extract,
-            discovered_links: discovered.clone(),
-        };
-        match commit_page(transaction) {
-            Ok(committed_identity) => {
-                state.report.committed += 1;
-                state.report.events.push(CrawlEvent::Committed {
-                    page_identity: committed_identity.clone(),
-                });
-                committed_pages.push(committed_identity);
-            }
-            Err(error) => {
-                state.report.failed += 1;
-                state.report.events.push(CrawlEvent::Failed {
-                    url: item.request_url.clone(),
-                    reason: error.to_string(),
-                });
-                continue;
-            }
-        }
-
-        for next in frontier_from_links(
-            &mut state.queue,
-            &item,
-            &discovered,
+            &mut committed_pages,
+            &mut artifacts,
             request.budget.max_depth,
-        ) {
-            state.report.events.push(CrawlEvent::Discovered {
-                url: next.request_url.clone(),
-                depth: next.depth,
-            });
-        }
+        );
     }
 
     Ok(CrawlOutput {
@@ -168,6 +146,90 @@ pub fn run_crawl<T: Transport>(
         committed_pages,
         artifacts,
     })
+}
+
+fn try_browser_fallback(
+    item: &FrontierItem,
+    options: CrawlOptions<'_>,
+) -> Option<(FetchArtifact, String)> {
+    if options.browser_fallback != BrowserFallbackPolicy::OnFetchFailure {
+        return None;
+    }
+    let browser = options.browser?;
+    let snapshot = browser.capture_snapshot(&item.request_url).ok()?;
+    let engine = snapshot.browser_engine.clone();
+    Some((snapshot_to_fetch_artifact(&snapshot), engine))
+}
+
+fn process_fetched_item(
+    state: &mut CrawlState,
+    item: &FrontierItem,
+    artifact: FetchArtifact,
+    extractors: &[&dyn Extractor],
+    extract_budget: ExtractBudget,
+    committed_pages: &mut Vec<String>,
+    artifacts: &mut Vec<FetchArtifact>,
+    max_depth: u32,
+) {
+    let cache_hit = artifact.transport_provenance == pandark_types::TransportProvenance::CacheHit;
+    state.report.events.push(CrawlEvent::Fetched {
+        url: artifact.final_url.clone(),
+        status: artifact.status,
+        cache_hit,
+    });
+    artifacts.push(artifact.clone());
+
+    let extract = run_extract(
+        &artifact,
+        extractors,
+        extract_budget,
+        &ExtractContext {
+            page_identity: Some(item.request_url.to_string()),
+        },
+    );
+    state.report.events.push(CrawlEvent::Extracted {
+        url: extract.source_url.clone(),
+        status: extract.status,
+        extractor: extract.extractor.clone(),
+    });
+
+    if matches!(extract.status, ExtractStatus::Failed | ExtractStatus::Unsupported) {
+        state.report.failed += 1;
+        return;
+    }
+
+    state.report.extracted += 1;
+    let discovered = extract.discovered_links.clone();
+    let page_identity = item.request_url.to_string();
+    let transaction = PageTransaction {
+        page_identity: page_identity.clone(),
+        extract,
+        discovered_links: discovered.clone(),
+    };
+    match commit_page(transaction) {
+        Ok(committed_identity) => {
+            state.report.committed += 1;
+            state.report.events.push(CrawlEvent::Committed {
+                page_identity: committed_identity.clone(),
+            });
+            committed_pages.push(committed_identity);
+        }
+        Err(error) => {
+            state.report.failed += 1;
+            state.report.events.push(CrawlEvent::Failed {
+                url: item.request_url.clone(),
+                reason: error.to_string(),
+            });
+            return;
+        }
+    }
+
+    for next in frontier_from_links(&mut state.queue, item, &discovered, max_depth) {
+        state.report.events.push(CrawlEvent::Discovered {
+            url: next.request_url.clone(),
+            depth: next.depth,
+        });
+    }
 }
 
 fn record_skipped(state: &mut CrawlState, item: &FrontierItem, reason: &str) {
@@ -183,7 +245,9 @@ mod tests {
     use crate::fetch::{MemoryEntry, MemoryTransport};
 
     use super::*;
-    use crate::{HtmlExtractor, run_extract};
+    use crate::{FixtureBrowserProvider, HtmlExtractor, run_extract};
+    use pandark_types::{BrowserSnapshot, PageChallengeState};
+    use url::Url;
 
     #[test]
     fn crawls_linked_html_pages_offline() {
@@ -211,6 +275,46 @@ mod tests {
         let output = run_crawl(request, transport, &extractors).expect("crawl");
         assert_eq!(output.report.committed, 2);
         assert_eq!(output.committed_pages.len(), 2);
+    }
+
+    #[test]
+    fn browser_fallback_commits_when_http_fetch_missing() {
+        let transport = MemoryTransport::new();
+        let mut browser = FixtureBrowserProvider::new();
+        browser.insert(BrowserSnapshot {
+            requested_url: Url::parse("https://example.com/js-page").expect("url"),
+            final_url: Url::parse("https://example.com/js-page").expect("url"),
+            document_html:
+                "<html><head><title>JS</title></head><body><p>rendered</p></body></html>"
+                    .into(),
+            captured_at_epoch: 1,
+            browser_engine: "fixture".into(),
+            profile_id: "test".into(),
+            challenge_state: PageChallengeState::Normal,
+        });
+
+        let request = CrawlRequest::from_seed("https://example.com/js-page").expect("seed");
+        let html = HtmlExtractor;
+        let extractors: [&dyn Extractor; 1] = [&html];
+        let output = run_crawl_with_options(
+            request,
+            transport,
+            &extractors,
+            CrawlOptions {
+                browser: Some(&browser),
+                browser_fallback: BrowserFallbackPolicy::OnFetchFailure,
+            },
+        )
+        .expect("crawl");
+        assert_eq!(output.report.committed, 1);
+        assert!(
+            output
+                .report
+                .events
+                .events()
+                .iter()
+                .any(|event| matches!(event, CrawlEvent::BrowserFallback { .. }))
+        );
     }
 
     #[test]

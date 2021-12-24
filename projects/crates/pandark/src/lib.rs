@@ -17,7 +17,7 @@ pub use browser::{
     BrowserProvider, ChallengeBlocked, FixtureBrowserProvider, load_snapshot_json,
     path_looks_like_snapshot, run_extract_from_snapshot, snapshot_to_fetch_artifact,
 };
-pub use crawl::{CrawlOutput, CrawlState, run_crawl};
+pub use crawl::{CrawlOptions, CrawlOutput, CrawlState, run_crawl, run_crawl_with_options};
 pub use extract::{Extractor, HtmlExtractor, run_extract, select_extractor};
 pub use fetch::{
     FetchClient, FetchRequest, FileTransport, HttpTransport, MemoryEntry, MemoryTransport,
