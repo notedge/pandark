@@ -4,7 +4,7 @@ mod snapshot_io;
 
 pub use extract::{ChallengeBlocked, run_extract_from_snapshot};
 pub use provider::{BrowserProvider, FixtureBrowserProvider};
-pub use snapshot_io::{load_snapshot_json, path_looks_like_snapshot};
+pub use snapshot_io::{load_fixture_provider_from_dir, load_snapshot_json, path_looks_like_snapshot};
 
 use std::collections::BTreeMap;
 
