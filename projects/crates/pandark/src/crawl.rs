@@ -3,8 +3,9 @@ use std::collections::BTreeMap;
 use crate::browser::{BrowserProvider, snapshot_to_fetch_artifact};
 use crate::fetch::{FetchClient, FetchRequest, RobotsPolicy, Transport};
 use pandark_types::{
-    AdmissionDecision, BrowserFallbackPolicy, CrawlEvent, CrawlReport, CrawlRequest, ExtractBudget,
-    ExtractContext, ExtractStatus, FetchArtifact, FrontierItem, Result,
+    AdmissionDecision, apply_challenge_policy, BrowserFallbackPolicy, ChallengeOutcome,
+    ChallengePolicy, CrawlEvent, CrawlReport, CrawlRequest, ExtractBudget, ExtractContext,
+    ExtractStatus, FetchArtifact, FrontierItem, PageChallengeState, Result,
 };
 
 use crate::admission::{admit_frontier_item, seed_frontier};
@@ -15,12 +16,24 @@ use crate::transaction::commit_page;
 use pandark_types::PageTransaction;
 
 /// Optional browser and fallback settings for a crawl run.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct CrawlOptions<'a> {
     /// Browser provider used when fallback policy allows it.
     pub browser: Option<&'a dyn BrowserProvider>,
     /// When to invoke the browser provider.
     pub browser_fallback: BrowserFallbackPolicy,
+    /// Challenge handling for browser snapshots.
+    pub challenge_policy: ChallengePolicy,
+}
+
+impl<'a> Default for CrawlOptions<'a> {
+    fn default() -> Self {
+        Self {
+            browser: None,
+            browser_fallback: BrowserFallbackPolicy::Never,
+            challenge_policy: ChallengePolicy::Stop,
+        }
+    }
 }
 
 /// Mutable crawl session state for checkpointing.
@@ -109,13 +122,27 @@ pub fn run_crawl_with_options<T: Transport>(
             Err(error) => {
                 let fetch_error = error.to_string();
                 match try_browser_fallback(&item, options) {
-                    Some((artifact, browser_engine)) => {
+                    Some((snapshot, browser_engine)) => {
                         state.report.events.push(CrawlEvent::BrowserFallback {
                             url: item.request_url.clone(),
                             fetch_error,
                             browser_engine,
                         });
-                        artifact
+                        match resolve_browser_snapshot(snapshot, options.challenge_policy) {
+                            BrowserPageAction::Proceed(artifact) => artifact,
+                            BrowserPageAction::Skip(reason) => {
+                                record_skipped(&mut state, &item, &reason);
+                                continue;
+                            }
+                            BrowserPageAction::Fail(reason) => {
+                                state.report.failed += 1;
+                                state.report.events.push(CrawlEvent::Failed {
+                                    url: item.request_url.clone(),
+                                    reason,
+                                });
+                                continue;
+                            }
+                        }
                     }
                     None => {
                         state.report.failed += 1;
@@ -151,14 +178,46 @@ pub fn run_crawl_with_options<T: Transport>(
 fn try_browser_fallback(
     item: &FrontierItem,
     options: CrawlOptions<'_>,
-) -> Option<(FetchArtifact, String)> {
+) -> Option<(pandark_types::BrowserSnapshot, String)> {
     if options.browser_fallback != BrowserFallbackPolicy::OnFetchFailure {
         return None;
     }
     let browser = options.browser?;
     let snapshot = browser.capture_snapshot(&item.request_url).ok()?;
     let engine = snapshot.browser_engine.clone();
-    Some((snapshot_to_fetch_artifact(&snapshot), engine))
+    Some((snapshot, engine))
+}
+
+enum BrowserPageAction {
+    Proceed(FetchArtifact),
+    Skip(String),
+    Fail(String),
+}
+
+fn resolve_browser_snapshot(
+    snapshot: pandark_types::BrowserSnapshot,
+    policy: ChallengePolicy,
+) -> BrowserPageAction {
+    let outcome = apply_challenge_policy(snapshot.challenge_state, policy);
+    match outcome {
+        ChallengeOutcome::Proceed => {
+            BrowserPageAction::Proceed(snapshot_to_fetch_artifact(&snapshot))
+        }
+        ChallengeOutcome::Skip => BrowserPageAction::Skip(challenge_reason(
+            "skipped",
+            snapshot.challenge_state,
+        )),
+        ChallengeOutcome::Stop | ChallengeOutcome::PauseForOperator => BrowserPageAction::Fail(
+            challenge_reason("blocked", snapshot.challenge_state),
+        ),
+        ChallengeOutcome::FallbackHttp => BrowserPageAction::Fail(
+            "challenge-fallback-http-unavailable".into(),
+        ),
+    }
+}
+
+fn challenge_reason(prefix: &str, state: PageChallengeState) -> String {
+    format!("{prefix}:{}", serde_json::to_string(&state).unwrap_or_else(|_| "unknown".into()))
 }
 
 fn process_fetched_item(
@@ -246,7 +305,7 @@ mod tests {
 
     use super::*;
     use crate::{FixtureBrowserProvider, HtmlExtractor, run_extract};
-    use pandark_types::{BrowserSnapshot, PageChallengeState};
+    use pandark_types::{BrowserSnapshot, ChallengePolicy, PageChallengeState};
     use url::Url;
 
     #[test]
@@ -303,6 +362,7 @@ mod tests {
             CrawlOptions {
                 browser: Some(&browser),
                 browser_fallback: BrowserFallbackPolicy::OnFetchFailure,
+                challenge_policy: ChallengePolicy::Stop,
             },
         )
         .expect("crawl");
@@ -315,6 +375,72 @@ mod tests {
                 .iter()
                 .any(|event| matches!(event, CrawlEvent::BrowserFallback { .. }))
         );
+    }
+
+    #[test]
+    fn browser_fallback_skips_challenge_page_when_policy_allows() {
+        let transport = MemoryTransport::new();
+        let mut browser = FixtureBrowserProvider::new();
+        browser.insert(BrowserSnapshot {
+            requested_url: Url::parse("https://example.com/private").expect("url"),
+            final_url: Url::parse("https://example.com/login").expect("url"),
+            document_html: "<html><body>login</body></html>".into(),
+            captured_at_epoch: 1,
+            browser_engine: "fixture".into(),
+            profile_id: "test".into(),
+            challenge_state: PageChallengeState::LoginRequired,
+        });
+
+        let request = CrawlRequest::from_seed("https://example.com/private").expect("seed");
+        let html = HtmlExtractor;
+        let extractors: [&dyn Extractor; 1] = [&html];
+        let output = run_crawl_with_options(
+            request,
+            transport,
+            &extractors,
+            CrawlOptions {
+                browser: Some(&browser),
+                browser_fallback: BrowserFallbackPolicy::OnFetchFailure,
+                challenge_policy: ChallengePolicy::SkipPage,
+            },
+        )
+        .expect("crawl");
+        assert_eq!(output.report.skipped, 1);
+        assert_eq!(output.report.failed, 0);
+        assert_eq!(output.report.committed, 0);
+    }
+
+    #[test]
+    fn browser_fallback_fails_challenge_page_when_policy_stops() {
+        let transport = MemoryTransport::new();
+        let mut browser = FixtureBrowserProvider::new();
+        browser.insert(BrowserSnapshot {
+            requested_url: Url::parse("https://example.com/private").expect("url"),
+            final_url: Url::parse("https://example.com/login").expect("url"),
+            document_html: "<html><body>login</body></html>".into(),
+            captured_at_epoch: 1,
+            browser_engine: "fixture".into(),
+            profile_id: "test".into(),
+            challenge_state: PageChallengeState::LoginRequired,
+        });
+
+        let request = CrawlRequest::from_seed("https://example.com/private").expect("seed");
+        let html = HtmlExtractor;
+        let extractors: [&dyn Extractor; 1] = [&html];
+        let output = run_crawl_with_options(
+            request,
+            transport,
+            &extractors,
+            CrawlOptions {
+                browser: Some(&browser),
+                browser_fallback: BrowserFallbackPolicy::OnFetchFailure,
+                challenge_policy: ChallengePolicy::Stop,
+            },
+        )
+        .expect("crawl");
+        assert_eq!(output.report.skipped, 0);
+        assert_eq!(output.report.failed, 1);
+        assert_eq!(output.report.committed, 0);
     }
 
     #[test]
