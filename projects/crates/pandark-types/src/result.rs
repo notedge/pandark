@@ -30,6 +30,8 @@ pub struct CrawlReport {
     pub failed: u32,
     /// Pages skipped by policy or budget.
     pub skipped: u32,
+    /// Pages paused awaiting operator action.
+    pub paused: u32,
     /// Pages committed to persistent storage.
     pub committed: u32,
     /// Structured event log snapshot.
@@ -45,6 +47,7 @@ impl CrawlReport {
             extracted: 0,
             failed: 0,
             skipped: 0,
+            paused: 0,
             committed: 0,
             events: EventLog::new(),
         }

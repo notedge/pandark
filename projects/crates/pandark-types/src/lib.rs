@@ -5,6 +5,7 @@
 mod artifact;
 mod browser;
 mod challenge;
+mod checkpoint;
 mod error;
 mod events;
 mod extract;
@@ -22,6 +23,7 @@ pub use crate::browser::{
     PageChallengeState, SessionPersistence,
 };
 pub use crate::challenge::{ChallengeOutcome, apply_challenge_policy};
+pub use crate::checkpoint::CrawlCheckpoint;
 pub use crate::error::{CrawlError, Result};
 pub use crate::events::{CrawlEvent, EventLog, PageTransaction};
 pub use crate::extract::{

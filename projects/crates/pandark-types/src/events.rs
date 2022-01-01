@@ -68,6 +68,13 @@ pub enum CrawlEvent {
         /// Machine-readable reason.
         reason: String,
     },
+    /// Challenge requires operator action before the page can proceed.
+    PausedForOperator {
+        /// Request URL awaiting operator input.
+        url: Url,
+        /// Detected challenge state.
+        challenge_state: crate::browser::PageChallengeState,
+    },
 }
 
 /// In-memory event log for reports and tests.
