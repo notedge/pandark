@@ -4,9 +4,11 @@ use std::path::PathBuf;
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
+use crate::CrawlOptions;
 use crate::{
     ChallengeBlocked, Extractor, HtmlExtractor, LoadedInput, initial_report, inspect_artifact,
-    inspect_snapshot, load_input, parse_input_format, plan_crawl as build_plan, run_crawl,
+    inspect_snapshot, load_fixture_provider_from_dir, load_input, parse_input_format,
+    plan_crawl as build_plan, run_crawl_with_options,
     run_extract, run_extract_from_snapshot,
 };
 use crate::fetch::{
@@ -15,8 +17,8 @@ use crate::fetch::{
 };
 use pandark_types::PolitenessProfile;
 use pandark_types::{
-    ChallengePolicy, CrawlRequest, ExtractBudget, ExtractContext, ExtractStatus,
-    InspectStage,
+    BrowserFallbackPolicy, ChallengePolicy, CrawlRequest, ExtractBudget, ExtractContext,
+    ExtractStatus, InspectStage,
 };
 use url::Url;
 
@@ -186,6 +188,9 @@ pub fn crawl_file(
     seed: String,
     max_depth: Option<u32>,
     max_requests: Option<u32>,
+    browser_fixtures_dir: Option<String>,
+    browser_fallback: Option<String>,
+    challenge_policy: Option<String>,
 ) -> Result<CrawlResponse> {
     let request = parse_request(&seed, max_depth, max_requests)?;
     let seed_url = request
@@ -195,7 +200,23 @@ pub fn crawl_file(
     let transport = transport_for_url(&seed_url.url).map_err(map_crawl_error)?;
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
-    let output = run_crawl(request, transport, &extractors).map_err(map_crawl_error)?;
+
+    let fixture_provider = match browser_fixtures_dir {
+        Some(dir) => Some(
+            load_fixture_provider_from_dir(&dir).map_err(map_crawl_error)?,
+        ),
+        None => None,
+    };
+    let options = CrawlOptions {
+        browser: fixture_provider
+            .as_ref()
+            .map(|provider| provider as &dyn crate::BrowserProvider),
+        browser_fallback: parse_browser_fallback(browser_fallback.as_deref())?,
+        challenge_policy: parse_challenge_policy(challenge_policy.as_deref())?,
+    };
+
+    let output =
+        run_crawl_with_options(request, transport, &extractors, options).map_err(map_crawl_error)?;
     let exit_code = if output.report.failed > 0 {
         2
     } else if output.report.skipped > 0 {
@@ -281,6 +302,14 @@ fn parse_challenge_policy(policy: Option<&str>) -> Result<ChallengePolicy> {
         "fallback_http" | "fallback-http" => Ok(ChallengePolicy::FallbackHttp),
         "skip_page" | "skip-page" => Ok(ChallengePolicy::SkipPage),
         other => Err(Error::from_reason(format!("unsupported challenge policy `{other}`"))),
+    }
+}
+
+fn parse_browser_fallback(policy: Option<&str>) -> Result<BrowserFallbackPolicy> {
+    match policy.unwrap_or("never") {
+        "never" => Ok(BrowserFallbackPolicy::Never),
+        "on_fetch_failure" | "on-fetch-failure" => Ok(BrowserFallbackPolicy::OnFetchFailure),
+        other => Err(Error::from_reason(format!("unsupported browser fallback `{other}`"))),
     }
 }
 

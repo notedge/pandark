@@ -13,5 +13,7 @@
     "cli.opt.report": "Write JSON report to a file",
     "cli.opt.json": "Emit machine-readable JSON on stdout",
     "cli.opt.depth": "Maximum crawl depth from seeds",
-    "cli.opt.budget": "Maximum HTTP requests including assets"
+    "cli.opt.budget": "Maximum HTTP requests including assets",
+    "cli.opt.browserFixturesDir": "Directory of browser snapshot JSON fixtures for crawl fallback",
+    "cli.opt.browserFallback": "Browser fallback policy: never or on-fetch-failure"
 }

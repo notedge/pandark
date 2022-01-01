@@ -9,6 +9,9 @@ export function registerCrawlCommand(cli: Cli): void {
     cli.command("crawl", "cli.cmd.crawl")
         .option("--depth <n>", "cli.opt.depth")
         .option("--budget <n>", "cli.opt.budget")
+        .option("--browser-fixtures-dir <dir>", "cli.opt.browserFixturesDir")
+        .option("--browser-fallback <policy>", "cli.opt.browserFallback")
+        .option("--challenge-policy <policy>", "cli.opt.challengePolicy")
         .option("--report <file>", "cli.opt.report")
         .option("--json", "cli.opt.json")
         .action((options: ParsedOptions) => runCrawl(options));
@@ -29,7 +32,20 @@ async function runCrawl(options: ParsedOptions): Promise<number> {
 
     const maxDepth = readOptionalNumber(options.depth);
     const maxRequests = readOptionalNumber(options.budget);
-    const response = ctx.bindings.crawlFile(seed, maxDepth, maxRequests);
+    const browserFixturesDir =
+        typeof options.browserFixturesDir === "string" ? options.browserFixturesDir : undefined;
+    const browserFallback =
+        typeof options.browserFallback === "string" ? options.browserFallback : undefined;
+    const challengePolicy =
+        typeof options.challengePolicy === "string" ? options.challengePolicy : undefined;
+    const response = ctx.bindings.crawlFile(
+        seed,
+        maxDepth,
+        maxRequests,
+        browserFixturesDir,
+        browserFallback,
+        challengePolicy,
+    );
     const reportPath = typeof options.report === "string" ? options.report : undefined;
 
     if (reportPath) {

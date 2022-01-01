@@ -13,5 +13,7 @@
     "cli.opt.report": "将 JSON 报告写入文件",
     "cli.opt.json": "向标准输出打印机器可读 JSON",
     "cli.opt.depth": "从种子出发的最大抓取深度",
-    "cli.opt.budget": "包含资产在内的最大 HTTP 请求数"
+    "cli.opt.budget": "包含资产在内的最大 HTTP 请求数",
+    "cli.opt.browserFixturesDir": "抓取降级时使用的浏览器 snapshot JSON 目录",
+    "cli.opt.browserFallback": "浏览器降级策略：never 或 on-fetch-failure"
 }

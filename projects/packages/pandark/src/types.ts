@@ -32,6 +32,9 @@ export type PandarkBindings = {
         seed: string,
         maxDepth?: number,
         maxRequests?: number,
+        browserFixturesDir?: string,
+        browserFallback?: string,
+        challengePolicy?: string,
     ) => {
         exitCode: number;
         reportJson: string;
