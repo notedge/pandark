@@ -30,6 +30,14 @@ impl FrontierQueue {
         true
     }
 
+    /// Re-enqueue a frontier item after operator resume, replacing any pending copy.
+    pub fn requeue(&mut self, item: FrontierItem) {
+        let key = item.request_url.to_string();
+        self.pending.retain(|pending| pending.request_url.to_string() != key);
+        self.seen.remove(&key);
+        self.push(item);
+    }
+
     /// Pop the next frontier item by priority then discovery time.
     pub fn pop(&mut self) -> Option<FrontierItem> {
         if self.pending.is_empty() {
@@ -48,6 +56,21 @@ impl FrontierQueue {
     /// Number of pending items.
     pub fn len(&self) -> usize {
         self.pending.len()
+    }
+
+    /// Pending frontier items in scheduling order.
+    pub fn pending_items(&self) -> &[FrontierItem] {
+        &self.pending
+    }
+
+    /// Replace queue contents from a checkpoint frontier list.
+    pub fn restore(&mut self, pending: Vec<FrontierItem>) {
+        self.seen.clear();
+        self.pending.clear();
+        for item in pending {
+            self.seen.insert(item.request_url.to_string());
+            self.pending.push(item);
+        }
     }
 }
 

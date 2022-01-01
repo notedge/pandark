@@ -4,8 +4,8 @@ use crate::browser::{BrowserProvider, snapshot_to_fetch_artifact};
 use crate::fetch::{FetchClient, FetchRequest, RobotsPolicy, Transport};
 use pandark_types::{
     AdmissionDecision, apply_challenge_policy, BrowserFallbackPolicy, ChallengeOutcome,
-    ChallengePolicy, CrawlEvent, CrawlReport, CrawlRequest, ExtractBudget, ExtractContext,
-    ExtractStatus, FetchArtifact, FrontierItem, PageChallengeState, Result,
+    ChallengePolicy, CrawlCheckpoint, CrawlEvent, CrawlReport, CrawlRequest, ExtractBudget,
+    ExtractContext, ExtractStatus, FetchArtifact, FrontierItem, PageChallengeState, Result,
 };
 
 use crate::admission::{admit_frontier_item, seed_frontier};
@@ -47,6 +47,8 @@ pub struct CrawlState {
     pub requests_used: u32,
     /// Accumulated report.
     pub report: CrawlReport,
+    /// Last frontier item paused for operator action.
+    pub last_paused_item: Option<FrontierItem>,
 }
 
 /// Output of a crawl run.
@@ -58,6 +60,8 @@ pub struct CrawlOutput {
     pub committed_pages: Vec<String>,
     /// Artifacts available for offline re-extract.
     pub artifacts: Vec<FetchArtifact>,
+    /// Checkpoint when the run paused for operator action.
+    pub checkpoint: Option<CrawlCheckpoint>,
 }
 
 /// Run a bounded crawl using the provided transport.
@@ -81,6 +85,7 @@ pub fn run_crawl_with_options<T: Transport>(
         queue: FrontierQueue::new(),
         requests_used: 0,
         report: initial_report(&request)?,
+        last_paused_item: None,
     };
 
     for item in seed_frontier(&request)? {
@@ -91,6 +96,37 @@ pub fn run_crawl_with_options<T: Transport>(
         state.queue.push(item);
     }
 
+    run_crawl_loop(state, transport, extractors, options)
+}
+
+/// Resume a crawl from a saved checkpoint.
+pub fn resume_crawl_from_checkpoint<T: Transport>(
+    checkpoint: CrawlCheckpoint,
+    transport: T,
+    extractors: &[&dyn Extractor],
+    options: CrawlOptions<'_>,
+) -> Result<CrawlOutput> {
+    let mut state = CrawlState {
+        request: checkpoint.request,
+        queue: FrontierQueue::new(),
+        requests_used: checkpoint.requests_used,
+        report: checkpoint.report,
+        last_paused_item: checkpoint.paused_item.clone(),
+    };
+    state.queue.restore(checkpoint.pending_frontier);
+    if let Some(item) = checkpoint.paused_item {
+        state.queue.requeue(item);
+    }
+    run_crawl_loop(state, transport, extractors, options)
+}
+
+fn run_crawl_loop<T: Transport>(
+    mut state: CrawlState,
+    transport: T,
+    extractors: &[&dyn Extractor],
+    options: CrawlOptions<'_>,
+) -> Result<CrawlOutput> {
+    let request = state.request.clone();
     let mut client = FetchClient::new(transport, RobotsPolicy::from_profile(request.politeness));
     let mut committed_pages = Vec::new();
     let mut artifacts = Vec::new();
@@ -134,6 +170,10 @@ pub fn run_crawl_with_options<T: Transport>(
                                 record_skipped(&mut state, &item, &reason);
                                 continue;
                             }
+                            BrowserPageAction::Pause(challenge_state) => {
+                                record_paused(&mut state, &item, challenge_state);
+                                continue;
+                            }
                             BrowserPageAction::Fail(reason) => {
                                 state.report.failed += 1;
                                 state.report.events.push(CrawlEvent::Failed {
@@ -168,10 +208,17 @@ pub fn run_crawl_with_options<T: Transport>(
         );
     }
 
+    let checkpoint = if state.last_paused_item.is_some() {
+        Some(build_checkpoint(&state))
+    } else {
+        None
+    };
+
     Ok(CrawlOutput {
         report: state.report,
         committed_pages,
         artifacts,
+        checkpoint,
     })
 }
 
@@ -191,6 +238,7 @@ fn try_browser_fallback(
 enum BrowserPageAction {
     Proceed(FetchArtifact),
     Skip(String),
+    Pause(PageChallengeState),
     Fail(String),
 }
 
@@ -198,18 +246,19 @@ fn resolve_browser_snapshot(
     snapshot: pandark_types::BrowserSnapshot,
     policy: ChallengePolicy,
 ) -> BrowserPageAction {
-    let outcome = apply_challenge_policy(snapshot.challenge_state, policy);
+    let challenge_state = snapshot.challenge_state;
+    let outcome = apply_challenge_policy(challenge_state, policy);
     match outcome {
         ChallengeOutcome::Proceed => {
             BrowserPageAction::Proceed(snapshot_to_fetch_artifact(&snapshot))
         }
-        ChallengeOutcome::Skip => BrowserPageAction::Skip(challenge_reason(
-            "skipped",
-            snapshot.challenge_state,
-        )),
-        ChallengeOutcome::Stop | ChallengeOutcome::PauseForOperator => BrowserPageAction::Fail(
-            challenge_reason("blocked", snapshot.challenge_state),
-        ),
+        ChallengeOutcome::Skip => {
+            BrowserPageAction::Skip(challenge_reason("skipped", challenge_state))
+        }
+        ChallengeOutcome::PauseForOperator => BrowserPageAction::Pause(challenge_state),
+        ChallengeOutcome::Stop => {
+            BrowserPageAction::Fail(challenge_reason("blocked", challenge_state))
+        }
         ChallengeOutcome::FallbackHttp => BrowserPageAction::Fail(
             "challenge-fallback-http-unavailable".into(),
         ),
@@ -272,6 +321,13 @@ fn process_fetched_item(
                 page_identity: committed_identity.clone(),
             });
             committed_pages.push(committed_identity);
+            if state
+                .last_paused_item
+                .as_ref()
+                .is_some_and(|paused| paused.request_url == item.request_url)
+            {
+                state.last_paused_item = None;
+            }
         }
         Err(error) => {
             state.report.failed += 1;
@@ -299,12 +355,48 @@ fn record_skipped(state: &mut CrawlState, item: &FrontierItem, reason: &str) {
     });
 }
 
+fn record_paused(state: &mut CrawlState, item: &FrontierItem, challenge_state: PageChallengeState) {
+    state.requests_used = state.requests_used.saturating_sub(1);
+    state.report.paused += 1;
+    state.last_paused_item = Some(item.clone());
+    state.report.events.push(CrawlEvent::PausedForOperator {
+        url: item.request_url.clone(),
+        challenge_state,
+    });
+}
+
+fn build_checkpoint(state: &CrawlState) -> CrawlCheckpoint {
+    let (paused_url, paused_challenge) = last_pause_from_report(&state.report);
+    CrawlCheckpoint::new(
+        state.request.clone(),
+        state.queue.pending_items().to_vec(),
+        state.requests_used,
+        state.report.clone(),
+        paused_url,
+        paused_challenge,
+        state.last_paused_item.clone(),
+    )
+}
+
+fn last_pause_from_report(report: &CrawlReport) -> (Option<url::Url>, Option<PageChallengeState>) {
+    for event in report.events.events().iter().rev() {
+        if let CrawlEvent::PausedForOperator {
+            url,
+            challenge_state,
+        } = event
+        {
+            return (Some(url.clone()), Some(*challenge_state));
+        }
+    }
+    (None, None)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::fetch::{MemoryEntry, MemoryTransport};
 
     use super::*;
-    use crate::{FixtureBrowserProvider, HtmlExtractor, run_extract};
+    use crate::{FixtureBrowserProvider, HtmlExtractor, resume_crawl_from_checkpoint, run_extract};
     use pandark_types::{BrowserSnapshot, ChallengePolicy, PageChallengeState};
     use url::Url;
 
@@ -441,6 +533,59 @@ mod tests {
         assert_eq!(output.report.skipped, 0);
         assert_eq!(output.report.failed, 1);
         assert_eq!(output.report.committed, 0);
+    }
+
+    #[test]
+    fn browser_fallback_pauses_and_resumes_after_operator_snapshot() {
+        let seed = Url::parse("https://example.com/private").expect("url");
+        let transport = MemoryTransport::new();
+        let mut browser = FixtureBrowserProvider::new();
+        browser.insert(BrowserSnapshot {
+            requested_url: seed.clone(),
+            final_url: Url::parse("https://example.com/login").expect("url"),
+            document_html: "<html><body>login</body></html>".into(),
+            captured_at_epoch: 1,
+            browser_engine: "fixture".into(),
+            profile_id: "test".into(),
+            challenge_state: PageChallengeState::ChallengeRequired,
+        });
+
+        let request = CrawlRequest::from_seed(seed.as_str()).expect("seed");
+        let html = HtmlExtractor;
+        let extractors: [&dyn Extractor; 1] = [&html];
+        let options = CrawlOptions {
+            browser: Some(&browser),
+            browser_fallback: BrowserFallbackPolicy::OnFetchFailure,
+            challenge_policy: ChallengePolicy::PauseForOperator,
+        };
+        let paused = run_crawl_with_options(request, transport, &extractors, options).expect("pause");
+        assert_eq!(paused.report.paused, 1);
+        let checkpoint = paused.checkpoint.expect("checkpoint");
+
+        browser.insert(BrowserSnapshot {
+            requested_url: seed.clone(),
+            final_url: seed.clone(),
+            document_html:
+                "<html><head><title>OK</title></head><body><p>ready</p></body></html>".into(),
+            captured_at_epoch: 2,
+            browser_engine: "fixture".into(),
+            profile_id: "test".into(),
+            challenge_state: PageChallengeState::Normal,
+        });
+
+        let resumed = resume_crawl_from_checkpoint(
+            checkpoint,
+            MemoryTransport::new(),
+            &extractors,
+            CrawlOptions {
+                browser: Some(&browser),
+                browser_fallback: BrowserFallbackPolicy::OnFetchFailure,
+                challenge_policy: ChallengePolicy::Stop,
+            },
+        )
+        .expect("resume");
+        assert_eq!(resumed.report.committed, 1);
+        assert_eq!(resumed.report.paused, 1);
     }
 
     #[test]

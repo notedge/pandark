@@ -3,7 +3,7 @@ use std::path::Path;
 
 use pandark_types::{BrowserSnapshot, CrawlError, Result};
 
-    use super::provider::{BrowserProvider, FixtureBrowserProvider};
+use super::provider::FixtureBrowserProvider;
 
 /// Load a `BrowserSnapshot` from JSON on disk.
 pub fn load_snapshot_json(path: impl AsRef<Path>) -> Result<BrowserSnapshot> {
@@ -62,6 +62,7 @@ pub fn path_looks_like_snapshot(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::BrowserProvider;
     use url::Url;
 
     use pandark_types::PageChallengeState;
