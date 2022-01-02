@@ -8,7 +8,7 @@ use crate::CrawlOptions;
 use crate::{
     ChallengeBlocked, Extractor, HtmlExtractor, LoadedInput, initial_report, inspect_artifact,
     inspect_snapshot, load_fixture_provider_from_dir, load_input, parse_input_format,
-    plan_crawl as build_plan, run_crawl_with_options,
+    plan_crawl as build_plan, resume_crawl_from_checkpoint, run_crawl_with_options,
     run_extract, run_extract_from_snapshot,
 };
 use crate::fetch::{
@@ -17,8 +17,8 @@ use crate::fetch::{
 };
 use pandark_types::PolitenessProfile;
 use pandark_types::{
-    BrowserFallbackPolicy, ChallengePolicy, CrawlRequest, ExtractBudget, ExtractContext,
-    ExtractStatus, InspectStage,
+    BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlReport,
+    CrawlRequest, ExtractBudget, ExtractContext, ExtractStatus, InspectStage,
 };
 use url::Url;
 
@@ -44,6 +44,7 @@ pub struct CrawlResponse {
     pub exit_code: u32,
     pub report_json: String,
     pub committed_pages: Vec<String>,
+    pub checkpoint_json: Option<String>,
 }
 
 /// N-API fetch response.
@@ -143,13 +144,10 @@ pub fn inspect_input(
             inspect_snapshot(&snapshot, policy, &extractors, inspect_stage, budget)
         }
     };
-    let exit_code = if report
-        .challenge_outcome
-        .is_some_and(|outcome| outcome == pandark_types::ChallengeOutcome::Stop)
-    {
-        2
-    } else {
-        0
+    let exit_code = match report.challenge_outcome {
+        Some(ChallengeOutcome::Stop) => 2,
+        Some(ChallengeOutcome::PauseForOperator) => 3,
+        _ => 0,
     };
     Ok(InspectResponse {
         exit_code,
@@ -217,18 +215,81 @@ pub fn crawl_file(
 
     let output =
         run_crawl_with_options(request, transport, &extractors, options).map_err(map_crawl_error)?;
-    let exit_code = if output.report.failed > 0 {
-        2
-    } else if output.report.skipped > 0 {
-        3
-    } else {
-        0
-    };
+    let exit_code = crawl_exit_code(&output.report, output.checkpoint.is_some());
+    let checkpoint_json = output
+        .checkpoint
+        .as_ref()
+        .map(|checkpoint| serde_json::to_string(checkpoint))
+        .transpose()
+        .map_err(map_serde_error)?;
     Ok(CrawlResponse {
         exit_code,
         report_json: serde_json::to_string(&output.report).map_err(map_serde_error)?,
         committed_pages: output.committed_pages,
+        checkpoint_json,
     })
+}
+
+/// Resume a crawl from a serialized checkpoint file.
+#[napi]
+pub fn resume_crawl_file(
+    checkpoint_json: String,
+    browser_fixtures_dir: Option<String>,
+    browser_fallback: Option<String>,
+    challenge_policy: Option<String>,
+) -> Result<CrawlResponse> {
+    let checkpoint: CrawlCheckpoint =
+        serde_json::from_str(&checkpoint_json).map_err(map_serde_error)?;
+    let seed_url = checkpoint
+        .request
+        .seeds
+        .first()
+        .ok_or_else(|| Error::from_reason("checkpoint request has no seeds"))?;
+    let transport = transport_for_url(&seed_url.url).map_err(map_crawl_error)?;
+    let html = HtmlExtractor;
+    let extractors: [&dyn Extractor; 1] = [&html];
+
+    let fixture_provider = match browser_fixtures_dir {
+        Some(dir) => Some(
+            load_fixture_provider_from_dir(&dir).map_err(map_crawl_error)?,
+        ),
+        None => None,
+    };
+    let options = CrawlOptions {
+        browser: fixture_provider
+            .as_ref()
+            .map(|provider| provider as &dyn crate::BrowserProvider),
+        browser_fallback: parse_browser_fallback(browser_fallback.as_deref())?,
+        challenge_policy: parse_challenge_policy(challenge_policy.as_deref())?,
+    };
+
+    let output = resume_crawl_from_checkpoint(checkpoint, transport, &extractors, options)
+        .map_err(map_crawl_error)?;
+    let exit_code = crawl_exit_code(&output.report, output.checkpoint.is_some());
+    let checkpoint_json = output
+        .checkpoint
+        .as_ref()
+        .map(|checkpoint| serde_json::to_string(checkpoint))
+        .transpose()
+        .map_err(map_serde_error)?;
+    Ok(CrawlResponse {
+        exit_code,
+        report_json: serde_json::to_string(&output.report).map_err(map_serde_error)?,
+        committed_pages: output.committed_pages,
+        checkpoint_json,
+    })
+}
+
+fn crawl_exit_code(report: &CrawlReport, awaiting_resume: bool) -> u32 {
+    if awaiting_resume {
+        3
+    } else if report.failed > 0 {
+        2
+    } else if report.skipped > 0 {
+        3
+    } else {
+        0
+    }
 }
 
 fn parse_request(
