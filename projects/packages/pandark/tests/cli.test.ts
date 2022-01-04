@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -159,4 +159,113 @@ test("extract writes document json from local html", async () => {
     const payload = JSON.parse(result.stdout);
     assert.equal(payload.status, "complete");
     assert.ok(payload.document);
+});
+
+test("crawl uses browser fixtures when http fetch fails", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const fixturesDir = join(dir, "fixtures");
+    await mkdir(fixturesDir);
+    const seed = "http://127.0.0.1:1/pandark-fixture-page";
+    await writeFile(
+        join(fixturesDir, "page.snapshot.json"),
+        JSON.stringify({
+            requested_url: seed,
+            final_url: seed,
+            document_html:
+                "<html><head><title>Fixture</title></head><body><p>offline</p></body></html>",
+            captured_at_epoch: 1,
+            browser_engine: "fixture",
+            profile_id: "test",
+            challenge_state: "normal",
+        }),
+        "utf8",
+    );
+
+    const result = await runCli([
+        "crawl",
+        seed,
+        "--browser-fixtures-dir",
+        fixturesDir,
+        "--browser-fallback",
+        "on-fetch-failure",
+        "--budget",
+        "1",
+        "--json",
+    ]);
+    assert.equal(result.code, 0);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.committedPages.length, 1);
+    const events = payload.report.events.events ?? payload.report.events;
+    assert.ok(
+        events.some((event: { kind?: string }) => event.kind === "browser_fallback"),
+    );
+});
+
+test("crawl pause and resume through checkpoint file", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const fixturesDir = join(dir, "fixtures");
+    const checkpointPath = join(dir, "checkpoint.json");
+    await mkdir(fixturesDir);
+    const seed = "http://127.0.0.1:1/pandark-private";
+    await writeFile(
+        join(fixturesDir, "challenge.snapshot.json"),
+        JSON.stringify({
+            requested_url: seed,
+            final_url: "http://127.0.0.1:1/login",
+            document_html: "<html><body>challenge</body></html>",
+            captured_at_epoch: 1,
+            browser_engine: "fixture",
+            profile_id: "test",
+            challenge_state: "challenge_required",
+        }),
+        "utf8",
+    );
+
+    const paused = await runCli([
+        "crawl",
+        seed,
+        "--browser-fixtures-dir",
+        fixturesDir,
+        "--browser-fallback",
+        "on-fetch-failure",
+        "--challenge-policy",
+        "pause-for-operator",
+        "--checkpoint-out",
+        checkpointPath,
+        "--budget",
+        "1",
+        "--json",
+    ]);
+    assert.equal(paused.code, 3);
+    const pausedPayload = JSON.parse(paused.stdout);
+    assert.ok(pausedPayload.checkpoint);
+    assert.equal(pausedPayload.report.paused, 1);
+
+    await writeFile(
+        join(fixturesDir, "ready.snapshot.json"),
+        JSON.stringify({
+            requested_url: seed,
+            final_url: seed,
+            document_html:
+                "<html><head><title>Ready</title></head><body><p>ok</p></body></html>",
+            captured_at_epoch: 2,
+            browser_engine: "fixture",
+            profile_id: "test",
+            challenge_state: "normal",
+        }),
+        "utf8",
+    );
+
+    const resumed = await runCli([
+        "resume",
+        checkpointPath,
+        "--browser-fixtures-dir",
+        fixturesDir,
+        "--browser-fallback",
+        "on-fetch-failure",
+        "--json",
+    ]);
+    assert.equal(resumed.code, 0);
+    const resumedPayload = JSON.parse(resumed.stdout);
+    assert.equal(resumedPayload.committedPages.length, 1);
 });

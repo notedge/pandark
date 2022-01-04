@@ -24,6 +24,13 @@ type NativeBinding = {
         exitCode: number;
         reportJson: string;
         committedPages: string[];
+        checkpointJson?: string;
+    };
+    resumeCrawlFile: (checkpointJson: string, browserFixturesDir?: string, browserFallback?: string, challengePolicy?: string) => {
+        exitCode: number;
+        reportJson: string;
+        committedPages: string[];
+        checkpointJson?: string;
     };
     fetchSeed: (seed: string) => {
         exitCode: number;
@@ -67,6 +74,13 @@ export function loadPandarkNode(): PandarkBindings {
                 seed,
                 maxDepth,
                 maxRequests,
+                browserFixturesDir,
+                browserFallback,
+                challengePolicy,
+            ),
+        resumeCrawlFile: (checkpointJson, browserFixturesDir, browserFallback, challengePolicy) =>
+            binding.resumeCrawlFile(
+                checkpointJson,
                 browserFixturesDir,
                 browserFallback,
                 challengePolicy,

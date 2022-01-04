@@ -1,28 +1,26 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 
 import type { Cli, ParsedOptions } from "@vmz/commander";
 
 import { createContext } from "../context.js";
 import { ExitCode } from "../exit-codes.js";
-import { optionNumber, optionString } from "../options.js";
+import { optionString } from "../options.js";
 
-export function registerCrawlCommand(cli: Cli): void {
-    cli.command("crawl", "cli.cmd.crawl")
-        .option("--depth <n>", "cli.opt.depth")
-        .option("--budget <n>", "cli.opt.budget")
+export function registerResumeCommand(cli: Cli): void {
+    cli.command("resume", "cli.cmd.resume")
         .option("--browser-fixtures-dir <dir>", "cli.opt.browserFixturesDir")
         .option("--browser-fallback <policy>", "cli.opt.browserFallback")
         .option("--challenge-policy <policy>", "cli.opt.challengePolicy")
         .option("--checkpoint-out <file>", "cli.opt.checkpointOut")
         .option("--report <file>", "cli.opt.report")
         .option("--json", "cli.opt.json")
-        .action((options: ParsedOptions) => runCrawl(options));
+        .action((options: ParsedOptions) => runResume(options));
 }
 
-async function runCrawl(options: ParsedOptions): Promise<number> {
-    const seed = options._[0];
-    if (!seed || typeof seed !== "string") {
-        console.error("crawl requires a seed URL or path");
+async function runResume(options: ParsedOptions): Promise<number> {
+    const checkpointPath = options._[0];
+    if (!checkpointPath || typeof checkpointPath !== "string") {
+        console.error("resume requires a checkpoint JSON file path");
         return ExitCode.InvalidArgs;
     }
 
@@ -32,19 +30,17 @@ async function runCrawl(options: ParsedOptions): Promise<number> {
         return ExitCode.Internal;
     }
 
-    const maxDepth = optionNumber(options, "depth");
-    const maxRequests = optionNumber(options, "budget");
+    const checkpointJson = await readFile(checkpointPath, "utf8");
     const browserFixturesDir = optionString(options, "browser-fixtures-dir");
     const browserFallback = optionString(options, "browser-fallback");
     const challengePolicy = optionString(options, "challenge-policy");
-    const response = ctx.bindings.crawlFile(
-        seed,
-        maxDepth,
-        maxRequests,
+    const response = ctx.bindings.resumeCrawlFile(
+        checkpointJson,
         browserFixturesDir,
         browserFallback,
         challengePolicy,
     );
+
     const reportPath = optionString(options, "report");
     const checkpointOut = optionString(options, "checkpoint-out");
 

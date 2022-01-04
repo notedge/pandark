@@ -3,6 +3,7 @@
     "cli.cmd.plan": "Build a crawl plan without network I/O",
     "cli.cmd.fetch": "Fetch one URL or local path into a FetchArtifact",
     "cli.cmd.crawl": "Crawl linked HTML pages through the transport implied by the seed",
+    "cli.cmd.resume": "Resume a paused crawl from a checkpoint JSON file",
     "cli.cmd.extract": "Extract notedown-ir from a local HTML file",
     "cli.cmd.inspect": "Probe extractors, links, or extract plan without writing IR",
     "cli.cmd.doctor": "Check CLI install, native bindings, and environment",
@@ -15,5 +16,6 @@
     "cli.opt.depth": "Maximum crawl depth from seeds",
     "cli.opt.budget": "Maximum HTTP requests including assets",
     "cli.opt.browserFixturesDir": "Directory of browser snapshot JSON fixtures for crawl fallback",
-    "cli.opt.browserFallback": "Browser fallback policy: never or on-fetch-failure"
+    "cli.opt.browserFallback": "Browser fallback policy: never or on-fetch-failure",
+    "cli.opt.checkpointOut": "Write crawl checkpoint JSON when the run pauses"
 }

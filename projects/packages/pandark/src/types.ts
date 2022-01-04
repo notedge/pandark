@@ -39,6 +39,18 @@ export type PandarkBindings = {
         exitCode: number;
         reportJson: string;
         committedPages: string[];
+        checkpointJson?: string;
+    };
+    resumeCrawlFile: (
+        checkpointJson: string,
+        browserFixturesDir?: string,
+        browserFallback?: string,
+        challengePolicy?: string,
+    ) => {
+        exitCode: number;
+        reportJson: string;
+        committedPages: string[];
+        checkpointJson?: string;
     };
     fetchSeed: (seed: string) => {
         exitCode: number;

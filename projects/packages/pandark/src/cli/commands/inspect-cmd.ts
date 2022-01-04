@@ -2,6 +2,7 @@ import type { Cli, ParsedOptions } from "@vmz/commander";
 
 import { createContext } from "../context.js";
 import { ExitCode } from "../exit-codes.js";
+import { optionString } from "../options.js";
 
 export function registerInspectCommand(cli: Cli): void {
     cli.command("inspect", "cli.cmd.inspect")
@@ -25,10 +26,9 @@ function runInspect(options: ParsedOptions): number {
         return ExitCode.Internal;
     }
 
-    const stage = typeof options.stage === "string" ? options.stage : undefined;
-    const from = typeof options.from === "string" ? options.from : undefined;
-    const challengePolicy =
-        typeof options.challengePolicy === "string" ? options.challengePolicy : undefined;
+    const stage = optionString(options, "stage");
+    const from = optionString(options, "from");
+    const challengePolicy = optionString(options, "challenge-policy");
     const response = ctx.bindings.inspectInput(inputPath, stage, from, challengePolicy);
 
     if (options.json) {

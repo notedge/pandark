@@ -3,6 +3,7 @@
     "cli.cmd.plan": "生成采集计划，不执行网络 I/O",
     "cli.cmd.fetch": "抓取单个 URL 或本地路径并输出 FetchArtifact",
     "cli.cmd.crawl": "按种子 URL 选择 transport 抓取链接 HTML 页面",
+    "cli.cmd.resume": "从 checkpoint JSON 恢复已暂停的 crawl",
     "cli.cmd.extract": "从本地 HTML 文件抽取 notedown-ir",
     "cli.cmd.inspect": "探测抽取器、链接或抽取计划，不写出 IR",
     "cli.cmd.doctor": "检查 CLI 安装、原生绑定与环境",
@@ -15,5 +16,6 @@
     "cli.opt.depth": "从种子出发的最大抓取深度",
     "cli.opt.budget": "包含资产在内的最大 HTTP 请求数",
     "cli.opt.browserFixturesDir": "抓取降级时使用的浏览器 snapshot JSON 目录",
-    "cli.opt.browserFallback": "浏览器降级策略：never 或 on-fetch-failure"
+    "cli.opt.browserFallback": "浏览器降级策略：never 或 on-fetch-failure",
+    "cli.opt.checkpointOut": "crawl 暂停时写出 checkpoint JSON"
 }

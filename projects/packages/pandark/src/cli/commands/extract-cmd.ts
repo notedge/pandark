@@ -4,6 +4,7 @@ import type { Cli, ParsedOptions } from "@vmz/commander";
 
 import { createContext } from "../context.js";
 import { ExitCode } from "../exit-codes.js";
+import { optionString } from "../options.js";
 
 export function registerExtractCommand(cli: Cli): void {
     cli.command("extract", "cli.cmd.extract")
@@ -28,12 +29,11 @@ async function runExtract(options: ParsedOptions): Promise<number> {
         return ExitCode.Internal;
     }
 
-    const from = typeof options.from === "string" ? options.from : undefined;
-    const challengePolicy =
-        typeof options.challengePolicy === "string" ? options.challengePolicy : undefined;
+    const from = optionString(options, "from");
+    const challengePolicy = optionString(options, "challenge-policy");
     const response = ctx.bindings.extractInput(inputPath, from, undefined, challengePolicy);
-    const outputPath = typeof options.output === "string" ? options.output : undefined;
-    const reportPath = typeof options.report === "string" ? options.report : undefined;
+    const outputPath = optionString(options, "output");
+    const reportPath = optionString(options, "report");
 
     if (outputPath && response.documentJson) {
         await writeFile(outputPath, response.documentJson, "utf8");
