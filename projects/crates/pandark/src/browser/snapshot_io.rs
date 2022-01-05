@@ -15,9 +15,29 @@ pub fn load_snapshot_json(path: impl AsRef<Path>) -> Result<BrowserSnapshot> {
     })
 }
 
-/// Load fixture snapshots from a directory into a browser provider.
-pub fn load_fixture_provider_from_dir(dir: impl AsRef<Path>) -> Result<FixtureBrowserProvider> {
-    let dir = dir.as_ref();
+/// Write a browser snapshot as JSON to disk.
+pub fn save_snapshot_json(path: impl AsRef<Path>, snapshot: &BrowserSnapshot) -> Result<()> {
+    let json = serde_json::to_string_pretty(snapshot).map_err(|error| {
+        CrawlError::InvalidInput(format!("serialize snapshot JSON: {error}"))
+    })?;
+    fs::write(path.as_ref(), json).map_err(|error| {
+        CrawlError::InvalidInput(format!("write snapshot `{}`: {error}", path.as_ref().display()))
+    })
+}
+
+/// Parse comma-separated browser fixture directories.
+pub fn parse_browser_dirs(spec: &str) -> Vec<std::path::PathBuf> {
+    spec.split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(std::path::PathBuf::from)
+        .collect()
+}
+
+fn load_snapshots_from_dir_into(
+    provider: &mut FixtureBrowserProvider,
+    dir: &Path,
+) -> Result<u32> {
     if !dir.is_dir() {
         return Err(CrawlError::InvalidInput(format!(
             "browser fixtures path is not a directory `{}`",
@@ -25,7 +45,6 @@ pub fn load_fixture_provider_from_dir(dir: impl AsRef<Path>) -> Result<FixtureBr
         )));
     }
 
-    let mut provider = FixtureBrowserProvider::new();
     let mut loaded = 0u32;
     for entry in fs::read_dir(dir).map_err(|error| {
         CrawlError::InvalidInput(format!("read browser fixtures dir `{}`: {error}", dir.display()))
@@ -41,14 +60,41 @@ pub fn load_fixture_provider_from_dir(dir: impl AsRef<Path>) -> Result<FixtureBr
         provider.insert(snapshot);
         loaded += 1;
     }
+    Ok(loaded)
+}
 
+/// Load fixture snapshots from multiple directories.
+///
+/// Later directories override earlier snapshots for the same URL.
+pub fn load_fixture_provider_from_dirs(dirs: &[impl AsRef<Path>]) -> Result<FixtureBrowserProvider> {
+    if dirs.is_empty() {
+        return Err(CrawlError::InvalidInput(
+            "at least one browser fixtures directory is required".into(),
+        ));
+    }
+    let mut provider = FixtureBrowserProvider::new();
+    let mut loaded = 0u32;
+    for dir in dirs {
+        loaded += load_snapshots_from_dir_into(&mut provider, dir.as_ref())?;
+    }
+    if loaded == 0 {
+        return Err(CrawlError::InvalidInput(
+            "browser fixtures directories contain no snapshot JSON files".into(),
+        ));
+    }
+    Ok(provider)
+}
+
+/// Load fixture snapshots from a directory into a browser provider.
+pub fn load_fixture_provider_from_dir(dir: impl AsRef<Path>) -> Result<FixtureBrowserProvider> {
+    let mut provider = FixtureBrowserProvider::new();
+    let loaded = load_snapshots_from_dir_into(&mut provider, dir.as_ref())?;
     if loaded == 0 {
         return Err(CrawlError::InvalidInput(format!(
             "browser fixtures dir `{}` contains no snapshot JSON files",
-            dir.display()
+            dir.as_ref().display()
         )));
     }
-
     Ok(provider)
 }
 
@@ -95,5 +141,40 @@ mod tests {
             .expect("snapshot");
         assert_eq!(snapshot.profile_id, "test");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn load_fixture_provider_from_dirs_later_dir_overrides_url() {
+        let base = std::env::temp_dir().join(format!("pandark-fixtures-multi-{}", std::process::id()));
+        let first = base.join("first");
+        let second = base.join("second");
+        std::fs::create_dir_all(&first).expect("first dir");
+        std::fs::create_dir_all(&second).expect("second dir");
+        let url = Url::parse("https://example.com/page").expect("url");
+        let first_snapshot = BrowserSnapshot {
+            requested_url: url.clone(),
+            final_url: url.clone(),
+            document_html: "<html><body>first</body></html>".into(),
+            captured_at_epoch: 1,
+            browser_engine: "fixture".into(),
+            profile_id: "first".into(),
+            challenge_state: PageChallengeState::Normal,
+        };
+        let second_snapshot = BrowserSnapshot {
+            requested_url: url.clone(),
+            final_url: url.clone(),
+            document_html: "<html><body>second</body></html>".into(),
+            captured_at_epoch: 2,
+            browser_engine: "fixture".into(),
+            profile_id: "second".into(),
+            challenge_state: PageChallengeState::Normal,
+        };
+        save_snapshot_json(first.join("page.snapshot.json"), &first_snapshot).expect("write first");
+        save_snapshot_json(second.join("page.snapshot.json"), &second_snapshot).expect("write second");
+
+        let provider = load_fixture_provider_from_dirs(&[first, second]).expect("load fixtures");
+        let snapshot = provider.capture_snapshot(&url).expect("snapshot");
+        assert_eq!(snapshot.profile_id, "second");
+        let _ = std::fs::remove_dir_all(&base);
     }
 }
