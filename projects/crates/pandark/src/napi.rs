@@ -7,8 +7,9 @@ use napi_derive::napi;
 use crate::CrawlOptions;
 use crate::{
     ChallengeBlocked, Extractor, HtmlExtractor, LoadedInput, initial_report, inspect_artifact,
-    inspect_snapshot, load_fixture_provider_from_dir, load_input, parse_input_format,
-    plan_crawl as build_plan, resume_crawl_from_checkpoint, run_crawl_with_options,
+    inspect_snapshot, load_input, parse_input_format,
+    build_browser_stack, plan_crawl as build_plan, resume_crawl_from_checkpoint,
+    run_crawl_with_options,
     run_extract, run_extract_from_snapshot,
 };
 use crate::fetch::{
@@ -189,6 +190,7 @@ pub fn crawl_file(
     browser_fixtures_dir: Option<String>,
     browser_fallback: Option<String>,
     challenge_policy: Option<String>,
+    browser_endpoint: Option<String>,
 ) -> Result<CrawlResponse> {
     let request = parse_request(&seed, max_depth, max_requests)?;
     let seed_url = request
@@ -199,22 +201,23 @@ pub fn crawl_file(
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
 
-    let fixture_provider = match browser_fixtures_dir {
-        Some(dir) => Some(
-            load_fixture_provider_from_dir(&dir).map_err(map_crawl_error)?,
-        ),
-        None => None,
-    };
+    let browser_stack = build_browser_stack(
+        browser_fixtures_dir.as_deref(),
+        browser_endpoint.as_deref(),
+    )
+    .map_err(map_crawl_error)?;
     let options = CrawlOptions {
-        browser: fixture_provider
-            .as_ref()
-            .map(|provider| provider as &dyn crate::BrowserProvider),
+        browser: if browser_stack.is_empty() {
+            None
+        } else {
+            Some(&browser_stack as &dyn crate::BrowserProvider)
+        },
         browser_fallback: parse_browser_fallback(browser_fallback.as_deref())?,
         challenge_policy: parse_challenge_policy(challenge_policy.as_deref())?,
     };
 
-    let output =
-        run_crawl_with_options(request, transport, &extractors, options).map_err(map_crawl_error)?;
+    let output = run_crawl_with_options(request, transport, &extractors, options)
+        .map_err(map_crawl_error)?;
     let exit_code = crawl_exit_code(&output.report, output.checkpoint.is_some());
     let checkpoint_json = output
         .checkpoint
@@ -237,6 +240,7 @@ pub fn resume_crawl_file(
     browser_fixtures_dir: Option<String>,
     browser_fallback: Option<String>,
     challenge_policy: Option<String>,
+    browser_endpoint: Option<String>,
 ) -> Result<CrawlResponse> {
     let checkpoint: CrawlCheckpoint =
         serde_json::from_str(&checkpoint_json).map_err(map_serde_error)?;
@@ -249,16 +253,17 @@ pub fn resume_crawl_file(
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
 
-    let fixture_provider = match browser_fixtures_dir {
-        Some(dir) => Some(
-            load_fixture_provider_from_dir(&dir).map_err(map_crawl_error)?,
-        ),
-        None => None,
-    };
+    let browser_stack = build_browser_stack(
+        browser_fixtures_dir.as_deref(),
+        browser_endpoint.as_deref(),
+    )
+    .map_err(map_crawl_error)?;
     let options = CrawlOptions {
-        browser: fixture_provider
-            .as_ref()
-            .map(|provider| provider as &dyn crate::BrowserProvider),
+        browser: if browser_stack.is_empty() {
+            None
+        } else {
+            Some(&browser_stack as &dyn crate::BrowserProvider)
+        },
         browser_fallback: parse_browser_fallback(browser_fallback.as_deref())?,
         challenge_policy: parse_challenge_policy(challenge_policy.as_deref())?,
     };
