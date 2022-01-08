@@ -35,6 +35,7 @@ export type PandarkBindings = {
         browserFixturesDir?: string,
         browserFallback?: string,
         challengePolicy?: string,
+        browserEndpoint?: string,
     ) => {
         exitCode: number;
         reportJson: string;
@@ -46,6 +47,7 @@ export type PandarkBindings = {
         browserFixturesDir?: string,
         browserFallback?: string,
         challengePolicy?: string,
+        browserEndpoint?: string,
     ) => {
         exitCode: number;
         reportJson: string;

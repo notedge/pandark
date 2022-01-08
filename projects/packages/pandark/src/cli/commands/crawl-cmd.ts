@@ -2,6 +2,7 @@ import { writeFile } from "node:fs/promises";
 
 import type { Cli, ParsedOptions } from "@vmz/commander";
 
+import { resolveCheckpointPath, writeCheckpointIfNeeded } from "../checkpoint-path.js";
 import { createContext } from "../context.js";
 import { ExitCode } from "../exit-codes.js";
 import { optionNumber, optionString } from "../options.js";
@@ -13,7 +14,9 @@ export function registerCrawlCommand(cli: Cli): void {
         .option("--browser-fixtures-dir <dir>", "cli.opt.browserFixturesDir")
         .option("--browser-fallback <policy>", "cli.opt.browserFallback")
         .option("--challenge-policy <policy>", "cli.opt.challengePolicy")
+        .option("--browser-endpoint <url>", "cli.opt.browserEndpoint")
         .option("--checkpoint-out <file>", "cli.opt.checkpointOut")
+        .option("--checkpoint-dir <dir>", "cli.opt.checkpointDir")
         .option("--report <file>", "cli.opt.report")
         .option("--json", "cli.opt.json")
         .action((options: ParsedOptions) => runCrawl(options));
@@ -37,6 +40,7 @@ async function runCrawl(options: ParsedOptions): Promise<number> {
     const browserFixturesDir = optionString(options, "browser-fixtures-dir");
     const browserFallback = optionString(options, "browser-fallback");
     const challengePolicy = optionString(options, "challenge-policy");
+    const browserEndpoint = optionString(options, "browser-endpoint");
     const response = ctx.bindings.crawlFile(
         seed,
         maxDepth,
@@ -44,15 +48,21 @@ async function runCrawl(options: ParsedOptions): Promise<number> {
         browserFixturesDir,
         browserFallback,
         challengePolicy,
+        browserEndpoint,
     );
     const reportPath = optionString(options, "report");
-    const checkpointOut = optionString(options, "checkpoint-out");
+    const checkpointPath = resolveCheckpointPath(
+        optionString(options, "checkpoint-out"),
+        optionString(options, "checkpoint-dir"),
+        seed,
+    );
+    const writtenCheckpoint = await writeCheckpointIfNeeded(
+        checkpointPath,
+        response.checkpointJson,
+    );
 
     if (reportPath) {
         await writeFile(reportPath, response.reportJson, "utf8");
-    }
-    if (checkpointOut && response.checkpointJson) {
-        await writeFile(checkpointOut, response.checkpointJson, "utf8");
     }
 
     if (options.json) {
@@ -64,6 +74,7 @@ async function runCrawl(options: ParsedOptions): Promise<number> {
                     checkpoint: response.checkpointJson
                         ? JSON.parse(response.checkpointJson)
                         : null,
+                    checkpointPath: writtenCheckpoint ?? null,
                     report: JSON.parse(response.reportJson),
                 },
                 null,

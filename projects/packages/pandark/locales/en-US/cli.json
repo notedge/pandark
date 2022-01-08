@@ -17,5 +17,7 @@
     "cli.opt.budget": "Maximum HTTP requests including assets",
     "cli.opt.browserFixturesDir": "Directory of browser snapshot JSON fixtures for crawl fallback",
     "cli.opt.browserFallback": "Browser fallback policy: never or on-fetch-failure",
-    "cli.opt.checkpointOut": "Write crawl checkpoint JSON when the run pauses"
+    "cli.opt.checkpointOut": "Write crawl checkpoint JSON when the run pauses",
+    "cli.opt.browserEndpoint": "HTTP browser worker base URL for crawl fallback",
+    "cli.opt.checkpointDir": "Directory for auto-named checkpoint files when crawl pauses"
 }

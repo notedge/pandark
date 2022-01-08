@@ -269,3 +269,45 @@ test("crawl pause and resume through checkpoint file", async () => {
     const resumedPayload = JSON.parse(resumed.stdout);
     assert.equal(resumedPayload.committedPages.length, 1);
 });
+
+test("crawl writes checkpoint into checkpoint-dir on pause", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const fixturesDir = join(dir, "fixtures");
+    const checkpointDir = join(dir, "checkpoints");
+    await mkdir(fixturesDir);
+    const seed = "http://127.0.0.1:1/pandark-private-dir";
+    await writeFile(
+        join(fixturesDir, "challenge.snapshot.json"),
+        JSON.stringify({
+            requested_url: seed,
+            final_url: "http://127.0.0.1:1/login",
+            document_html: "<html><body>challenge</body></html>",
+            captured_at_epoch: 1,
+            browser_engine: "fixture",
+            profile_id: "test",
+            challenge_state: "challenge_required",
+        }),
+        "utf8",
+    );
+
+    const paused = await runCli([
+        "crawl",
+        seed,
+        "--browser-fixtures-dir",
+        fixturesDir,
+        "--browser-fallback",
+        "on-fetch-failure",
+        "--challenge-policy",
+        "pause-for-operator",
+        "--checkpoint-dir",
+        checkpointDir,
+        "--budget",
+        "1",
+        "--json",
+    ]);
+    assert.equal(paused.code, 3);
+    const pausedPayload = JSON.parse(paused.stdout);
+    assert.ok(pausedPayload.checkpoint);
+    assert.ok(pausedPayload.checkpointPath);
+    assert.match(pausedPayload.checkpointPath, /pandark-checkpoint-.*\.json$/);
+});
