@@ -1,16 +1,18 @@
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use pandark_types::{CrawlError, FetchArtifact, Result, TransportProvenance};
 use url::Url;
 
 use super::cache::ResponseCache;
+use super::disk_cache::{DiskResponseCache, LayeredResponseCache};
 use super::robots::RobotsPolicy;
 use super::{FetchRequest, Transport};
 
 /// Fetch orchestration with robots checks and response caching.
 pub struct FetchClient<T: Transport> {
     transport: T,
-    cache: ResponseCache,
+    cache: LayeredResponseCache,
     robots: RobotsPolicy,
 }
 
@@ -19,19 +21,25 @@ impl<T: Transport> FetchClient<T> {
     pub fn new(transport: T, robots: RobotsPolicy) -> Self {
         Self {
             transport,
-            cache: ResponseCache::new(),
+            cache: LayeredResponseCache::memory_only(),
             robots,
         }
     }
 
-    /// Access the response cache.
-    pub fn cache(&self) -> &ResponseCache {
-        &self.cache
+    /// Persist responses under the given cache directory.
+    pub fn with_disk_cache_dir(mut self, dir: impl AsRef<Path>) -> Result<Self> {
+        self.cache = LayeredResponseCache::with_disk(DiskResponseCache::open(dir)?);
+        Ok(self)
     }
 
-    /// Mutable cache access for tests.
+    /// Access the in-memory response cache.
+    pub fn cache(&self) -> &ResponseCache {
+        self.cache.memory()
+    }
+
+    /// Mutable in-memory cache access for tests.
     pub fn cache_mut(&mut self) -> &mut ResponseCache {
-        &mut self.cache
+        self.cache.memory_mut()
     }
 
     /// Fetch one URL through robots, cache, and transport.
@@ -43,17 +51,21 @@ impl<T: Transport> FetchClient<T> {
             )));
         }
 
+        let request_key = request.url.to_string();
+        if let Some(cached) = self.cache.get_by_request_url(&request_key)? {
+            return Ok(with_cache_provenance(cached));
+        }
+
         let cache_key = super::cache_key_for(&request.url, None);
-        if let Some(cached) = self.cache.get(&cache_key).cloned() {
+        if let Some(cached) = self.cache.get(&cache_key)? {
             return Ok(with_cache_provenance(cached));
         }
 
         let artifact = self.transport.fetch(request)?;
-        let key = self.cache.put(artifact);
+        let key = self.cache.put(artifact)?;
         Ok(self
             .cache
-            .get(&key)
-            .cloned()
+            .get(&key)?
             .expect("artifact inserted into cache"))
     }
 }

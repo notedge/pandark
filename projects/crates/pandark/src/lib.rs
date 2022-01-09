@@ -25,7 +25,7 @@ pub use extract::{Extractor, HtmlExtractor, run_extract, select_extractor};
 pub use fetch::{
     FetchClient, FetchRequest, FileTransport, HttpTransport, MemoryEntry, MemoryTransport,
     ResponseCache, RobotsPolicy, SeedTransport, Transport, build_artifact, fetch_url,
-    map_transport_error, transport_for_url,
+    map_transport_error, transport_for_url, DiskResponseCache,
 };
 pub use frontier::{FrontierQueue, frontier_from_links};
 pub use input::{InputFormat, LoadedInput, load_input, parse_input_format};

@@ -8,6 +8,7 @@ use url::Url;
 
 mod cache;
 mod client;
+mod disk_cache;
 mod file;
 mod http;
 mod memory;
@@ -16,6 +17,7 @@ mod select;
 
 pub use cache::ResponseCache;
 pub use client::{FetchClient, fetch_url};
+pub use disk_cache::DiskResponseCache;
 pub use file::FileTransport;
 pub use http::HttpTransport;
 pub use memory::{MemoryEntry, MemoryTransport};
