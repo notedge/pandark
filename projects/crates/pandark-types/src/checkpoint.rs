@@ -25,6 +25,12 @@ pub struct CrawlCheckpoint {
     pub paused_challenge: Option<PageChallengeState>,
     /// Frontier item to retry after operator action.
     pub paused_item: Option<FrontierItem>,
+    /// Fingerprint of crawl strategy knobs frozen at checkpoint time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strategy_fingerprint: Option<String>,
+    /// Monotonic attempt identity for crash-safe resume.
+    #[serde(default)]
+    pub attempt_identity: u32,
 }
 
 impl CrawlCheckpoint {
@@ -37,6 +43,8 @@ impl CrawlCheckpoint {
         paused_url: Option<Url>,
         paused_challenge: Option<PageChallengeState>,
         paused_item: Option<FrontierItem>,
+        strategy_fingerprint: Option<String>,
+        attempt_identity: u32,
     ) -> Self {
         Self {
             schema_version: "pandark.checkpoint/v1".into(),
@@ -47,6 +55,8 @@ impl CrawlCheckpoint {
             paused_url,
             paused_challenge,
             paused_item,
+            strategy_fingerprint,
+            attempt_identity,
         }
     }
 }
