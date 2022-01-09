@@ -24,6 +24,12 @@ pub struct CrawlOptions<'a> {
     pub browser_fallback: BrowserFallbackPolicy,
     /// Challenge handling for browser snapshots.
     pub challenge_policy: ChallengePolicy,
+    /// Optional persistent fetch cache directory.
+    pub cache_dir: Option<&'a std::path::Path>,
+    /// Strategy fingerprint recorded into checkpoints.
+    pub strategy_fingerprint: Option<&'a str>,
+    /// Attempt identity incremented on resume.
+    pub attempt_identity: u32,
 }
 
 impl<'a> Default for CrawlOptions<'a> {
@@ -32,6 +38,9 @@ impl<'a> Default for CrawlOptions<'a> {
             browser: None,
             browser_fallback: BrowserFallbackPolicy::Never,
             challenge_policy: ChallengePolicy::Stop,
+            cache_dir: None,
+            strategy_fingerprint: None,
+            attempt_identity: 0,
         }
     }
 }
@@ -117,7 +126,11 @@ pub fn resume_crawl_from_checkpoint<T: Transport>(
     if let Some(item) = checkpoint.paused_item {
         state.queue.requeue(item);
     }
-    run_crawl_loop(state, transport, extractors, options)
+    let resume_options = CrawlOptions {
+        attempt_identity: checkpoint.attempt_identity.saturating_add(1),
+        ..options
+    };
+    run_crawl_loop(state, transport, extractors, resume_options)
 }
 
 fn run_crawl_loop<T: Transport>(
@@ -128,6 +141,9 @@ fn run_crawl_loop<T: Transport>(
 ) -> Result<CrawlOutput> {
     let request = state.request.clone();
     let mut client = FetchClient::new(transport, RobotsPolicy::from_profile(request.politeness));
+    if let Some(cache_dir) = options.cache_dir {
+        client = client.with_disk_cache_dir(cache_dir)?;
+    }
     let mut committed_pages = Vec::new();
     let mut artifacts = Vec::new();
     let extract_budget = ExtractBudget::default();
@@ -209,7 +225,7 @@ fn run_crawl_loop<T: Transport>(
     }
 
     let checkpoint = if state.last_paused_item.is_some() {
-        Some(build_checkpoint(&state))
+        Some(build_checkpoint(&state, options))
     } else {
         None
     };
@@ -365,7 +381,7 @@ fn record_paused(state: &mut CrawlState, item: &FrontierItem, challenge_state: P
     });
 }
 
-fn build_checkpoint(state: &CrawlState) -> CrawlCheckpoint {
+fn build_checkpoint(state: &CrawlState, options: CrawlOptions<'_>) -> CrawlCheckpoint {
     let (paused_url, paused_challenge) = last_pause_from_report(&state.report);
     CrawlCheckpoint::new(
         state.request.clone(),
@@ -375,6 +391,18 @@ fn build_checkpoint(state: &CrawlState) -> CrawlCheckpoint {
         paused_url,
         paused_challenge,
         state.last_paused_item.clone(),
+        options
+            .strategy_fingerprint
+            .map(str::to_string)
+            .or_else(|| Some(default_strategy_fingerprint(options))),
+        options.attempt_identity,
+    )
+}
+
+fn default_strategy_fingerprint(options: CrawlOptions<'_>) -> String {
+    format!(
+        "browser_fallback={:?};challenge_policy={:?}",
+        options.browser_fallback, options.challenge_policy
     )
 }
 
@@ -455,6 +483,7 @@ mod tests {
                 browser: Some(&browser),
                 browser_fallback: BrowserFallbackPolicy::OnFetchFailure,
                 challenge_policy: ChallengePolicy::Stop,
+                ..Default::default()
             },
         )
         .expect("crawl");
@@ -494,6 +523,7 @@ mod tests {
                 browser: Some(&browser),
                 browser_fallback: BrowserFallbackPolicy::OnFetchFailure,
                 challenge_policy: ChallengePolicy::SkipPage,
+                ..Default::default()
             },
         )
         .expect("crawl");
@@ -527,6 +557,7 @@ mod tests {
                 browser: Some(&browser),
                 browser_fallback: BrowserFallbackPolicy::OnFetchFailure,
                 challenge_policy: ChallengePolicy::Stop,
+                ..Default::default()
             },
         )
         .expect("crawl");
@@ -557,10 +588,13 @@ mod tests {
             browser: Some(&browser),
             browser_fallback: BrowserFallbackPolicy::OnFetchFailure,
             challenge_policy: ChallengePolicy::PauseForOperator,
+            ..Default::default()
         };
         let paused = run_crawl_with_options(request, transport, &extractors, options).expect("pause");
         assert_eq!(paused.report.paused, 1);
         let checkpoint = paused.checkpoint.expect("checkpoint");
+        let strategy_fp = checkpoint.strategy_fingerprint.clone();
+        let attempt_id = checkpoint.attempt_identity;
 
         browser.insert(BrowserSnapshot {
             requested_url: seed.clone(),
@@ -581,11 +615,65 @@ mod tests {
                 browser: Some(&browser),
                 browser_fallback: BrowserFallbackPolicy::OnFetchFailure,
                 challenge_policy: ChallengePolicy::Stop,
+                ..Default::default()
             },
         )
         .expect("resume");
         assert_eq!(resumed.report.committed, 1);
         assert_eq!(resumed.report.paused, 1);
+        assert_eq!(resumed.checkpoint, None);
+        assert!(strategy_fp.is_some());
+        assert_eq!(attempt_id, 0);
+    }
+
+    #[test]
+    fn disk_cache_reuses_response_without_transport() {
+        let dir = std::env::temp_dir().join(format!("pandark-crawl-cache-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut transport = MemoryTransport::new();
+        transport.insert(
+            "https://example.com/cache-page",
+            MemoryEntry {
+                status: 200,
+                headers: BTreeMap::from([("content-type".into(), "text/html".into())]),
+                body: br#"<html><head><title>Cached</title></head><body>cached</body></html>"#
+                    .to_vec(),
+            },
+        );
+        let request = CrawlRequest::from_seed("https://example.com/cache-page").expect("seed");
+        let html = HtmlExtractor;
+        let extractors: [&dyn Extractor; 1] = [&html];
+        let options = CrawlOptions {
+            cache_dir: Some(dir.as_path()),
+            ..Default::default()
+        };
+        let first = run_crawl_with_options(request.clone(), transport, &extractors, options)
+            .expect("first crawl");
+        assert_eq!(first.report.committed, 1);
+
+        let second = run_crawl_with_options(
+            request,
+            MemoryTransport::new(),
+            &extractors,
+            CrawlOptions {
+                cache_dir: Some(dir.as_path()),
+                ..Default::default()
+            },
+        )
+        .expect("second crawl");
+        assert_eq!(second.report.committed, 1);
+        assert!(
+            second
+                .report
+                .events
+                .events()
+                .iter()
+                .any(|event| matches!(
+                    event,
+                    CrawlEvent::Fetched { cache_hit: true, .. }
+                ))
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
