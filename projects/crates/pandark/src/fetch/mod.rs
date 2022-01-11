@@ -13,6 +13,7 @@ mod file;
 mod http;
 mod memory;
 mod robots;
+mod robots_txt;
 mod select;
 
 pub use cache::ResponseCache;

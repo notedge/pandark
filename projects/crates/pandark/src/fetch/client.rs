@@ -7,6 +7,7 @@ use url::Url;
 use super::cache::ResponseCache;
 use super::disk_cache::{DiskResponseCache, LayeredResponseCache};
 use super::robots::RobotsPolicy;
+use super::robots_txt::site_key_for_url;
 use super::{FetchRequest, Transport};
 
 /// Fetch orchestration with robots checks and response caching.
@@ -42,8 +43,17 @@ impl<T: Transport> FetchClient<T> {
         self.cache.memory_mut()
     }
 
+    /// Robots policy used for admission checks.
+    pub fn robots(&self) -> &RobotsPolicy {
+        &self.robots
+    }
+
     /// Fetch one URL through robots, cache, and transport.
     pub fn fetch(&mut self, request: &FetchRequest) -> Result<FetchArtifact> {
+        if should_resolve_robots(&request.url) {
+            self.ensure_site_robots(request)?;
+        }
+
         if !self.robots.is_allowed(&request.url) {
             return Err(CrawlError::InvalidInput(format!(
                 "robots policy denied `{}`",
@@ -68,6 +78,49 @@ impl<T: Transport> FetchClient<T> {
             .get(&key)?
             .expect("artifact inserted into cache"))
     }
+
+    fn ensure_site_robots(&mut self, request: &FetchRequest) -> Result<()> {
+        if self.robots.has_site_rules(&request.url) {
+            return Ok(());
+        }
+
+        let site_key = site_key_for_url(&request.url);
+        let robots_url = robots_txt_url_for(&request.url)?;
+        let robots_request = FetchRequest {
+            url: robots_url,
+            headers: BTreeMap::new(),
+        };
+
+        match self.transport.fetch(&robots_request) {
+            Ok(artifact) if artifact.status == 200 => {
+                if let Some(body) = artifact.body_bytes() {
+                    let text = String::from_utf8_lossy(body);
+                    self.robots.load_site_rules(&site_key, &text);
+                } else {
+                    self.robots.mark_site_unavailable(&site_key);
+                }
+            }
+            Ok(_) => self.robots.mark_site_missing(&site_key),
+            Err(_) => self.robots.mark_site_unavailable(&site_key),
+        }
+        Ok(())
+    }
+}
+
+fn should_resolve_robots(url: &Url) -> bool {
+    matches!(url.scheme(), "http" | "https") && !is_robots_txt_url(url)
+}
+
+fn is_robots_txt_url(url: &Url) -> bool {
+    url.path().eq_ignore_ascii_case("/robots.txt")
+}
+
+fn robots_txt_url_for(base: &Url) -> Result<Url> {
+    let mut url = base.clone();
+    url.set_path("/robots.txt");
+    url.set_query(None);
+    url.set_fragment(None);
+    Ok(url)
 }
 
 fn with_cache_provenance(mut artifact: FetchArtifact) -> FetchArtifact {
@@ -122,6 +175,57 @@ mod tests {
         );
         let url = Url::parse("https://example.com/admin/page").expect("url");
         let error = fetch_url(&mut client, url).expect_err("denied");
+        assert!(matches!(error, CrawlError::InvalidInput(_)));
+    }
+
+    #[test]
+    fn loads_robots_txt_before_fetching_page() {
+        let mut transport = MemoryTransport::new();
+        transport.insert(
+            "https://example.com/robots.txt",
+            MemoryEntry {
+                status: 200,
+                headers: Default::default(),
+                body: b"User-agent: *\nDisallow: /secret\n".to_vec(),
+            },
+        );
+        transport.insert(
+            "https://example.com/open",
+            MemoryEntry {
+                status: 200,
+                headers: Default::default(),
+                body: b"open".to_vec(),
+            },
+        );
+        let mut client = FetchClient::new(
+            transport,
+            RobotsPolicy::from_profile(PolitenessProfile::Developer),
+        );
+        let allowed = Url::parse("https://example.com/open").expect("url");
+        fetch_url(&mut client, allowed.clone()).expect("allowed page");
+        let denied = Url::parse("https://example.com/secret/page").expect("url");
+        let error = fetch_url(&mut client, denied).expect_err("denied by robots.txt");
+        assert!(matches!(error, CrawlError::InvalidInput(_)));
+        assert!(client.robots().has_site_rules(&allowed));
+    }
+
+    #[test]
+    fn missing_robots_txt_uses_fallback_paths() {
+        let mut transport = MemoryTransport::new();
+        transport.insert(
+            "https://example.com/private/data",
+            MemoryEntry {
+                status: 200,
+                headers: Default::default(),
+                body: b"private".to_vec(),
+            },
+        );
+        let mut client = FetchClient::new(
+            transport,
+            RobotsPolicy::from_profile(PolitenessProfile::Conservative),
+        );
+        let url = Url::parse("https://example.com/private/data").expect("url");
+        let error = fetch_url(&mut client, url).expect_err("fallback deny");
         assert!(matches!(error, CrawlError::InvalidInput(_)));
     }
 }

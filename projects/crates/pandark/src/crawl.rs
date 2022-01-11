@@ -457,6 +457,63 @@ mod tests {
     }
 
     #[test]
+    fn crawl_skips_urls_denied_by_robots_txt() {
+        let mut transport = MemoryTransport::new();
+        transport.insert(
+            "https://example.com/robots.txt",
+            MemoryEntry {
+                status: 200,
+                headers: BTreeMap::from([("content-type".into(), "text/plain".into())]),
+                body: b"User-agent: *\nDisallow: /secret\n".to_vec(),
+            },
+        );
+        transport.insert(
+            "https://example.com/",
+            MemoryEntry {
+                status: 200,
+                headers: BTreeMap::from([("content-type".into(), "text/html".into())]),
+                body: br#"<html><head><title>Home</title></head><body><a href="/secret">secret</a><a href="/open">open</a></body></html>"#.to_vec(),
+            },
+        );
+        transport.insert(
+            "https://example.com/open",
+            MemoryEntry {
+                status: 200,
+                headers: BTreeMap::from([("content-type".into(), "text/html".into())]),
+                body: br#"<html><head><title>Open</title></head><body>open page</body></html>"#.to_vec(),
+            },
+        );
+        transport.insert(
+            "https://example.com/secret",
+            MemoryEntry {
+                status: 200,
+                headers: BTreeMap::from([("content-type".into(), "text/html".into())]),
+                body: br#"<html><head><title>Secret</title></head><body>secret page</body></html>"#.to_vec(),
+            },
+        );
+
+        let request = CrawlRequest::from_seed("https://example.com/").expect("seed");
+        let html = HtmlExtractor;
+        let extractors: [&dyn Extractor; 1] = [&html];
+        let output = run_crawl(request, transport, &extractors).expect("crawl");
+        assert_eq!(output.report.committed, 2);
+        assert_eq!(output.report.failed, 1);
+        assert!(
+            output
+                .report
+                .events
+                .events()
+                .iter()
+                .any(|event| matches!(
+                    event,
+                    CrawlEvent::Failed { url, reason }
+                        if url.as_str() == "https://example.com/secret"
+                            && reason.contains("robots policy denied")
+                ))
+        );
+    }
+
+    #[test]
     fn browser_fallback_commits_when_http_fetch_missing() {
         let transport = MemoryTransport::new();
         let mut browser = FixtureBrowserProvider::new();
