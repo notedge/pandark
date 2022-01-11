@@ -36,6 +36,7 @@ export type PandarkBindings = {
         browserFallback?: string,
         challengePolicy?: string,
         browserEndpoint?: string,
+        cacheDir?: string,
     ) => {
         exitCode: number;
         reportJson: string;
@@ -48,6 +49,7 @@ export type PandarkBindings = {
         browserFallback?: string,
         challengePolicy?: string,
         browserEndpoint?: string,
+        cacheDir?: string,
     ) => {
         exitCode: number;
         reportJson: string;

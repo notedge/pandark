@@ -19,5 +19,6 @@
     "cli.opt.browserFallback": "Browser fallback policy: never or on-fetch-failure",
     "cli.opt.checkpointOut": "Write crawl checkpoint JSON when the run pauses",
     "cli.opt.browserEndpoint": "HTTP browser worker base URL for crawl fallback",
-    "cli.opt.checkpointDir": "Directory for auto-named checkpoint files when crawl pauses"
+    "cli.opt.checkpointDir": "Directory for auto-named checkpoint files when crawl pauses",
+    "cli.opt.cacheDir": "Persistent fetch response cache directory for crawl and resume"
 }

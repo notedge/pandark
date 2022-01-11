@@ -191,7 +191,9 @@ pub fn crawl_file(
     browser_fallback: Option<String>,
     challenge_policy: Option<String>,
     browser_endpoint: Option<String>,
+    cache_dir: Option<String>,
 ) -> Result<CrawlResponse> {
+    let cache_path = cache_dir.map(PathBuf::from);
     let request = parse_request(&seed, max_depth, max_requests)?;
     let seed_url = request
         .seeds
@@ -214,6 +216,8 @@ pub fn crawl_file(
         },
         browser_fallback: parse_browser_fallback(browser_fallback.as_deref())?,
         challenge_policy: parse_challenge_policy(challenge_policy.as_deref())?,
+        cache_dir: cache_path.as_deref(),
+        ..Default::default()
     };
 
     let output = run_crawl_with_options(request, transport, &extractors, options)
@@ -241,7 +245,9 @@ pub fn resume_crawl_file(
     browser_fallback: Option<String>,
     challenge_policy: Option<String>,
     browser_endpoint: Option<String>,
+    cache_dir: Option<String>,
 ) -> Result<CrawlResponse> {
+    let cache_path = cache_dir.map(PathBuf::from);
     let checkpoint: CrawlCheckpoint =
         serde_json::from_str(&checkpoint_json).map_err(map_serde_error)?;
     let seed_url = checkpoint
@@ -266,6 +272,8 @@ pub fn resume_crawl_file(
         },
         browser_fallback: parse_browser_fallback(browser_fallback.as_deref())?,
         challenge_policy: parse_challenge_policy(challenge_policy.as_deref())?,
+        cache_dir: cache_path.as_deref(),
+        ..Default::default()
     };
 
     let output = resume_crawl_from_checkpoint(checkpoint, transport, &extractors, options)
