@@ -73,8 +73,20 @@ pub struct CrawlRequest {
 impl CrawlRequest {
     /// Build a request from a single seed URL.
     pub fn from_seed(url: &str) -> Result<Self> {
+        Self::from_seeds([url])
+    }
+
+    /// Build a request from multiple seed URL strings.
+    pub fn from_seeds(urls: impl IntoIterator<Item = impl AsRef<str>>) -> Result<Self> {
+        let seeds = urls
+            .into_iter()
+            .map(|url| CrawlSeed::parse(url.as_ref()))
+            .collect::<Result<Vec<_>>>()?;
+        if seeds.is_empty() {
+            return Err(CrawlError::InvalidInput("at least one seed is required".into()));
+        }
         Ok(Self {
-            seeds: vec![CrawlSeed::parse(url)?],
+            seeds,
             politeness: PolitenessProfile::Conservative,
             budget: CrawlBudget::default(),
         })
