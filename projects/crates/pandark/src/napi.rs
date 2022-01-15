@@ -310,8 +310,8 @@ fn parse_request(
     max_depth: Option<u32>,
     max_requests: Option<u32>,
 ) -> Result<CrawlRequest> {
-    let seed_url = normalize_seed_url(seed)?;
-    let mut request = CrawlRequest::from_seed(seed_url.as_str()).map_err(map_crawl_error)?;
+    let seed_urls = crate::resolve_crawl_seed_specs(seed).map_err(map_crawl_error)?;
+    let mut request = CrawlRequest::from_seeds(seed_urls).map_err(map_crawl_error)?;
     if let Some(depth) = max_depth {
         request.budget.max_depth = depth;
     }

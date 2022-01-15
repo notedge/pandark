@@ -4,8 +4,9 @@ use crate::browser::{BrowserProvider, snapshot_to_fetch_artifact};
 use crate::fetch::{FetchClient, FetchRequest, RobotsPolicy, Transport};
 use pandark_types::{
     AdmissionDecision, apply_challenge_policy, BrowserFallbackPolicy, ChallengeOutcome,
-    ChallengePolicy, CrawlCheckpoint, CrawlEvent, CrawlReport, CrawlRequest, ExtractBudget,
-    ExtractContext, ExtractStatus, FetchArtifact, FrontierItem, PageChallengeState, Result,
+    ChallengePolicy, CrawlCheckpoint, CrawlError, CrawlEvent, CrawlReport, CrawlRequest,
+    ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact, FrontierItem,
+    PageChallengeState, Result,
 };
 
 use crate::admission::{admit_frontier_item, seed_frontier};
@@ -115,6 +116,7 @@ pub fn resume_crawl_from_checkpoint<T: Transport>(
     extractors: &[&dyn Extractor],
     options: CrawlOptions<'_>,
 ) -> Result<CrawlOutput> {
+    validate_resume_strategy(&checkpoint, options)?;
     let mut state = CrawlState {
         request: checkpoint.request,
         queue: FrontierQueue::new(),
@@ -400,10 +402,25 @@ fn build_checkpoint(state: &CrawlState, options: CrawlOptions<'_>) -> CrawlCheck
 }
 
 fn default_strategy_fingerprint(options: CrawlOptions<'_>) -> String {
-    format!(
-        "browser_fallback={:?};challenge_policy={:?}",
-        options.browser_fallback, options.challenge_policy
-    )
+    format!("browser_fallback={:?}", options.browser_fallback)
+}
+
+fn validate_resume_strategy(
+    checkpoint: &CrawlCheckpoint,
+    options: CrawlOptions<'_>,
+) -> Result<()> {
+    if let Some(expected) = &checkpoint.strategy_fingerprint {
+        let actual = options
+            .strategy_fingerprint
+            .map(str::to_string)
+            .unwrap_or_else(|| default_strategy_fingerprint(options));
+        if expected != &actual {
+            return Err(CrawlError::InvalidInput(format!(
+                "resume strategy mismatch: checkpoint `{expected}` does not match current `{actual}`"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn last_pause_from_report(report: &CrawlReport) -> (Option<url::Url>, Option<PageChallengeState>) {
@@ -427,6 +444,77 @@ mod tests {
     use crate::{FixtureBrowserProvider, HtmlExtractor, resume_crawl_from_checkpoint, run_extract};
     use pandark_types::{BrowserSnapshot, ChallengePolicy, PageChallengeState};
     use url::Url;
+
+    #[test]
+    fn crawls_multiple_seeds_in_one_request() {
+        let mut transport = MemoryTransport::new();
+        for (path, title) in [("/a", "A"), ("/b", "B")] {
+            transport.insert(
+                format!("https://example.com{path}"),
+                MemoryEntry {
+                    status: 200,
+                    headers: BTreeMap::from([("content-type".into(), "text/html".into())]),
+                    body: format!(
+                        "<html><head><title>{title}</title></head><body>{title}</body></html>"
+                    )
+                    .into_bytes(),
+                },
+            );
+        }
+        let request = CrawlRequest::from_seeds([
+            "https://example.com/a",
+            "https://example.com/b",
+        ])
+        .expect("seeds");
+        let html = HtmlExtractor;
+        let extractors: [&dyn Extractor; 1] = [&html];
+        let output = run_crawl(request, transport, &extractors).expect("crawl");
+        assert_eq!(output.report.committed, 2);
+    }
+
+    #[test]
+    fn resume_rejects_browser_fallback_strategy_mismatch() {
+        let seed = Url::parse("https://example.com/private").expect("url");
+        let transport = MemoryTransport::new();
+        let mut browser = FixtureBrowserProvider::new();
+        browser.insert(BrowserSnapshot {
+            requested_url: seed.clone(),
+            final_url: Url::parse("https://example.com/login").expect("url"),
+            document_html: "<html><body>login</body></html>".into(),
+            captured_at_epoch: 1,
+            browser_engine: "fixture".into(),
+            profile_id: "test".into(),
+            challenge_state: PageChallengeState::ChallengeRequired,
+        });
+        let request = CrawlRequest::from_seed(seed.as_str()).expect("seed");
+        let html = HtmlExtractor;
+        let extractors: [&dyn Extractor; 1] = [&html];
+        let paused = run_crawl_with_options(
+            request,
+            transport,
+            &extractors,
+            CrawlOptions {
+                browser: Some(&browser),
+                browser_fallback: BrowserFallbackPolicy::OnFetchFailure,
+                challenge_policy: ChallengePolicy::PauseForOperator,
+                ..Default::default()
+            },
+        )
+        .expect("pause");
+        let checkpoint = paused.checkpoint.expect("checkpoint");
+        let error = resume_crawl_from_checkpoint(
+            checkpoint,
+            MemoryTransport::new(),
+            &extractors,
+            CrawlOptions {
+                browser: Some(&browser),
+                browser_fallback: BrowserFallbackPolicy::Never,
+                ..Default::default()
+            },
+        )
+        .expect_err("mismatch");
+        assert!(error.to_string().contains("resume strategy mismatch"));
+    }
 
     #[test]
     fn crawls_linked_html_pages_offline() {

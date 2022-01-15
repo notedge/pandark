@@ -10,6 +10,7 @@ mod frontier;
 mod input;
 mod inspect;
 mod napi;
+mod seed_input;
 mod transaction;
 
 pub use admission::{admit_frontier_item, seed_frontier};
@@ -30,6 +31,7 @@ pub use fetch::{
 pub use frontier::{FrontierQueue, frontier_from_links};
 pub use input::{InputFormat, LoadedInput, load_input, parse_input_format};
 pub use inspect::{inspect_artifact, inspect_snapshot};
+pub use seed_input::resolve_crawl_seed_specs;
 pub use transaction::commit_page;
 
 use pandark_types::{CrawlError, CrawlReport, CrawlRequest, Result};
