@@ -311,3 +311,47 @@ test("crawl writes checkpoint into checkpoint-dir on pause", async () => {
     assert.ok(pausedPayload.checkpointPath);
     assert.match(pausedPayload.checkpointPath, /pandark-checkpoint-.*\.json$/);
 });
+
+test("crawl reads newline-delimited seed file", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const fixturesDir = join(dir, "fixtures");
+    await mkdir(fixturesDir);
+    const seedA = "http://127.0.0.1:1/pandark-seed-a";
+    const seedB = "http://127.0.0.1:1/pandark-seed-b";
+    const seedsPath = join(dir, "seeds.txt");
+    await writeFile(seedsPath, `# batch\n${seedA}\n${seedB}\n`, "utf8");
+    for (const [name, seed] of [
+        ["a.snapshot.json", seedA],
+        ["b.snapshot.json", seedB],
+    ] as const) {
+        await writeFile(
+            join(fixturesDir, name),
+            JSON.stringify({
+                requested_url: seed,
+                final_url: seed,
+                document_html:
+                    "<html><head><title>Fixture</title></head><body><p>offline</p></body></html>",
+                captured_at_epoch: 1,
+                browser_engine: "fixture",
+                profile_id: "test",
+                challenge_state: "normal",
+            }),
+            "utf8",
+        );
+    }
+
+    const result = await runCli([
+        "crawl",
+        seedsPath,
+        "--browser-fixtures-dir",
+        fixturesDir,
+        "--browser-fallback",
+        "on-fetch-failure",
+        "--budget",
+        "2",
+        "--json",
+    ]);
+    assert.equal(result.code, 0);
+    const payload = JSON.parse(result.stdout);
+    assert.equal(payload.committedPages.length, 2);
+});
