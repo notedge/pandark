@@ -2,6 +2,7 @@ import type { Cli, ParsedOptions } from "@vmz/commander";
 
 import { createContext } from "../context.js";
 import { ExitCode } from "../exit-codes.js";
+import { optionNumber } from "../options.js";
 
 export function registerPlanCommand(cli: Cli): void {
     cli.command("plan", "cli.cmd.plan")
@@ -24,8 +25,8 @@ function runPlan(options: ParsedOptions): number {
         return ExitCode.Internal;
     }
 
-    const maxDepth = readOptionalNumber(options.depth);
-    const maxRequests = readOptionalNumber(options.budget);
+    const maxDepth = optionNumber(options, "depth");
+    const maxRequests = optionNumber(options, "budget");
     const response = ctx.bindings.planCrawl(seed, maxDepth, maxRequests);
 
     if (options.json) {
@@ -47,12 +48,4 @@ function runPlan(options: ParsedOptions): number {
     }
 
     return ExitCode.Success;
-}
-
-function readOptionalNumber(value: unknown): number | undefined {
-    if (value === undefined || value === null || value === "") {
-        return undefined;
-    }
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
 }
