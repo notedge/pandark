@@ -1,0 +1,37 @@
+{
+    "name": "@notedge/pandark-skills",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "description": "Agent skills for Pandark users — crawl and extract web pages with @notedge/pandark. Install with npx @notedge/pandark-skills.",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/notedge/pandark.git",
+        "directory": "projects/packages/pandark-skills"
+    },
+    "homepage": "https://github.com/notedge/pandark/tree/master/projects/packages/pandark-skills",
+    "keywords": [
+        "pandark",
+        "crawler",
+        "web-scraping",
+        "notedown-ir",
+        "agent-skills",
+        "skills",
+        "cursor"
+    ],
+    "license": "MPL-2.0",
+    "bin": {
+        "pandark-skills": "./bin/pandark-skills.mjs"
+    },
+    "files": [
+        "bin",
+        "skills",
+        "readme.md"
+    ],
+    "engines": {
+        "node": ">=20"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}
