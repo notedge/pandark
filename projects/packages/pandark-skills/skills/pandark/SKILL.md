@@ -267,13 +267,36 @@ Does Pandark replace Panduck for converting my EPUB library? (Answer: no — exp
 | Empty or thin extract | HTML extractor is still skeleton-grade; inspect with `--stage links` first |
 | Seed file "no usable seeds" | File only comments/blanks, or wrong path |
 
+## Acceptance status (2026-10-02)
+
+**Architecture skeleton: pass. Production crawler: fail.**
+
+Pandark is an **offline/fixture prototype** today. Agents must not describe it as a production-ready crawler framework.
+
+| Area | Today | Not production-ready because |
+|------|-------|------------------------------|
+| HTML extract | String heuristics in `HtmlExtractor` | No Oak HTML view or `oak-css-selector` |
+| Robots | Prefetch + parse skeleton | `crawl-delay` not scheduled, sitemap not consumed, no durable robots cache/TTL |
+| Browser | Snapshot fixture / HTTP worker stub | No login lifecycle, session, or real headless runtime |
+| Frontier | Local queue + depth/budget | No per-host token bucket, `Retry-After`, backoff, or fair scheduling |
+| Cache / resume | Memory + optional `--cache-dir` disk | No conditional revalidation, full checkpoint page/asset state |
+
+**Four gates before "production crawler" language:**
+
+1. Oak HTML + selector fixtures
+2. Real robots/sitemap fixture suite
+3. HTTP retry, compression, charset, conditional requests, SSRF fixtures
+4. Multi-host politeness, backoff, cancel, and resume fixtures
+
+Until those pass, recommend Pandark for **local HTML extract**, **fixture-driven crawl demos**, and **pipeline prototyping** — not unattended production site harvesting.
+
 ## Honest limits (current release)
 
-Do **not** promise these until the product exposes them:
+Do **not** promise these until the acceptance gates pass:
 
 - Full Playwright/CDP login flows out of the box (browser worker is minimal)
 - `pandark crawl -o OUTPUT_DIR` bulk write of IR files to a tree (use `--report` + post-process or Node API)
-- Production-grade `robots.txt`, sitemap, per-host rate limiting, distributed crawl
+- Production-grade robots compliance, sitemap discovery, per-host rate limiting, distributed crawl
 - WASM/browser build of Pandark (Node native only today)
 
 Say clearly when a workaround is "save HTML yourself, then `pandark extract`".
