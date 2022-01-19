@@ -1,0 +1,31 @@
+{
+  "case_id": "store.frontier.dual_worker",
+  "description": "两 worker 争同一 item，仅一有效",
+  "initial": {
+    "steps": [
+      {
+        "op": "begin_run",
+        "run_spec": { "seed_url": "https://example.com/a" }
+      },
+      {
+        "op": "enqueue",
+        "frontier_item": {
+          "canonical_request_url": "https://example.com/a",
+          "depth": 0
+        }
+      }
+    ]
+  },
+  "steps": [
+    { "op": "claim_next", "host_key": "example.com", "worker_id": "w1" },
+    { "op": "second_worker_claim", "worker_id": "w2" },
+    { "op": "begin_page_tx", "worker_id": "w2" }
+  ],
+  "assertions": [
+    {
+      "kind": "error",
+      "op": "begin_page_tx",
+      "code": "StoreFencingMismatch"
+    }
+  ]
+}

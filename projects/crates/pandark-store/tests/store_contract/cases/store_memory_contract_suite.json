@@ -1,0 +1,24 @@
+{
+  "case_id": "store.memory.contract_suite",
+  "description": "MemoryStore 烟测：begin_run、enqueue、claim",
+  "initial": {
+    "steps": []
+  },
+  "steps": [
+    {
+      "op": "begin_run",
+      "run_spec": { "seed_url": "https://example.com/smoke" }
+    },
+    {
+      "op": "enqueue",
+      "frontier_item": {
+        "canonical_request_url": "https://example.com/smoke",
+        "depth": 0
+      }
+    },
+    { "op": "claim_next", "host_key": "example.com", "worker_id": "w-smoke" }
+  ],
+  "assertions": [
+    { "kind": "page_phase", "page_id": "auto", "expected": "claimed" }
+  ]
+}

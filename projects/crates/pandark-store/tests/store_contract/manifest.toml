@@ -1,0 +1,53 @@
+schema_version = 1
+suite_id = "g-store-core"
+min_store_schema_version = 1
+max_store_schema_version = 1
+
+[[case]]
+id = "store.page_tx.half_commit"
+gate = "G-STORE-3"
+file = "cases/store_page_tx_half_commit.json"
+backends = ["memory", "yydb"]
+tags = ["crash", "page_tx"]
+
+[[case]]
+id = "store.page_tx.full_commit"
+gate = "G-STORE-3"
+file = "cases/store_page_tx_full_commit.json"
+backends = ["memory", "yydb"]
+tags = ["page_tx", "events"]
+
+[[case]]
+id = "store.frontier.dual_worker"
+gate = "G-STORE-3"
+file = "cases/store_frontier_dual_worker.json"
+backends = ["memory", "yydb"]
+tags = ["lease", "fencing"]
+
+[[case]]
+id = "store.memory.contract_suite"
+gate = "G-STORE-2"
+file = "cases/store_memory_contract_suite.json"
+backends = ["memory"]
+tags = ["smoke"]
+
+[[case]]
+id = "store.yydb.parity"
+gate = "G-STORE-3"
+file = "cases/store_yydb_parity.json"
+backends = ["memory", "yydb"]
+tags = ["parity"]
+
+[[case]]
+id = "store.doctor.quota_orphan"
+gate = "G-STORE-4"
+file = "cases/store_doctor_quota_orphan.json"
+backends = ["yydb"]
+tags = ["doctor", "orphan"]
+
+[[case]]
+id = "store.migration.v1_to_v2"
+gate = "G-STORE-4"
+file = "cases/store_migration_v1_to_v2.json"
+backends = ["memory", "yydb"]
+tags = ["migration"]

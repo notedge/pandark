@@ -1,0 +1,29 @@
+{
+  "case_id": "store.migration.v1_to_v2",
+  "description": "v0 库打开后隐式 migrate 到 schema v2",
+  "initial": {
+    "steps": [
+      {
+        "op": "open",
+        "store_schema_version": 0
+      }
+    ]
+  },
+  "steps": [
+    {
+      "op": "begin_run",
+      "run_spec": { "seed_url": "https://example.com/migrate" }
+    },
+    {
+      "op": "enqueue",
+      "frontier_item": {
+        "canonical_request_url": "https://example.com/migrate",
+        "depth": 0
+      }
+    },
+    { "op": "reopen" }
+  ],
+  "assertions": [
+    { "kind": "schema_version", "expected": "2" }
+  ]
+}

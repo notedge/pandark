@@ -1,0 +1,30 @@
+{
+  "case_id": "store.page_tx.full_commit",
+  "description": "fetch+IR+asset 一次 commit，事件序号连续",
+  "initial": {
+    "steps": [
+      {
+        "op": "begin_run",
+        "run_spec": { "seed_url": "https://example.com/page" }
+      },
+      {
+        "op": "enqueue",
+        "frontier_item": {
+          "canonical_request_url": "https://example.com/page",
+          "depth": 0
+        }
+      }
+    ]
+  },
+  "steps": [
+    { "op": "claim_next", "host_key": "example.com", "worker_id": "w1" },
+    { "op": "begin_page_tx", "worker_id": "w1" },
+    { "op": "page_tx_put_fetch", "fixture": "sample_response_body.bin" },
+    { "op": "page_tx_put_ir", "fixture": "sample_ir_package.bin" },
+    { "op": "commit_page_tx" }
+  ],
+  "assertions": [
+    { "kind": "page_phase", "page_id": "auto", "expected": "committed" },
+    { "kind": "event_count", "min": 1, "max": 8 }
+  ]
+}

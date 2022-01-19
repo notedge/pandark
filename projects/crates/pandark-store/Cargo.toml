@@ -1,0 +1,30 @@
+[package]
+name = "pandark-store"
+version.workspace = true
+authors.workspace = true
+description = "Pandark persistence store contract with MemoryStore and optional YydbStore"
+readme = "readme.md"
+homepage = "https://github.com/notedge/pandark"
+repository = "https://github.com/notedge/pandark"
+license.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+blake3 = "1.8"
+pandark-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+url = { workspace = true }
+yydb = { workspace = true, optional = true }
+
+[features]
+default = []
+yydb = ["dep:yydb"]
+
+[dev-dependencies]
+toml = "0.8"
+
+[[test]]
+name = "g_store_memory_contract_suite"
+path = "tests/g_store_memory_contract_suite.rs"
