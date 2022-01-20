@@ -1,0 +1,22 @@
+{
+  "case_id": "store.doctor.quota_orphan",
+  "description": "人为制造 orphan 后 doctor 可观测",
+  "initial": {
+    "steps": [
+      {
+        "op": "begin_run",
+        "run_spec": { "seed_url": "https://example.com/doctor" }
+      }
+    ]
+  },
+  "steps": [
+    { "op": "doctor" }
+  ],
+  "assertions": [
+    {
+      "kind": "doctor_issue",
+      "code": "store.doctor.orphan_object",
+      "severity": "warn"
+    }
+  ]
+}

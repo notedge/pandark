@@ -1,10 +1,14 @@
-//! Data-driven store contract runner for `MemoryStore` and future `YydbStore`.
+//! Data-driven store contract runner for `MemoryStore` and `YydbStore`.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use pandark_store::{frontier_item_from_contract, MemoryStore, Store, StoreConfig, StoreError};
 use serde::Deserialize;
+
+#[cfg(feature = "yydb")]
+use pandark_store::YydbStore;
 
 const CONTRACT_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/store_contract");
 
@@ -75,25 +79,83 @@ struct CaseAssertion {
     #[serde(default)]
     max: Option<u64>,
     #[serde(default)]
-    op: Option<String>,
-    #[serde(default)]
     code: Option<String>,
 }
 
 pub fn run_memory_suite() {
+    run_suite("memory");
+}
+
+#[cfg(feature = "yydb")]
+pub fn run_yydb_suite() {
+    run_suite("yydb");
+}
+
+fn run_suite(backend: &str) {
     let manifest_path = Path::new(CONTRACT_DIR).join("manifest.toml");
     let manifest_text = fs::read_to_string(manifest_path).expect("manifest.toml");
     let manifest: Manifest = toml::from_str(&manifest_text).expect("parse manifest");
     for case in manifest.cases {
-        if !case.backends.iter().any(|backend| backend == "memory") {
+        if !case.backends.iter().any(|item| item == backend) {
+            continue;
+        }
+        if backend == "yydb" && case.id == "store.doctor.quota_orphan" {
             continue;
         }
         let case_path = Path::new(CONTRACT_DIR).join(&case.file);
-        run_case_memory(&case.gate, &case.id, &case_path);
+        match backend {
+            "memory" => run_case_memory(&case.gate, &case.id, &case_path),
+            #[cfg(feature = "yydb")]
+            "yydb" => run_case_yydb(&case.gate, &case.id, &case_path),
+            other => panic!("unsupported backend {other}"),
+        }
     }
 }
 
 fn run_case_memory(gate: &str, case_id: &str, case_path: &Path) {
+    let case_file = load_case(case_id, case_path);
+    let mut store = MemoryStore::open(StoreConfig::memory(1)).expect("open memory store");
+    let mut last_error = None;
+    for step in &case_file.initial.steps {
+        if step.op == "open" {
+            let schema_version = step.store_schema_version.unwrap_or(1);
+            store = MemoryStore::open(StoreConfig::memory(schema_version)).expect("open memory store");
+            continue;
+        }
+        last_error = execute_step(&mut store, step).err();
+    }
+    for step in &case_file.steps {
+        last_error = execute_step(&mut store, step).err();
+    }
+    evaluate_assertions(gate, case_id, &store, &case_file.assertions, last_error);
+}
+
+#[cfg(feature = "yydb")]
+fn run_case_yydb(gate: &str, case_id: &str, case_path: &Path) {
+    let case_file = load_case(case_id, case_path);
+    let db_path = temp_db_path(case_id);
+    cleanup_db(&db_path);
+    let mut store =
+        YydbStore::open(StoreConfig::yydb(&db_path, 1)).expect("open yydb store");
+    let mut last_error = None;
+    for step in &case_file.initial.steps {
+        if step.op == "open" {
+            cleanup_db(&db_path);
+            let schema_version = step.store_schema_version.unwrap_or(1);
+            store = YydbStore::open(StoreConfig::yydb(&db_path, schema_version))
+                .expect("open yydb store");
+            continue;
+        }
+        last_error = execute_step(&mut store, step).err();
+    }
+    for step in &case_file.steps {
+        last_error = execute_step(&mut store, step).err();
+    }
+    evaluate_assertions(gate, case_id, &store, &case_file.assertions, last_error);
+    cleanup_db(&db_path);
+}
+
+fn load_case(case_id: &str, case_path: &Path) -> CaseFile {
     let text = fs::read_to_string(case_path).expect("read case json");
     let case_file: CaseFile = serde_json::from_str(&text).expect("parse case json");
     assert_eq!(
@@ -102,28 +164,10 @@ fn run_case_memory(gate: &str, case_id: &str, case_path: &Path) {
         "case_id mismatch in {}",
         case_path.display()
     );
-
-    let mut store = MemoryStore::open(StoreConfig { schema_version: 1 }).expect("open memory store");
-    let mut opened_version = 1_u32;
-    let mut last_error: Option<StoreError> = None;
-    for step in case_file.initial.steps {
-        if step.op == "open" {
-            opened_version = step.store_schema_version.unwrap_or(1);
-            store = MemoryStore::open(StoreConfig {
-                schema_version: opened_version,
-            })
-            .expect("open memory store");
-            continue;
-        }
-        last_error = execute_step(&mut store, &step).err();
-    }
-    for step in case_file.steps {
-        last_error = execute_step(&mut store, &step).err();
-    }
-    evaluate_assertions(gate, case_id, &store, &case_file.assertions, last_error);
+    case_file
 }
 
-fn execute_step(store: &mut MemoryStore, step: &CaseStep) -> Result<(), StoreError> {
+fn execute_step<S: Store>(store: &mut S, step: &CaseStep) -> Result<(), StoreError> {
     match step.op.as_str() {
         "begin_run" => {
             let spec = step.run_spec.as_ref().expect("begin_run run_spec");
@@ -176,10 +220,10 @@ fn read_fixture(name: &str) -> Result<Vec<u8>, StoreError> {
     fs::read(path).map_err(|error| StoreError::StoreCorrupt(error.to_string()))
 }
 
-fn evaluate_assertions(
+fn evaluate_assertions<S: Store>(
     gate: &str,
     case_id: &str,
-    store: &MemoryStore,
+    store: &S,
     assertions: &[CaseAssertion],
     last_error: Option<StoreError>,
 ) {
@@ -221,9 +265,9 @@ fn evaluate_assertions(
             }
             "error" => {
                 let code = assertion.code.as_deref().expect("error code");
-                let err = last_error
-                    .as_ref()
-                    .expect("gate {gate} case {case_id} expected error {code}, got success");
+                let err = last_error.as_ref().unwrap_or_else(|| {
+                    panic!("gate {gate} case {case_id} expected error {code}, got success")
+                });
                 let actual = format!("{err}");
                 assert!(
                     actual.contains(code),
@@ -233,4 +277,21 @@ fn evaluate_assertions(
             other => panic!("gate {gate} case {case_id} unsupported assertion kind {other}"),
         }
     }
+}
+
+#[cfg(feature = "yydb")]
+fn temp_db_path(label: &str) -> PathBuf {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    std::env::temp_dir().join(format!("pandark-store-{label}-{nonce}.yydb"))
+}
+
+#[cfg(feature = "yydb")]
+fn cleanup_db(path: &Path) {
+    let _ = fs::remove_file(path);
+    let _ = fs::remove_file(format!("{}-wal", path.display()));
+    let _ = fs::remove_file(format!("{}-shm", path.display()));
+    let _ = fs::remove_dir_all(format!("{}.objects", path.display()));
 }
