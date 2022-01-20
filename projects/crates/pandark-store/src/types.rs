@@ -5,6 +5,26 @@ use serde::{Deserialize, Serialize};
 pub struct StoreConfig {
     /// Expected store schema version.
     pub schema_version: u32,
+    /// File path for file-backed backends such as `YydbStore`.
+    pub db_path: Option<std::path::PathBuf>,
+}
+
+impl StoreConfig {
+    /// Memory-oriented defaults.
+    pub fn memory(schema_version: u32) -> Self {
+        Self {
+            schema_version,
+            db_path: None,
+        }
+    }
+
+    /// YYDB file path for integration tests and production.
+    pub fn yydb(path: impl Into<std::path::PathBuf>, schema_version: u32) -> Self {
+        Self {
+            schema_version,
+            db_path: Some(path.into()),
+        }
+    }
 }
 
 /// Parameters for starting a crawl run.
@@ -22,7 +42,7 @@ pub struct RunHandle {
 }
 
 /// Lease token issued when a worker claims a frontier item.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ClaimToken {
     /// Frontier item identifier.
     pub item_id: String,
@@ -33,7 +53,7 @@ pub struct ClaimToken {
 }
 
 /// In-flight page transaction handle.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PageTxHandle {
     /// Page record identifier.
     pub page_id: String,

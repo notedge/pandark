@@ -19,7 +19,7 @@ url = { workspace = true }
 yydb = { workspace = true, optional = true }
 
 [features]
-default = []
+default = ["yydb"]
 yydb = ["dep:yydb"]
 
 [dev-dependencies]
@@ -28,3 +28,8 @@ toml = "0.8"
 [[test]]
 name = "g_store_memory_contract_suite"
 path = "tests/g_store_memory_contract_suite.rs"
+
+[[test]]
+name = "g_store_yydb_parity"
+path = "tests/g_store_yydb_parity.rs"
+required-features = ["yydb"]
