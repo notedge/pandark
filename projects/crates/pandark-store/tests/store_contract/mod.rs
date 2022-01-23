@@ -4,7 +4,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use pandark_store::{frontier_item_from_contract, MemoryStore, Store, StoreConfig, StoreError};
+use pandark_store::{
+    frontier_item_from_contract, MemoryStore, Store, StoreConfig, StoreDiagnosticReport,
+    StoreDoctorSeverity, StoreError,
+};
 use serde::Deserialize;
 
 #[cfg(feature = "yydb")]
@@ -80,6 +83,8 @@ struct CaseAssertion {
     max: Option<u64>,
     #[serde(default)]
     code: Option<String>,
+    #[serde(default)]
+    severity: Option<String>,
 }
 
 pub fn run_memory_suite() {
@@ -91,7 +96,16 @@ pub fn run_yydb_suite() {
     run_suite("yydb");
 }
 
+#[cfg(feature = "yydb")]
+pub fn run_yydb_doctor_suite() {
+    run_suite_filtered("yydb", |case| case.id == "store.doctor.quota_orphan");
+}
+
 fn run_suite(backend: &str) {
+    run_suite_filtered(backend, |_| true);
+}
+
+fn run_suite_filtered(backend: &str, filter: impl Fn(&ManifestCase) -> bool) {
     let manifest_path = Path::new(CONTRACT_DIR).join("manifest.toml");
     let manifest_text = fs::read_to_string(manifest_path).expect("manifest.toml");
     let manifest: Manifest = toml::from_str(&manifest_text).expect("parse manifest");
@@ -99,7 +113,7 @@ fn run_suite(backend: &str) {
         if !case.backends.iter().any(|item| item == backend) {
             continue;
         }
-        if backend == "yydb" && case.id == "store.doctor.quota_orphan" {
+        if !filter(&case) {
             continue;
         }
         let case_path = Path::new(CONTRACT_DIR).join(&case.file);
@@ -116,18 +130,26 @@ fn run_case_memory(gate: &str, case_id: &str, case_path: &Path) {
     let case_file = load_case(case_id, case_path);
     let mut store = MemoryStore::open(StoreConfig::memory(1)).expect("open memory store");
     let mut last_error = None;
+    let mut last_doctor_report = None;
     for step in &case_file.initial.steps {
         if step.op == "open" {
             let schema_version = step.store_schema_version.unwrap_or(1);
             store = MemoryStore::open(StoreConfig::memory(schema_version)).expect("open memory store");
             continue;
         }
-        last_error = execute_step(&mut store, step).err();
+        last_error = execute_step(&mut store, step, &mut last_doctor_report).err();
     }
     for step in &case_file.steps {
-        last_error = execute_step(&mut store, step).err();
+        last_error = execute_step(&mut store, step, &mut last_doctor_report).err();
     }
-    evaluate_assertions(gate, case_id, &store, &case_file.assertions, last_error);
+    evaluate_assertions(
+        gate,
+        case_id,
+        &store,
+        &case_file.assertions,
+        last_error,
+        last_doctor_report,
+    );
 }
 
 #[cfg(feature = "yydb")]
@@ -138,6 +160,7 @@ fn run_case_yydb(gate: &str, case_id: &str, case_path: &Path) {
     let mut store =
         YydbStore::open(StoreConfig::yydb(&db_path, 1)).expect("open yydb store");
     let mut last_error = None;
+    let mut last_doctor_report = None;
     for step in &case_file.initial.steps {
         if step.op == "open" {
             cleanup_db(&db_path);
@@ -146,12 +169,19 @@ fn run_case_yydb(gate: &str, case_id: &str, case_path: &Path) {
                 .expect("open yydb store");
             continue;
         }
-        last_error = execute_step(&mut store, step).err();
+        last_error = execute_step(&mut store, step, &mut last_doctor_report).err();
     }
     for step in &case_file.steps {
-        last_error = execute_step(&mut store, step).err();
+        last_error = execute_step(&mut store, step, &mut last_doctor_report).err();
     }
-    evaluate_assertions(gate, case_id, &store, &case_file.assertions, last_error);
+    evaluate_assertions(
+        gate,
+        case_id,
+        &store,
+        &case_file.assertions,
+        last_error,
+        last_doctor_report,
+    );
     cleanup_db(&db_path);
 }
 
@@ -167,7 +197,11 @@ fn load_case(case_id: &str, case_path: &Path) -> CaseFile {
     case_file
 }
 
-fn execute_step<S: Store>(store: &mut S, step: &CaseStep) -> Result<(), StoreError> {
+fn execute_step<S: Store>(
+    store: &mut S,
+    step: &CaseStep,
+    last_doctor_report: &mut Option<StoreDiagnosticReport>,
+) -> Result<(), StoreError> {
     match step.op.as_str() {
         "begin_run" => {
             let spec = step.run_spec.as_ref().expect("begin_run run_spec");
@@ -211,6 +245,18 @@ fn execute_step<S: Store>(store: &mut S, step: &CaseStep) -> Result<(), StoreErr
         "commit_page_tx" => store.commit_page_tx(),
         "abort_page_tx" => store.abort_page_tx(),
         "reopen" => store.reopen(),
+        "put_orphan_object" => {
+            let bytes = if let Some(fixture) = &step.fixture {
+                read_fixture(fixture)?
+            } else {
+                b"orphan-contract-payload".to_vec()
+            };
+            store.put_orphan_object(&bytes)
+        }
+        "doctor" => {
+            *last_doctor_report = Some(store.doctor()?);
+            Ok(())
+        }
         other => Err(StoreError::StoreInvalidState(format!("unsupported op {other}"))),
     }
 }
@@ -226,6 +272,7 @@ fn evaluate_assertions<S: Store>(
     store: &S,
     assertions: &[CaseAssertion],
     last_error: Option<StoreError>,
+    last_doctor_report: Option<StoreDiagnosticReport>,
 ) {
     for assertion in assertions {
         match assertion.kind.as_str() {
@@ -272,6 +319,33 @@ fn evaluate_assertions<S: Store>(
                 assert!(
                     actual.contains(code),
                     "gate {gate} case {case_id} expected error {code}, got {actual}"
+                );
+            }
+            "doctor_issue" => {
+                let code = assertion.code.as_deref().expect("doctor_issue code");
+                let severity = assertion
+                    .severity
+                    .as_deref()
+                    .expect("doctor_issue severity");
+                let expected_severity =
+                    StoreDoctorSeverity::parse(severity).expect("doctor_issue severity");
+                let report = last_doctor_report.as_ref().unwrap_or_else(|| {
+                    panic!("gate {gate} case {case_id} expected doctor report for {code}")
+                });
+                let issue = report
+                    .issues
+                    .iter()
+                    .find(|issue| issue.code == code)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "gate {gate} case {case_id} expected doctor issue {code}, got {:?}",
+                            report.issues
+                        )
+                    });
+                assert_eq!(
+                    issue.severity.as_contract_str(),
+                    expected_severity.as_contract_str(),
+                    "gate {gate} case {case_id} doctor issue {code} severity mismatch"
                 );
             }
             other => panic!("gate {gate} case {case_id} unsupported assertion kind {other}"),

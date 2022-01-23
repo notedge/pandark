@@ -1,11 +1,14 @@
 use std::path::{Path, PathBuf};
 
-use yydb::Connection;
+use yydb::{Connection, ObjectKind};
 
 use crate::error::{Result, StoreError};
 use crate::keyspace;
 use crate::session::StoreSession;
-use crate::types::{ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig};
+use crate::types::{
+    ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig, StoreDiagnosticReport,
+    StoreDoctorIssue, StoreDoctorSeverity,
+};
 use crate::Store;
 use pandark_types::FrontierItem;
 
@@ -126,6 +129,32 @@ impl Store for YydbStore {
 
     fn page_phase(&self, page_id: &str) -> Result<PagePhase> {
         self.session.page_phase(page_id)
+    }
+
+    fn put_orphan_object(&mut self, bytes: &[u8]) -> Result<()> {
+        self.conn
+            .put_chunk(ObjectKind::Blob, bytes)
+            .map_err(map_yydb_error)?;
+        Ok(())
+    }
+
+    fn doctor(&self) -> Result<StoreDiagnosticReport> {
+        let report = self.conn.doctor().map_err(map_yydb_error)?;
+        let mut issues = Vec::new();
+        if report.orphan_object_count > 0 {
+            issues.push(StoreDoctorIssue {
+                severity: StoreDoctorSeverity::Warn,
+                code: "store.doctor.orphan_object".into(),
+                message: format!(
+                    "{} orphan objects are not referenced by committed metadata",
+                    report.orphan_object_count
+                ),
+            });
+        }
+        Ok(StoreDiagnosticReport {
+            orphan_object_count: report.orphan_object_count,
+            issues,
+        })
     }
 }
 

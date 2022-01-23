@@ -16,7 +16,8 @@ pub use error::{Result, StoreError};
 pub use memory::{frontier_item_from_contract, MemoryStore};
 pub use store::Store;
 pub use types::{
-    ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig,
+    ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig, StoreDiagnosticReport,
+    StoreDoctorIssue, StoreDoctorSeverity,
 };
 
 #[cfg(feature = "yydb")]

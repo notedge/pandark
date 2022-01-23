@@ -84,3 +84,51 @@ impl PagePhase {
         }
     }
 }
+
+/// Doctor finding severity exposed to Pandark core.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StoreDoctorSeverity {
+    /// Non-fatal inconsistency.
+    Warn,
+    /// Blocking inconsistency.
+    Error,
+}
+
+impl StoreDoctorSeverity {
+    /// Parse contract assertion severity strings.
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "warn" => Some(Self::Warn),
+            "error" => Some(Self::Error),
+            _ => None,
+        }
+    }
+
+    /// Stable contract string.
+    pub fn as_contract_str(self) -> &'static str {
+        match self {
+            Self::Warn => "warn",
+            Self::Error => "error",
+        }
+    }
+}
+
+/// One store-level doctor finding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoreDoctorIssue {
+    /// Finding severity.
+    pub severity: StoreDoctorSeverity,
+    /// Stable diagnostic code.
+    pub code: String,
+    /// Human-readable detail.
+    pub message: String,
+}
+
+/// Read-only store diagnostic report.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct StoreDiagnosticReport {
+    /// CAS objects without metadata references.
+    pub orphan_object_count: u64,
+    /// Findings requiring attention.
+    pub issues: Vec<StoreDoctorIssue>,
+}

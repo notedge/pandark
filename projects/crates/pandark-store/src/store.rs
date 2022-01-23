@@ -1,7 +1,9 @@
 use pandark_types::FrontierItem;
 
 use crate::error::Result;
-use crate::types::{ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig};
+use crate::types::{
+    ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig, StoreDiagnosticReport,
+};
 
 /// Store contract implemented by `MemoryStore` and `YydbStore`.
 pub trait Store {
@@ -48,4 +50,10 @@ pub trait Store {
 
     /// Read a page phase, or `auto` for the most recent page.
     fn page_phase(&self, page_id: &str) -> Result<PagePhase>;
+
+    /// Store an unreferenced CAS object for orphan reclamation tests.
+    fn put_orphan_object(&mut self, bytes: &[u8]) -> Result<()>;
+
+    /// Run read-only consistency probes.
+    fn doctor(&self) -> Result<StoreDiagnosticReport>;
 }

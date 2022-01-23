@@ -10,6 +10,7 @@
     ]
   },
   "steps": [
+    { "op": "put_orphan_object", "fixture": "sample_response_body.bin" },
     { "op": "doctor" }
   ],
   "assertions": [

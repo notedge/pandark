@@ -3,7 +3,9 @@ use url::Url;
 
 use crate::error::{Result, StoreError};
 use crate::session::StoreSession;
-use crate::types::{ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig};
+use crate::types::{
+    ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig, StoreDiagnosticReport,
+};
 use crate::Store;
 
 /// In-memory `Store` backend for deterministic contract tests.
@@ -69,6 +71,14 @@ impl Store for MemoryStore {
 
     fn page_phase(&self, page_id: &str) -> Result<PagePhase> {
         self.session.page_phase(page_id)
+    }
+
+    fn put_orphan_object(&mut self, _bytes: &[u8]) -> Result<()> {
+        Ok(())
+    }
+
+    fn doctor(&self) -> Result<StoreDiagnosticReport> {
+        Ok(StoreDiagnosticReport::default())
     }
 }
 
