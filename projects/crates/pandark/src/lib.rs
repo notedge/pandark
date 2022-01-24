@@ -1,4 +1,4 @@
-#![warn(missing_docs)]
+﻿#![warn(missing_docs)]
 #![doc = include_str!("../readme.md")]
 
 mod admission;
@@ -9,6 +9,7 @@ mod fetch;
 mod frontier;
 mod input;
 mod inspect;
+mod log;
 mod napi;
 mod seed_input;
 mod transaction;
@@ -24,9 +25,9 @@ pub use browser::{
 pub use crawl::{CrawlOptions, CrawlOutput, CrawlState, resume_crawl_from_checkpoint, run_crawl, run_crawl_with_options};
 pub use extract::{Extractor, HtmlExtractor, run_extract, select_extractor};
 pub use fetch::{
-    FetchClient, FetchRequest, FileTransport, HttpTransport, MemoryEntry, MemoryTransport,
-    ResponseCache, RobotsPolicy, SeedTransport, Transport, build_artifact, fetch_url,
-    map_transport_error, transport_for_url, DiskResponseCache,
+    DiskResponseCache, FetchClient, FetchRequest, FileTransport, HttpTransport, MemoryEntry,
+    MemoryTransport, ResponseCache, RobotsPolicy, SeedTransport, Transport, YydbResponseCache,
+    build_artifact, fetch_url, map_transport_error, transport_for_url,
 };
 pub use frontier::{FrontierQueue, frontier_from_links};
 pub use input::{InputFormat, LoadedInput, load_input, parse_input_format};

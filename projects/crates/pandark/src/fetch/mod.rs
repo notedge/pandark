@@ -23,6 +23,7 @@ pub use file::FileTransport;
 pub use http::HttpTransport;
 pub use memory::{MemoryEntry, MemoryTransport};
 pub use robots::RobotsPolicy;
+pub use pandark_store::YydbResponseCache;
 pub use select::{SeedTransport, transport_for_url};
 
 /// Fetch request passed to a transport.
@@ -93,5 +94,7 @@ fn infer_content_type(url: &Url) -> Option<String> {
 
 /// Map transport failures into crawl errors.
 pub fn map_transport_error(message: impl Into<String>) -> CrawlError {
-    CrawlError::InvalidInput(message.into())
+    let message = message.into();
+    crate::log::transport_error(&message);
+    CrawlError::InvalidInput(message)
 }

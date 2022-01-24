@@ -4,7 +4,10 @@
 
 mod error;
 pub mod keyspace;
+pub mod migrate;
 mod memory;
+#[cfg(feature = "yydb")]
+mod response_cache;
 mod session;
 mod store;
 mod types;
@@ -20,5 +23,7 @@ pub use types::{
     StoreDoctorIssue, StoreDoctorSeverity,
 };
 
+#[cfg(feature = "yydb")]
+pub use response_cache::YydbResponseCache;
 #[cfg(feature = "yydb")]
 pub use yydb::YydbStore;
