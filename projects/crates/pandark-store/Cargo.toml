@@ -38,3 +38,7 @@ required-features = ["yydb"]
 name = "g_store_doctor_quota_orphan"
 path = "tests/g_store_doctor_quota_orphan.rs"
 required-features = ["yydb"]
+
+[[test]]
+name = "g_store_migration_v1_to_v2"
+path = "tests/g_store_migration_v1_to_v2.rs"

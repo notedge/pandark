@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{Result, StoreError};
 use crate::keyspace::{item_id_from_url, run_id_from_seed};
+use crate::migrate::migrate_store_schema;
 use crate::types::{ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -133,9 +134,7 @@ impl StoreSession {
         self.active_run_id = Some(run_id.clone());
         self.last_claim = None;
         self.active_page_tx = None;
-        if self.schema_version == 0 {
-            self.schema_version = 2;
-        }
+        self.schema_version = migrate_store_schema(self.schema_version);
         self.persist_snapshot();
         Ok(RunHandle { run_id })
     }

@@ -101,6 +101,10 @@ pub fn run_yydb_doctor_suite() {
     run_suite_filtered("yydb", |case| case.id == "store.doctor.quota_orphan");
 }
 
+pub fn run_migration_suite(backend: &str) {
+    run_suite_filtered(backend, |case| case.id == "store.migration.v1_to_v2");
+}
+
 fn run_suite(backend: &str) {
     run_suite_filtered(backend, |_| true);
 }
