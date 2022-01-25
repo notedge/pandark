@@ -42,3 +42,11 @@ required-features = ["yydb"]
 [[test]]
 name = "g_store_migration_v1_to_v2"
 path = "tests/g_store_migration_v1_to_v2.rs"
+
+[[test]]
+name = "g_pandark_cache_reopen_response"
+path = "tests/g_pandark_cache_reopen_response.rs"
+
+[[test]]
+name = "g_pandark_cache_robots_ttl"
+path = "tests/g_pandark_cache_robots_ttl.rs"

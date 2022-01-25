@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use pandark_types::FrontierItem;
+use pandark_types::{FetchArtifact, TransportProvenance};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Result, StoreError};
@@ -37,10 +38,20 @@ pub(crate) struct RunState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct RobotsCacheEntry {
+    body: Vec<u8>,
+    expires_at_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct SessionSnapshot {
     schema_version: u32,
     runs: BTreeMap<String, RunState>,
     active_run_id: Option<String>,
+    #[serde(default)]
+    response_cache: BTreeMap<String, Vec<u8>>,
+    #[serde(default)]
+    robots_cache: BTreeMap<String, RobotsCacheEntry>,
 }
 
 /// Shared store session state used by memory and YYDB backends.
@@ -49,6 +60,10 @@ pub(crate) struct StoreSession {
     schema_version: u32,
     runs: BTreeMap<String, RunState>,
     active_run_id: Option<String>,
+    #[serde(default)]
+    response_cache: BTreeMap<String, Vec<u8>>,
+    #[serde(default)]
+    robots_cache: BTreeMap<String, RobotsCacheEntry>,
     snapshot: SessionSnapshot,
     last_claim: Option<ClaimToken>,
     active_page_tx: Option<PageTxHandle>,
@@ -60,10 +75,14 @@ impl StoreSession {
             schema_version,
             runs: BTreeMap::new(),
             active_run_id: None,
+            response_cache: BTreeMap::new(),
+            robots_cache: BTreeMap::new(),
             snapshot: SessionSnapshot {
                 schema_version,
                 runs: BTreeMap::new(),
                 active_run_id: None,
+                response_cache: BTreeMap::new(),
+                robots_cache: BTreeMap::new(),
             },
             last_claim: None,
             active_page_tx: None,
@@ -90,6 +109,8 @@ impl StoreSession {
             schema_version: self.schema_version,
             runs: self.runs.clone(),
             active_run_id: self.active_run_id.clone(),
+            response_cache: self.response_cache.clone(),
+            robots_cache: self.robots_cache.clone(),
         };
     }
 
@@ -104,6 +125,8 @@ impl StoreSession {
         self.schema_version = self.snapshot.schema_version.max(self.schema_version);
         self.runs = self.snapshot.runs.clone();
         self.active_run_id = self.snapshot.active_run_id.clone();
+        self.response_cache = self.snapshot.response_cache.clone();
+        self.robots_cache = self.snapshot.robots_cache.clone();
         self.last_claim = None;
         self.active_page_tx = None;
         if let Some(run_id) = &self.active_run_id {
@@ -377,5 +400,55 @@ impl StoreSession {
                     .find(|page| page.worker_id == claim.worker_id)
             })
             .ok_or_else(|| StoreError::StoreNotFound("auto page".into()))
+    }
+
+    pub(crate) fn get_response_cache(&self, cache_key: &str) -> Result<Option<FetchArtifact>> {
+        let Some(bytes) = self.response_cache.get(cache_key) else {
+            return Ok(None);
+        };
+        let mut artifact: FetchArtifact = serde_json::from_slice(bytes)
+            .map_err(|error| StoreError::StoreCorrupt(error.to_string()))?;
+        artifact.transport_provenance = TransportProvenance::CacheHit;
+        Ok(Some(artifact))
+    }
+
+    pub(crate) fn put_response_cache(&mut self, artifact: &FetchArtifact) -> Result<()> {
+        let bytes = serde_json::to_vec(artifact)
+            .map_err(|error| StoreError::StoreCorrupt(error.to_string()))?;
+        self.response_cache
+            .insert(artifact.cache_key.clone(), bytes);
+        self.persist_snapshot();
+        Ok(())
+    }
+
+    pub(crate) fn get_robots_cache(&self, site_key: &str) -> Result<Option<Vec<u8>>> {
+        let Some(entry) = self.robots_cache.get(site_key) else {
+            return Ok(None);
+        };
+        if entry
+            .expires_at_ms
+            .is_some_and(|deadline| deadline <= Self::now_millis())
+        {
+            return Ok(None);
+        }
+        Ok(Some(entry.body.clone()))
+    }
+
+    pub(crate) fn put_robots_cache(
+        &mut self,
+        site_key: &str,
+        body: &[u8],
+        ttl: Duration,
+    ) -> Result<()> {
+        let expires_at_ms = Self::now_millis().saturating_add(ttl.as_millis() as u64);
+        self.robots_cache.insert(
+            site_key.to_string(),
+            RobotsCacheEntry {
+                body: body.to_vec(),
+                expires_at_ms: Some(expires_at_ms),
+            },
+        );
+        self.persist_snapshot();
+        Ok(())
     }
 }

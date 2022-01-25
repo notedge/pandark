@@ -1,4 +1,4 @@
-use pandark_types::FrontierItem;
+use pandark_types::{FetchArtifact, FrontierItem};
 
 use crate::error::Result;
 use crate::types::{
@@ -56,4 +56,21 @@ pub trait Store {
 
     /// Run read-only consistency probes.
     fn doctor(&self) -> Result<StoreDiagnosticReport>;
+
+    /// Read a cached fetch artifact by cache key.
+    fn get_response_cache(&self, cache_key: &str) -> Result<Option<FetchArtifact>>;
+
+    /// Persist a fetch artifact in the response cache namespace.
+    fn put_response_cache(&mut self, artifact: &FetchArtifact) -> Result<()>;
+
+    /// Read cached robots document bytes for a site key.
+    fn get_robots_cache(&self, site_key: &str) -> Result<Option<Vec<u8>>>;
+
+    /// Store robots document bytes with a time-to-live.
+    fn put_robots_cache(
+        &mut self,
+        site_key: &str,
+        body: &[u8],
+        ttl: std::time::Duration,
+    ) -> Result<()>;
 }

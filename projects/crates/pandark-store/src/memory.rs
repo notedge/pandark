@@ -80,6 +80,30 @@ impl Store for MemoryStore {
     fn doctor(&self) -> Result<StoreDiagnosticReport> {
         Ok(StoreDiagnosticReport::default())
     }
+
+    fn get_response_cache(&self, cache_key: &str) -> Result<Option<pandark_types::FetchArtifact>> {
+        self.session.get_response_cache(cache_key)
+    }
+
+    fn put_response_cache(
+        &mut self,
+        artifact: &pandark_types::FetchArtifact,
+    ) -> Result<()> {
+        self.session.put_response_cache(artifact)
+    }
+
+    fn get_robots_cache(&self, site_key: &str) -> Result<Option<Vec<u8>>> {
+        self.session.get_robots_cache(site_key)
+    }
+
+    fn put_robots_cache(
+        &mut self,
+        site_key: &str,
+        body: &[u8],
+        ttl: std::time::Duration,
+    ) -> Result<()> {
+        self.session.put_robots_cache(site_key, body, ttl)
+    }
 }
 
 /// Build a [`FrontierItem`] from contract JSON fields.

@@ -10,7 +10,7 @@ use crate::types::{
     StoreDoctorIssue, StoreDoctorSeverity,
 };
 use crate::Store;
-use pandark_types::FrontierItem;
+use pandark_types::{FetchArtifact, FrontierItem};
 
 const SESSION_KEY: &str = "__pandark/store/session";
 
@@ -155,6 +155,43 @@ impl Store for YydbStore {
             orphan_object_count: report.orphan_object_count,
             issues,
         })
+    }
+
+    fn get_response_cache(&self, cache_key: &str) -> Result<Option<FetchArtifact>> {
+        let key = keyspace::response_cache(cache_key);
+        let Some(bytes) = self.conn.get(&key).map_err(map_yydb_error)? else {
+            return Ok(None);
+        };
+        let mut artifact: FetchArtifact = serde_json::from_slice(&bytes)
+            .map_err(|error| StoreError::StoreCorrupt(error.to_string()))?;
+        artifact.transport_provenance = pandark_types::TransportProvenance::CacheHit;
+        Ok(Some(artifact))
+    }
+
+    fn put_response_cache(&mut self, artifact: &FetchArtifact) -> Result<()> {
+        let key = keyspace::response_cache(&artifact.cache_key);
+        let bytes = serde_json::to_vec(artifact)
+            .map_err(|error| StoreError::StoreCorrupt(error.to_string()))?;
+        self.conn.put(key, bytes).map_err(map_yydb_error)?;
+        Ok(())
+    }
+
+    fn get_robots_cache(&self, site_key: &str) -> Result<Option<Vec<u8>>> {
+        let key = keyspace::robots_cache(site_key);
+        self.conn.get(&key).map_err(map_yydb_error)
+    }
+
+    fn put_robots_cache(
+        &mut self,
+        site_key: &str,
+        body: &[u8],
+        ttl: std::time::Duration,
+    ) -> Result<()> {
+        let key = keyspace::robots_cache(site_key);
+        self.conn
+            .put_with_ttl(key, body, ttl)
+            .map_err(map_yydb_error)?;
+        Ok(())
     }
 }
 
