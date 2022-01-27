@@ -14,3 +14,7 @@ doctest = false
 notedown-ir = { workspace = true }
 serde = { workspace = true }
 url = { workspace = true }
+
+[[test]]
+name = "g_arch_types_no_backend_deps"
+path = "tests/g_arch_types_no_backend_deps.rs"
