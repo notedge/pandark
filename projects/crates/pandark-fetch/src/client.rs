@@ -145,7 +145,7 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::fetch::memory::{MemoryEntry, MemoryTransport};
+    use crate::memory::{MemoryEntry, MemoryTransport};
 
     #[test]
     fn cache_hit_marks_provenance() {

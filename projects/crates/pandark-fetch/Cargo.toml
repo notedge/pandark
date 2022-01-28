@@ -1,8 +1,8 @@
 [package]
-name = "pandark"
+name = "pandark-fetch"
 version.workspace = true
 authors.workspace = true
-description = "Pandark crawl orchestration, fetch transport, and Node-API bindings"
+description = "Pandark fetch transports, robots policy, and response caching"
 readme = "readme.md"
 homepage = "https://github.com/notedge/pandark"
 repository = "https://github.com/notedge/pandark"
@@ -10,23 +10,18 @@ license.workspace = true
 edition.workspace = true
 publish = false
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [dependencies]
-napi = { workspace = true }
-napi-derive = { workspace = true }
-notedown-ir = { workspace = true }
 pandark-types = { workspace = true }
-pandark-fetch = { workspace = true }
-pandark-store = { workspace = true, features = ["yydb"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
 ureq = { version = "2.12", default-features = true }
+logger = { workspace = true, optional = true }
 
-[build-dependencies]
-napi-build = "2"
+[features]
+default = []
+logger = ["dep:logger"]
 
-[package.metadata.napi]
-name = "pandark"
+[[test]]
+name = "g_arch_fetch_replace_transport"
+path = "tests/g_arch_fetch_replace_transport.rs"

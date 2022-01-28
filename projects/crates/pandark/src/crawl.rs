@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::browser::{BrowserProvider, snapshot_to_fetch_artifact};
-use crate::fetch::{FetchClient, FetchRequest, RobotsPolicy, Transport};
+use pandark_fetch::{FetchClient, FetchRequest, RobotsPolicy, Transport};
 use pandark_types::{
     AdmissionDecision, apply_challenge_policy, BrowserFallbackPolicy, ChallengeOutcome,
     ChallengePolicy, CrawlCheckpoint, CrawlError, CrawlEvent, CrawlReport, CrawlRequest,
@@ -438,7 +438,7 @@ fn last_pause_from_report(report: &CrawlReport) -> (Option<url::Url>, Option<Pag
 
 #[cfg(test)]
 mod tests {
-    use crate::fetch::{MemoryEntry, MemoryTransport};
+    use pandark_fetch::{MemoryEntry, MemoryTransport};
 
     use super::*;
     use crate::{FixtureBrowserProvider, HtmlExtractor, resume_crawl_from_checkpoint, run_extract};
@@ -823,7 +823,7 @@ mod tests {
 
     #[test]
     fn extract_mode_reuses_artifact_without_transport() {
-        let artifact = crate::fetch::build_artifact(
+        let artifact = pandark_fetch::build_artifact(
             url::Url::parse("https://example.com/page").expect("url"),
             url::Url::parse("https://example.com/page").expect("url"),
             200,

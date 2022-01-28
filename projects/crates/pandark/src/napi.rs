@@ -12,10 +12,7 @@ use crate::{
     run_crawl_with_options,
     run_extract, run_extract_from_snapshot,
 };
-use crate::fetch::{
-    FetchClient, FetchRequest, RobotsPolicy,
-    transport_for_url,
-};
+use pandark_fetch::{FetchClient, FetchRequest, RobotsPolicy, transport_for_url};
 use pandark_types::PolitenessProfile;
 use pandark_types::{
     BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlReport,

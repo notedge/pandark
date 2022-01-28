@@ -1,3 +1,7 @@
+//! Fetch transports, robots policy, and response caching.
+
+#![deny(missing_docs)]
+
 use std::collections::BTreeMap;
 
 use pandark_types::{
@@ -23,7 +27,6 @@ pub use file::FileTransport;
 pub use http::HttpTransport;
 pub use memory::{MemoryEntry, MemoryTransport};
 pub use robots::RobotsPolicy;
-pub use pandark_store::YydbResponseCache;
 pub use select::{SeedTransport, transport_for_url};
 
 /// Fetch request passed to a transport.
@@ -95,6 +98,14 @@ fn infer_content_type(url: &Url) -> Option<String> {
 /// Map transport failures into crawl errors.
 pub fn map_transport_error(message: impl Into<String>) -> CrawlError {
     let message = message.into();
-    crate::log::transport_error(&message);
+    log_transport_error(&message);
     CrawlError::InvalidInput(message)
 }
+
+#[cfg(feature = "logger")]
+fn log_transport_error(message: &str) {
+    logger::event!(Error, "pandark.transport", message = message);
+}
+
+#[cfg(not(feature = "logger"))]
+fn log_transport_error(_message: &str) {}

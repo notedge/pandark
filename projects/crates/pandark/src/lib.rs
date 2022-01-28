@@ -5,11 +5,9 @@ mod admission;
 mod browser;
 mod crawl;
 mod extract;
-mod fetch;
 mod frontier;
 mod input;
 mod inspect;
-mod log;
 mod napi;
 mod seed_input;
 mod transaction;
@@ -24,11 +22,12 @@ pub use browser::{
 };
 pub use crawl::{CrawlOptions, CrawlOutput, CrawlState, resume_crawl_from_checkpoint, run_crawl, run_crawl_with_options};
 pub use extract::{Extractor, HtmlExtractor, run_extract, select_extractor};
-pub use fetch::{
+pub use pandark_fetch::{
     DiskResponseCache, FetchClient, FetchRequest, FileTransport, HttpTransport, MemoryEntry,
-    MemoryTransport, ResponseCache, RobotsPolicy, SeedTransport, Transport, YydbResponseCache,
-    build_artifact, fetch_url, map_transport_error, transport_for_url,
+    MemoryTransport, ResponseCache, RobotsPolicy, SeedTransport, Transport, build_artifact,
+    fetch_url, map_transport_error, transport_for_url,
 };
+pub use pandark_store::YydbResponseCache;
 pub use frontier::{FrontierQueue, frontier_from_links};
 pub use input::{InputFormat, LoadedInput, load_input, parse_input_format};
 pub use inspect::{inspect_artifact, inspect_snapshot};

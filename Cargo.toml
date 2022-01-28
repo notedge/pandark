@@ -10,6 +10,7 @@ edition = "2021"
 
 [workspace.dependencies]
 pandark-types = { path = "projects/crates/pandark-types" }
+pandark-fetch = { path = "projects/crates/pandark-fetch" }
 pandark-store = { path = "projects/crates/pandark-store" }
 pandark = { path = "projects/crates/pandark" }
 notedown-ir = { git = "https://github.com/notedge/notedown.git", branch = "dev" }

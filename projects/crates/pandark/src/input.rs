@@ -3,7 +3,7 @@ use std::path::Path;
 use pandark_types::{BrowserSnapshot, CrawlError, FetchArtifact, Result};
 
 use crate::browser::{load_snapshot_json, path_looks_like_snapshot};
-use crate::fetch::{FetchRequest, FileTransport, Transport};
+use pandark_fetch::{FetchRequest, FileTransport, Transport};
 
 /// Input format selector for extract and inspect commands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

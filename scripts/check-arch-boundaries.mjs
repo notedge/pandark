@@ -33,7 +33,7 @@ function declaresDependency(manifest, name) {
 function checkYydbOnlyInStore() {
   for (const crate of crateNames()) {
     const manifest = readManifest(crate);
-    if (!declaresDependency(manifest, "yydb") && !manifest.includes('dep:yydb')) {
+    if (!declaresDependency(manifest, "yydb") && !manifest.includes("dep:yydb")) {
       continue;
     }
     if (crate !== "pandark-store") {
@@ -42,6 +42,15 @@ function checkYydbOnlyInStore() {
   }
   if (!declaresDependency(readManifest("pandark-store"), "yydb")) {
     fail("`pandark-store` must declare optional `yydb` dependency");
+  }
+}
+
+function checkFetchDeps() {
+  const manifest = readManifest("pandark-fetch");
+  for (const forbidden of ["yydb", "notedown-ir", "pandark-store", "napi"]) {
+    if (declaresDependency(manifest, forbidden)) {
+      fail(`\`pandark-fetch\` must not depend on \`${forbidden}\``);
+    }
   }
 }
 
@@ -81,6 +90,7 @@ function checkNoYydbImportsOutsideStore() {
 }
 
 checkYydbOnlyInStore();
+checkFetchDeps();
 checkNoYydbImportsOutsideStore();
 
 if (process.exitCode) {
