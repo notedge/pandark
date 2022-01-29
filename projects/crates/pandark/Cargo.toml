@@ -2,7 +2,7 @@
 name = "pandark"
 version.workspace = true
 authors.workspace = true
-description = "Pandark crawl orchestration, fetch transport, and Node-API bindings"
+description = "Pandark crawl orchestration and native Rust facade"
 readme = "readme.md"
 homepage = "https://github.com/notedge/pandark"
 repository = "https://github.com/notedge/pandark"
@@ -11,13 +11,12 @@ edition.workspace = true
 publish = false
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
-napi = { workspace = true }
-napi-derive = { workspace = true }
 notedown-ir = { workspace = true }
 pandark-types = { workspace = true }
+pandark-extract = { workspace = true }
 pandark-fetch = { workspace = true }
 pandark-store = { workspace = true, features = ["yydb"] }
 serde = { workspace = true }
@@ -25,8 +24,6 @@ serde_json = { workspace = true }
 url = { workspace = true }
 ureq = { version = "2.12", default-features = true }
 
-[build-dependencies]
-napi-build = "2"
-
-[package.metadata.napi]
-name = "pandark"
+[features]
+default = []
+logger = ["pandark-fetch/logger"]

@@ -4,13 +4,12 @@ use std::path::PathBuf;
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use crate::CrawlOptions;
-use crate::{
-    ChallengeBlocked, Extractor, HtmlExtractor, LoadedInput, initial_report, inspect_artifact,
-    inspect_snapshot, load_input, parse_input_format,
-    build_browser_stack, plan_crawl as build_plan, resume_crawl_from_checkpoint,
-    run_crawl_with_options,
-    run_extract, run_extract_from_snapshot,
+use pandark::CrawlOptions;
+use pandark::{
+    BrowserProvider, ChallengeBlocked, Extractor, HtmlExtractor, LoadedInput, initial_report,
+    inspect_artifact, inspect_snapshot, load_input, parse_input_format, build_browser_stack,
+    plan_crawl as build_plan, resolve_crawl_seed_specs, resume_crawl_from_checkpoint,
+    run_crawl_with_options, run_extract, run_extract_from_snapshot,
 };
 use pandark_fetch::{FetchClient, FetchRequest, RobotsPolicy, transport_for_url};
 use pandark_types::PolitenessProfile;
@@ -61,6 +60,7 @@ pub struct InspectResponse {
 
 /// Returns the Pandark N-API binding version.
 #[napi]
+#[allow(missing_docs)]
 pub fn pandark_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
@@ -209,7 +209,7 @@ pub fn crawl_file(
         browser: if browser_stack.is_empty() {
             None
         } else {
-            Some(&browser_stack as &dyn crate::BrowserProvider)
+            Some(&browser_stack as &dyn BrowserProvider)
         },
         browser_fallback: parse_browser_fallback(browser_fallback.as_deref())?,
         challenge_policy: parse_challenge_policy(challenge_policy.as_deref())?,
@@ -265,7 +265,7 @@ pub fn resume_crawl_file(
         browser: if browser_stack.is_empty() {
             None
         } else {
-            Some(&browser_stack as &dyn crate::BrowserProvider)
+            Some(&browser_stack as &dyn BrowserProvider)
         },
         browser_fallback: parse_browser_fallback(browser_fallback.as_deref())?,
         challenge_policy: parse_challenge_policy(challenge_policy.as_deref())?,
@@ -307,7 +307,7 @@ fn parse_request(
     max_depth: Option<u32>,
     max_requests: Option<u32>,
 ) -> Result<CrawlRequest> {
-    let seed_urls = crate::resolve_crawl_seed_specs(seed).map_err(map_crawl_error)?;
+    let seed_urls = resolve_crawl_seed_specs(seed).map_err(map_crawl_error)?;
     let mut request = CrawlRequest::from_seeds(seed_urls).map_err(map_crawl_error)?;
     if let Some(depth) = max_depth {
         request.budget.max_depth = depth;

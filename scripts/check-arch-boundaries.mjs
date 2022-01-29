@@ -54,6 +54,18 @@ function checkFetchDeps() {
   }
 }
 
+function checkPandarkIsRlibOnly() {
+  const manifest = readManifest("pandark");
+  if (manifest.includes("cdylib")) {
+    fail("`pandark` must be an rlib facade and must not build a cdylib");
+  }
+  for (const forbidden of ["napi", "napi-derive"]) {
+    if (declaresDependency(manifest, forbidden)) {
+      fail(`\`pandark\` must not depend on \`${forbidden}\``);
+    }
+  }
+}
+
 function listRustFiles(dir) {
   const out = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -91,6 +103,7 @@ function checkNoYydbImportsOutsideStore() {
 
 checkYydbOnlyInStore();
 checkFetchDeps();
+checkPandarkIsRlibOnly();
 checkNoYydbImportsOutsideStore();
 
 if (process.exitCode) {

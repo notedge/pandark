@@ -11,8 +11,10 @@ edition = "2021"
 [workspace.dependencies]
 pandark-types = { path = "projects/crates/pandark-types" }
 pandark-fetch = { path = "projects/crates/pandark-fetch" }
+pandark-extract = { path = "projects/crates/pandark-extract" }
 pandark-store = { path = "projects/crates/pandark-store" }
 pandark = { path = "projects/crates/pandark" }
+pandark-napi = { path = "projects/crates/pandark-napi" }
 notedown-ir = { git = "https://github.com/notedge/notedown.git", branch = "dev" }
 diagnostic = { git = "https://github.com/oovm/rust-boost", branch = "dev", package = "diagnostic", default-features = false, features = ["std", "serde"] }
 logger = { git = "https://github.com/oovm/rust-boost", branch = "dev", package = "logger" }

@@ -1,0 +1,34 @@
+[package]
+name = "pandark-napi"
+version.workspace = true
+authors.workspace = true
+description = "Node-API adapter for Pandark"
+readme = "readme.md"
+homepage = "https://github.com/notedge/pandark"
+repository = "https://github.com/notedge/pandark"
+license.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pandark = { workspace = true }
+pandark-fetch = { workspace = true }
+pandark-types = { workspace = true }
+napi = { workspace = true }
+napi-derive = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+url = { workspace = true }
+
+[build-dependencies]
+napi-build = "2"
+
+[package.metadata.napi]
+name = "pandark"
+
+[[test]]
+name = "g_arch_napi_standalone_build"
+path = "tests/g_arch_napi_standalone_build.rs"

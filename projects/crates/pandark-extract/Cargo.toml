@@ -1,0 +1,16 @@
+[package]
+name = "pandark-extract"
+version.workspace = true
+authors.workspace = true
+description = "Pandark semantic extractors over fetch artifacts"
+readme = "readme.md"
+homepage = "https://github.com/notedge/pandark"
+repository = "https://github.com/notedge/pandark"
+license.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+notedown-ir = { workspace = true }
+pandark-types = { workspace = true }
+url = { workspace = true }

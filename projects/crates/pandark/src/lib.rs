@@ -8,7 +8,6 @@ mod extract;
 mod frontier;
 mod input;
 mod inspect;
-mod napi;
 mod seed_input;
 mod transaction;
 
