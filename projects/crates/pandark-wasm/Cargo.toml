@@ -1,0 +1,29 @@
+[package]
+name = "pandark-wasm"
+version.workspace = true
+authors.workspace = true
+description = "WASM adapter for Pandark extract and inspect (no crawl)"
+readme = "readme.md"
+homepage = "https://github.com/notedge/pandark"
+repository = "https://github.com/notedge/pandark"
+license.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pandark-extract = { workspace = true }
+pandark-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+wasm-bindgen = { workspace = true }
+
+[[test]]
+name = "g_arch_wasm_no_native_import"
+path = "tests/arch/g_arch_wasm_no_native_import.rs"
+
+[[test]]
+name = "g_arch_wasm_capability_fixture"
+path = "tests/arch/g_arch_wasm_capability_fixture.rs"
