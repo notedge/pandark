@@ -1,6 +1,6 @@
 {
     "name": "@notedge/pandark-skills",
-    "version": "0.1.0",
+    "version": "0.0.0",
     "private": true,
     "type": "module",
     "description": "Agent skills for Pandark users — crawl and extract web pages with @notedge/pandark. Install with npx @notedge/pandark-skills.",
