@@ -8,9 +8,14 @@ Pandark collects and extracts web pages into `notedown-ir::DocumentGraph`. It is
 ## Crates
 
 - `pandark-types` — crawl contracts, `FetchArtifact`, frontier items, reports, and policies
-- `pandark` — fetch transport, frontier orchestration, extract pipeline, and Node-API bindings
+- `pandark-fetch` — HTTP, file, and memory transports with optional response cache
+- `pandark-extract` — semantic extractors over `FetchArtifact`
+- `pandark-store` — crawl persistence (`MemoryStore`, optional `YydbStore`)
+- `pandark` — crawl orchestration Rust facade
+- `pandark-napi` — Node-API bindings (`plan_crawl`, `crawl_file`, extract, inspect)
+- `pandark-wasm` — WASM extract, inspect, and plan helpers (no crawl)
 
-Browser sessions use a future `BrowserProvider` capability layer and are not part of the `pandark` crate surface yet.
+Browser sessions use a `BrowserProvider` capability layer on the native path only.
 
 ## Developers
 
