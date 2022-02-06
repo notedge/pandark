@@ -5,9 +5,13 @@
         "build": "cargo build --release",
         "build:napi": "node scripts/build-napi.mjs",
         "test": "cargo test --release && pnpm --filter @notedge/pandark test:e2e",
-        "typecheck": "pnpm --filter @notedge/pandark typecheck"
+        "typecheck": "pnpm --filter @notedge/pandark typecheck",
+        "placeholder": "nifty publish --placeholder --dry-run",
+        "placeholder:publish": "nifty publish --placeholder",
+        "placeholder:trust": "nifty trust"
     },
     "devDependencies": {
+        "@doki-land/nifty": "^0.0.12",
         "@napi-rs/cli": "^2.18.4",
         "@notedge/pandark": "workspace:*"
     }
