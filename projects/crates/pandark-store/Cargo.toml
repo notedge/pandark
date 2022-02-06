@@ -11,7 +11,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-blake3 = "1.8"
+blake3 = { workspace = true }
 pandark-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
