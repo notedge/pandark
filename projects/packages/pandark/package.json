@@ -1,11 +1,14 @@
 {
     "name": "@notedge/pandark",
-    "version": "0.0.0",
+    "version": "0.0.1",
     "description": "Pandark crawl bindings (Node-API + TypeScript)",
     "type": "module",
     "license": "MPL-2.0",
+    "publishConfig": {
+        "access": "public"
+    },
     "bin": {
-        "pandark": "./bin/pandark.mjs"
+        "pandark": "bin/pandark"
     },
     "exports": {
         ".": "./src/index.ts",
