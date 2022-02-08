@@ -780,7 +780,7 @@ checksum = "13c45bb4a6ae1280ec0803b1ef9d3455eb50f01efbbe1447ab020f1d54fba9d8"
 
 [[package]]
 name = "pandark"
-version = "0.0.0"
+version = "0.0.2"
 dependencies = [
  "notedown-ir",
  "pandark-extract",
@@ -795,7 +795,7 @@ dependencies = [
 
 [[package]]
 name = "pandark-extract"
-version = "0.0.0"
+version = "0.0.2"
 dependencies = [
  "notedown-ir",
  "pandark-types",
@@ -804,7 +804,7 @@ dependencies = [
 
 [[package]]
 name = "pandark-fetch"
-version = "0.0.0"
+version = "0.0.2"
 dependencies = [
  "logger",
  "pandark-types",
@@ -816,7 +816,7 @@ dependencies = [
 
 [[package]]
 name = "pandark-napi"
-version = "0.0.0"
+version = "0.0.2"
 dependencies = [
  "napi",
  "napi-build",
@@ -831,7 +831,7 @@ dependencies = [
 
 [[package]]
 name = "pandark-store"
-version = "0.0.0"
+version = "0.0.2"
 dependencies = [
  "blake3",
  "pandark-types",
@@ -844,7 +844,7 @@ dependencies = [
 
 [[package]]
 name = "pandark-types"
-version = "0.0.0"
+version = "0.0.2"
 dependencies = [
  "notedown-ir",
  "serde",
@@ -853,7 +853,7 @@ dependencies = [
 
 [[package]]
 name = "pandark-wasm"
-version = "0.0.0"
+version = "0.0.2"
 dependencies = [
  "pandark-extract",
  "pandark-types",
