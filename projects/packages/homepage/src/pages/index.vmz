@@ -1,0 +1,151 @@
+<template>
+  <div class="pandark-home">
+    <header class="pandark-site-header">
+      <Link class="pandark-site-header__brand" href="/"><strong>Pandark</strong></Link>
+      <nav class="pandark-site-header__nav" aria-label="Primary">
+        <Link href="/">Home</Link>
+        <Link href="/bindings">Bindings</Link>
+      </nav>
+    </header>
+    <main>
+      <section class="pandark-home__hero" aria-labelledby="pandark-hero-title">
+        <Badge tone="brand">Web collection - Rust core</Badge>
+        <h1 id="pandark-hero-title">Extract and collect pages into notedown-ir.</h1>
+        <p class="pandark-home__lede">
+          Pandark turns saved HTML and bounded URL seeds into semantic documents and crawl reports through Node-API bindings and optional platform packages.
+        </p>
+        <div class="pandark-home__actions">
+          <Link href="/bindings"><Button type="button" variant="primary">Probe bindings</Button></Link>
+        </div>
+      </section>
+
+      <section class="pandark-home__grid" aria-label="Binding snapshot">
+        <Card title="Live probe" description="Node bindings on the host; browsers show an unavailable snapshot.">
+          <dl class="pandark-home__probe">
+            <div><dt>version</dt><dd>{{ pandarkVersion }}</dd></div>
+            <div><dt>backend</dt><dd>{{ pandarkBackend }}</dd></div>
+            <div><dt>platform</dt><dd>{{ pandarkPlatform }}</dd></div>
+            <div><dt>commands</dt><dd>{{ pandarkCommands }}</dd></div>
+          </dl>
+        </Card>
+        <Card title="Install" description="TypeScript facade over @notedge/pandark-&lt;platform&gt; carriers.">
+          <CodeBlock
+            :code="installSample"
+            caption="shell"
+            copy-label="Copy"
+            @copy="() => this.copyInstall()"
+          />
+        </Card>
+      </section>
+    </main>
+  </div>
+</template>
+
+<style>
+  .pandark-site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 0;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--vmz-line-default, #e2e8f0);
+  }
+  .pandark-site-header__brand {
+    font-size: 1.15rem;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    color: var(--vmz-text-ink, #0f172a);
+  }
+  .pandark-site-header__nav {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .pandark-home {
+    max-width: 56rem;
+    margin: 0 auto;
+    padding: 0 1.25rem 3rem;
+  }
+  .pandark-home__hero {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 1.5rem 0 2rem;
+  }
+  .pandark-home__hero h1 {
+    margin: 0;
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    line-height: 1.15;
+  }
+  .pandark-home__lede {
+    margin: 0;
+    max-width: 40rem;
+    color: var(--vmz-text-steel, #475569);
+    line-height: 1.55;
+  }
+  .pandark-home__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+  }
+  .pandark-home__grid {
+    display: grid;
+    gap: 1.25rem;
+  }
+  .pandark-home__probe {
+    margin: 0;
+    display: grid;
+    gap: 0.35rem;
+  }
+  .pandark-home__probe div {
+    display: grid;
+    grid-template-columns: 7rem 1fr;
+    gap: 0.5rem;
+    font-family: var(--vmz-font-mono, ui-monospace, monospace);
+    font-size: 0.85rem;
+  }
+  .pandark-home__probe dt {
+    color: var(--vmz-text-steel, #475569);
+  }
+  .pandark-home__probe dd {
+    margin: 0;
+  }
+  @media (min-width: 720px) {
+    .pandark-home__grid {
+      grid-template-columns: 1fr 1fr;
+      align-items: start;
+    }
+  }
+</style>
+
+<script client>
+import { probePandark } from '../lib/pandark-probe.ts';
+
+export default class IndexPage {
+    installSample = 'pnpm add @notedge/pandark';
+    pandarkVersion = '';
+    pandarkBackend = '';
+    pandarkPlatform = '';
+    pandarkCommands = '';
+
+    async onMount() {
+        const probe = await probePandark();
+        this.pandarkVersion = probe.version;
+        this.pandarkBackend = probe.backend;
+        this.pandarkPlatform = probe.platformPackage;
+        this.pandarkCommands = probe.commands.join(', ');
+    }
+
+    async copyInstall() {
+        const text = String(this.installSample || '');
+        if (!text || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return;
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch {
+            /* ignore */
+        }
+    }
+}
+</script>

@@ -1,12 +1,15 @@
 # @notedge/pandark-skills
 
-面向 **使用 Pandark 做网页采集与语义抽取** 的终端用户与编码代理技能包，不是给改 Rust 内核的贡献者用的。
+Agent skill pack for **people who use Pandark** to extract saved pages or run bounded crawls—not for contributors
+changing the Rust crates.
 
-> **2026-10-02 验收：** Pandark 架构骨架通过，**生产爬虫验收不通过**。当前为离线/fixture 原型，代理不得将其描述为生产级爬虫框架。
+Install once so coding agents know how to install `@notedge/pandark`, pick CLI or Node entry points, interpret crawl
+reports, and explain why a run paused or produced partial output.
 
-安装一次后，编码代理会知道如何安装 `@notedge/pandark`、选用 CLI 或 Node API、处理暂停/恢复与浏览器降级，并用通俗语言解释采集报告与失败原因。
+**Scope:** instructions only. The installer does not ship the native binding, a headless browser, or production-grade
+politeness guarantees.
 
-## 安装技能
+## 📥 Install
 
 ```bash
 npx @notedge/pandark-skills
@@ -17,31 +20,43 @@ npx @notedge/pandark-skills -g
 npx @notedge/pandark-skills -a cursor -y
 ```
 
-## 示例提问
+`-g` installs the wrapper globally. `-a cursor -y` targets Cursor when the wrapper supports that agent.
+
+## 💬 Example prompts
 
 ```text
-用 Pandark 从 https://example.com/docs 抓取两层链接，预算 200 次请求，把 JSON 报告给我。
+Use Pandark to inspect ./saved/page.html and extract a semantic document.
+Write ./out/page.document.json and ./out/page.report.json and explain any gaps.
 ```
 
 ```text
-我有一份 seeds.txt，批量 crawl 这些 URL。HTTP 失败时回退到浏览器 fixture 目录。
+Plan a crawl from https://example.com/docs with depth 1 and budget 30.
+Show the frontier and whether this release is safe to run against production.
 ```
 
 ```text
-crawl 遇到登录页暂停了，checkpoint 写在哪？怎么用 resume 继续？
+Crawl ./seeds.txt with budget 100 and browser fixtures in ./fixtures/browser.
+If the run pauses, tell me where the checkpoint is and how to resume.
 ```
 
-```text
-本地 page.html 怎么抽成 notedown-ir？先 inspect 再看能不能 extract。
+## ✅ What the agent checks
+
+- Whether `@notedge/pandark` and the platform binary load (`pandark doctor`)
+- Smallest supported workflow for the user's input (extract before site-wide crawl)
+- `--depth` and `--budget` on crawl commands
+- Report JSON vs `committedPages` when the user expects files on disk
+- Browser fixture or endpoint requirements for dynamic pages
+- Honest limits: prototype crawler, no bundled login browser, WASM without crawl
+
+## 📎 Full skill
+
+See [`skills/pandark/SKILL.md`](skills/pandark/SKILL.md) for trigger conditions, step-by-step execution, and failure
+handling.
+
+Install the runtime separately:
+
+```bash
+npm install @notedge/pandark
 ```
 
-## 技能覆盖范围
-
-- 安装与 `pandark doctor` 自检
-- CLI：`plan` / `fetch` / `crawl` / `resume` / `extract` / `inspect` / `doctor`
-- 种子 URL 与换行 seed 文件
-- 挑战策略、浏览器降级、checkpoint 暂停与恢复
-- Node 脚本接入 `loadPandarkNode()`
-- 诚实说明当前版本尚未完成的能力（完整无头浏览器、批量落盘目录等）
-
-完整代理指南见 `skills/pandark/SKILL.md`。
+License: MPL-2.0

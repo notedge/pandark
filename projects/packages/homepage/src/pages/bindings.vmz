@@ -1,0 +1,140 @@
+<template>
+  <div class="pandark-bindings-page">
+    <header class="pandark-site-header">
+      <Link class="pandark-site-header__brand" href="/"><strong>Pandark</strong></Link>
+      <nav class="pandark-site-header__nav" aria-label="Primary">
+        <Link href="/">Home</Link>
+        <Link href="/bindings">Bindings</Link>
+      </nav>
+    </header>
+    <main>
+      <h1>@notedge/pandark probe</h1>
+      <p class="pandark-bindings-page__lede">
+        Live probe through `@notedge/pandark` and optional `@notedge/pandark-&lt;platform&gt;` carriers.
+        Node-API bindings load on the host. Browser pages show an explicit unavailable state because this release has no public WASM crawl surface.
+      </p>
+
+      <Card title="Probe results" description="Binding version, carrier, and exported operations.">
+        <dl class="pandark-bindings-page__probe">
+          <div><dt>pandarkVersion()</dt><dd>{{ pandarkVersion }}</dd></div>
+          <div><dt>backend</dt><dd>{{ pandarkBackend }}</dd></div>
+          <div><dt>platform package</dt><dd>{{ pandarkPlatform }}</dd></div>
+          <div><dt>loadPandarkNode()</dt><dd>{{ pandarkCommands }}</dd></div>
+        </dl>
+      </Card>
+
+      <Card title="Carrier layout" description="Same pattern as @notedge/panduck platform packages.">
+        <CodeBlock
+          :code="carrierSample"
+          caption="javascript"
+          copy-label="Copy"
+          @copy="() => this.copyCarrier()"
+        />
+      </Card>
+
+      <Card title="Node self-test" description="CI / local verify without a browser.">
+        <CodeBlock
+          :code="selfTestSample"
+          caption="shell"
+          copy-label="Copy"
+          @copy="() => this.copySelfTest()"
+        />
+      </Card>
+    </main>
+  </div>
+</template>
+
+<style>
+  .pandark-site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 0;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--vmz-line-default, #e2e8f0);
+  }
+  .pandark-site-header__brand {
+    font-size: 1.15rem;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    color: var(--vmz-text-ink, #0f172a);
+  }
+  .pandark-site-header__nav {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .pandark-bindings-page {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: 0 1.25rem 3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+  .pandark-bindings-page h1 {
+    margin: 0;
+  }
+  .pandark-bindings-page__lede {
+    margin: 0;
+    color: var(--vmz-text-steel, #475569);
+    line-height: 1.55;
+  }
+  .pandark-bindings-page__probe {
+    margin: 0;
+    display: grid;
+    gap: 0.35rem;
+  }
+  .pandark-bindings-page__probe div {
+    display: grid;
+    grid-template-columns: 14rem 1fr;
+    gap: 0.5rem;
+    font-family: var(--vmz-font-mono, ui-monospace, monospace);
+    font-size: 0.85rem;
+  }
+  .pandark-bindings-page__probe dt {
+    color: var(--vmz-text-steel, #475569);
+  }
+  .pandark-bindings-page__probe dd {
+    margin: 0;
+  }
+</style>
+
+<script client>
+import { probePandark } from '../lib/pandark-probe.ts';
+
+export default class BindingsPage {
+    carrierSample = "import pkg from '@notedge/pandark-win32-x64';\n// index.js -> require('./lib/pandark-win32-x64-msvc.node')";
+    selfTestSample = 'pnpm --filter @notedge/homepage test:pandark';
+    pandarkVersion = '';
+    pandarkBackend = '';
+    pandarkPlatform = '';
+    pandarkCommands = '';
+
+    async onMount() {
+        const probe = await probePandark();
+        this.pandarkVersion = probe.version;
+        this.pandarkBackend = probe.backend;
+        this.pandarkPlatform = probe.platformPackage;
+        this.pandarkCommands = probe.commands.join(', ');
+    }
+
+    async copyCarrier() {
+        await this.copyText(this.carrierSample);
+    }
+
+    async copySelfTest() {
+        await this.copyText(this.selfTestSample);
+    }
+
+    async copyText(text: string) {
+        if (!text || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return;
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch {
+            /* ignore */
+        }
+    }
+}
+</script>
