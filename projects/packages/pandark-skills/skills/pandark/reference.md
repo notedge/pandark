@@ -2,24 +2,24 @@
 
 ## npm packages
 
-| Package | Role |
-|---------|------|
-| `@notedge/pandark` | TypeScript types and `loadPandarkNode()` |
-| `@notedge/pandark/node` | Node-API entry |
-| `@notedge/pandark-<platform>` | Prebuilt native binary for your OS/CPU |
-| `@notedge/pandark-skills` | Agent skill installer (this package) |
+| Package                       | Role                                     |
+|-------------------------------|------------------------------------------|
+| `@notedge/pandark`            | TypeScript types and `loadPandarkNode()` |
+| `@notedge/pandark/node`       | Node-API entry                           |
+| `@notedge/pandark-<platform>` | Prebuilt native binary for your OS/CPU   |
+| `@notedge/pandark-skills`     | Agent skill installer (this package)     |
 
 ## CLI commands
 
-| Command | Positional arg | Purpose |
-|---------|----------------|---------|
-| `pandark doctor` | — | Node version + native binding check |
-| `pandark plan` | seed URL or seed file | Frontier preview, no I/O |
-| `pandark fetch` | URL or path | Single `FetchArtifact` JSON |
-| `pandark crawl` | seed URL or seed file | Multi-page crawl + extract |
-| `pandark resume` | checkpoint JSON path | Continue paused crawl |
-| `pandark extract` | local file path | HTML/snapshot → notedown-ir |
-| `pandark inspect` | local file path | Probe, links, or extract-plan |
+| Command           | Positional arg        | Purpose                             |
+|-------------------|-----------------------|-------------------------------------|
+| `pandark doctor`  | —                     | Node version + native binding check |
+| `pandark plan`    | seed URL or seed file | Frontier preview, no I/O            |
+| `pandark fetch`   | URL or path           | Single `FetchArtifact` JSON         |
+| `pandark crawl`   | seed URL or seed file | Multi-page crawl + extract          |
+| `pandark resume`  | checkpoint JSON path  | Continue paused crawl               |
+| `pandark extract` | local file path       | HTML/snapshot → notedown-ir         |
+| `pandark inspect` | local file path       | Probe, links, or extract-plan       |
 
 Global-style flags used across commands:
 
@@ -159,7 +159,8 @@ Agents should read the installed package `src/types.ts` rather than assuming und
 
 ## Browser snapshot fixture (minimal)
 
-Used with `--browser-fixtures-dir` for offline or fallback capture. Filename convention in tests: slug derived from URL + `.snapshot.json`.
+Used with `--browser-fixtures-dir` for offline or fallback capture. Filename convention in tests: slug derived from
+URL + `.snapshot.json`.
 
 ```json
 {

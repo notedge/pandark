@@ -7,17 +7,19 @@ description: Help users crawl and extract web pages with Pandark (@notedge/panda
 
 ## One sentence
 
-**Pandark turns URLs and browsable pages into notedown-ir document graphs and crawl reports — it crawls and extracts, it does not convert DOCX/EPUB/Markdown like Panduck.**
+**Pandark turns URLs and browsable pages into notedown-ir document graphs and crawl reports — it crawls and extracts, it
+does not convert DOCX/EPUB/Markdown like Panduck.**
 
 ## Pandark vs Panduck
 
-| | Pandark | Panduck |
-|---|---------|---------|
-| Input | URL, seed file, saved HTML/snapshot | Local file in a known format |
-| Job | Fetch, discover links, extract semantics | Decode and convert between formats |
-| Output | notedown-ir + crawl report | Target format file + convert report |
+|        | Pandark                                  | Panduck                             |
+|--------|------------------------------------------|-------------------------------------|
+| Input  | URL, seed file, saved HTML/snapshot      | Local file in a known format        |
+| Job    | Fetch, discover links, extract semantics | Decode and convert between formats  |
+| Output | notedown-ir + crawl report               | Target format file + convert report |
 
-If the user only needs "Markdown → HTML" or "Word → PDF", point them to Panduck (`@notedge/panduck-skills`), not Pandark.
+If the user only needs "Markdown → HTML" or "Word → PDF", point them to Panduck (`@notedge/panduck-skills`), not
+Pandark.
 
 ## When to use this skill
 
@@ -31,7 +33,8 @@ The user has a **collection job**, not a Rust monorepo task. Typical goals:
 - Wire Pandark into a Node script or CI step
 - Fix install errors for `@notedge/pandark` platform packages
 
-Do **not** default to internal crate names, frontier internals, or contributor workflows unless the user explicitly asks to hack on the Pandark repository.
+Do **not** default to internal crate names, frontier internals, or contributor workflows unless the user explicitly asks
+to hack on the Pandark repository.
 
 ## Install
 
@@ -43,7 +46,8 @@ npm install @notedge/pandark
 pnpm add @notedge/pandark
 ```
 
-The CLI binary is `pandark`. Native speed uses an optional platform package (`@notedge/pandark-win32-x64`, `@notedge/pandark-darwin-arm64`, …) pulled in automatically when supported.
+The CLI binary is `pandark`. Native speed uses an optional platform package (`@notedge/pandark-win32-x64`,
+`@notedge/pandark-darwin-arm64`, …) pulled in automatically when supported.
 
 **This skill package** (teaches agents how to help Pandark users):
 
@@ -52,9 +56,11 @@ npx @notedge/pandark-skills
 npx @notedge/pandark-skills -a cursor -y
 ```
 
-**First step after install:** run `pandark doctor` (or `pandark doctor --json`). If native bindings fail, do not promise crawl speed or full functionality until the platform package is available.
+**First step after install:** run `pandark doctor` (or `pandark doctor --json`). If native bindings fail, do not promise
+crawl speed or full functionality until the platform package is available.
 
-Build native artifacts from source only when the user is developing Pandark itself: `pnpm run build:napi` at the repo root.
+Build native artifacts from source only when the user is developing Pandark itself: `pnpm run build:napi` at the repo
+root.
 
 ## Quick start (CLI)
 
@@ -108,10 +114,10 @@ Use the **public API** on `PandarkBindings` only. See [reference.md](reference.m
 
 `crawl` and `plan` accept one positional argument:
 
-| Form | Meaning |
-|------|---------|
-| `https://…` or `http://…` | Single seed URL |
-| `file://…` | Single local file URL |
+| Form                       | Meaning                     |
+|----------------------------|-----------------------------|
+| `https://…` or `http://…`  | Single seed URL             |
+| `file://…`                 | Single local file URL       |
 | Path to a **regular file** | Newline-delimited seed list |
 
 Seed file rules:
@@ -135,7 +141,7 @@ https://example.com/b
 
 Ask only what affects the crawl or extract:
 
-- Seed URL(s) or seed file path
+- Seed URL (s) or seed file path
 - Depth and request budget (how wide and how many HTTP calls)
 - Must-use browser for JS/login, or plain HTTP is enough
 - What to do on login, CAPTCHA, or rate limits
@@ -144,32 +150,32 @@ Ask only what affects the crawl or extract:
 
 ### 2. Pick the command
 
-| Goal | Command |
-|------|---------|
-| Preview URL frontier, no network | `pandark plan SEED` |
-| Debug one fetch | `pandark fetch URL` |
-| Multi-page collection | `pandark crawl SEED` |
-| Continue after operator pause | `pandark resume CHECKPOINT.json` |
-| Local HTML → IR | `pandark extract FILE` |
-| Probe extractors / links | `pandark inspect FILE` |
-| Install / platform check | `pandark doctor` |
+| Goal                             | Command                          |
+|----------------------------------|----------------------------------|
+| Preview URL frontier, no network | `pandark plan SEED`              |
+| Debug one fetch                  | `pandark fetch URL`              |
+| Multi-page collection            | `pandark crawl SEED`             |
+| Continue after operator pause    | `pandark resume CHECKPOINT.json` |
+| Local HTML → IR                  | `pandark extract FILE`           |
+| Probe extractors / links         | `pandark inspect FILE`           |
+| Install / platform check         | `pandark doctor`                 |
 
 Always prefer `pandark … --json` when the user or agent needs structured output.
 
 ### 3. Crawl options that matter
 
-| Flag | Values | When to suggest |
-|------|--------|-----------------|
-| `--depth <n>` | integer | Limit link hops from seeds |
-| `--budget <n>` | integer | Cap total HTTP requests |
-| `--browser-fallback` | `never`, `on-fetch-failure` | Use browser when HTTP fetch fails |
-| `--browser-fixtures-dir <dir>` | path | Offline/dev: JSON snapshots keyed by URL |
-| `--browser-endpoint <url>` | HTTP base URL | Remote browser worker (when deployed) |
-| `--challenge-policy` | see below | Behavior on login/challenge pages |
-| `--checkpoint-out <file>` | path | Exact checkpoint file on pause |
-| `--checkpoint-dir <dir>` | path | Auto-named checkpoint on pause |
-| `--cache-dir <dir>` | path | Persistent fetch cache for crawl/resume |
-| `--report <file>` | path | Write crawl JSON report to disk |
+| Flag                           | Values                      | When to suggest                          |
+|--------------------------------|-----------------------------|------------------------------------------|
+| `--depth <n>`                  | integer                     | Limit link hops from seeds               |
+| `--budget <n>`                 | integer                     | Cap total HTTP requests                  |
+| `--browser-fallback`           | `never`, `on-fetch-failure` | Use browser when HTTP fetch fails        |
+| `--browser-fixtures-dir <dir>` | path                        | Offline/dev: JSON snapshots keyed by URL |
+| `--browser-endpoint <url>`     | HTTP base URL               | Remote browser worker (when deployed)    |
+| `--challenge-policy`           | see below                   | Behavior on login/challenge pages        |
+| `--checkpoint-out <file>`      | path                        | Exact checkpoint file on pause           |
+| `--checkpoint-dir <dir>`       | path                        | Auto-named checkpoint on pause           |
+| `--cache-dir <dir>`            | path                        | Persistent fetch cache for crawl/resume  |
+| `--report <file>`              | path                        | Write crawl JSON report to disk          |
 
 **Challenge policies** (CLI uses kebab-case):
 
@@ -195,7 +201,8 @@ pandark resume ./checkpoints/pandark-checkpoint-example-com-….json \
   --json
 ```
 
-Resume rejects a mismatched `browser_fallback` strategy vs the checkpoint fingerprint. Keep flags consistent across crawl and resume.
+Resume rejects a mismatched `browser_fallback` strategy vs the checkpoint fingerprint. Keep flags consistent across
+crawl and resume.
 
 ### 5. Extract and inspect
 
@@ -218,19 +225,20 @@ Summarize when relevant:
 - **committedPages** — URLs successfully extracted
 - **failed / skipped** counts from the report JSON
 - **checkpoint** — run paused for operator; not a hard failure
-- **Partial HTML extraction** — current HTML path is heuristic; complex pages may lose structure until Oak-based extraction ships
+- **Partial HTML extraction** — current HTML path is heuristic; complex pages may lose structure until Oak-based
+  extraction ships
 
 If `--json` is used, parse `report` and `exitCode` from stdout instead of guessing.
 
 ## Exit codes (current CLI)
 
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | Invalid arguments or bad seed/checkpoint input |
-| 2 | Crawl/extract failed (e.g. failed pages in report) |
-| 3 | Paused awaiting resume **or** run finished with skipped pages |
-| 4 | Internal error (often missing native bindings) |
+| Code | Meaning                                                       |
+|------|---------------------------------------------------------------|
+| 0    | Success                                                       |
+| 1    | Invalid arguments or bad seed/checkpoint input                |
+| 2    | Crawl/extract failed (e.g. failed pages in report)            |
+| 3    | Paused awaiting resume **or** run finished with skipped pages |
+| 4    | Internal error (often missing native bindings)                |
 
 Treat exit **3** carefully: read `checkpoint` / `checkpointPath` in JSON output to see if resume is needed.
 
@@ -258,14 +266,14 @@ Does Pandark replace Panduck for converting my EPUB library? (Answer: no — exp
 
 ## Troubleshooting
 
-| Symptom | What to check |
-|---------|----------------|
-| `native bindings are not installed` | Run `pandark doctor`; OS/arch may lack `@notedge/pandark-<platform>` |
-| Crawl commits 0 pages | Network blocked, robots/deny rules, or HTTP failures without browser fallback |
-| Exit 3 with checkpoint | Expected for `pause-for-operator`; use `resume` with matching flags |
-| `resume strategy mismatch` | Use the same `--browser-fallback` as the original crawl |
-| Empty or thin extract | HTML extractor is still skeleton-grade; inspect with `--stage links` first |
-| Seed file "no usable seeds" | File only comments/blanks, or wrong path |
+| Symptom                             | What to check                                                                 |
+|-------------------------------------|-------------------------------------------------------------------------------|
+| `native bindings are not installed` | Run `pandark doctor`; OS/arch may lack `@notedge/pandark-<platform>`          |
+| Crawl commits 0 pages               | Network blocked, robots/deny rules, or HTTP failures without browser fallback |
+| Exit 3 with checkpoint              | Expected for `pause-for-operator`; use `resume` with matching flags           |
+| `resume strategy mismatch`          | Use the same `--browser-fallback` as the original crawl                       |
+| Empty or thin extract               | HTML extractor is still skeleton-grade; inspect with `--stage links` first    |
+| Seed file "no usable seeds"         | File only comments/blanks, or wrong path                                      |
 
 ## Acceptance status (2026-10-02)
 
@@ -273,13 +281,13 @@ Does Pandark replace Panduck for converting my EPUB library? (Answer: no — exp
 
 Pandark is an **offline/fixture prototype** today. Agents must not describe it as a production-ready crawler framework.
 
-| Area | Today | Not production-ready because |
-|------|-------|------------------------------|
-| HTML extract | String heuristics in `HtmlExtractor` | No Oak HTML view or `oak-css-selector` |
-| Robots | Prefetch + parse skeleton | `crawl-delay` not scheduled, sitemap not consumed, no durable robots cache/TTL |
-| Browser | Snapshot fixture / HTTP worker stub | No login lifecycle, session, or real headless runtime |
-| Frontier | Local queue + depth/budget | No per-host token bucket, `Retry-After`, backoff, or fair scheduling |
-| Cache / resume | Memory + optional `--cache-dir` disk | No conditional revalidation, full checkpoint page/asset state |
+| Area           | Today                                | Not production-ready because                                                   |
+|----------------|--------------------------------------|--------------------------------------------------------------------------------|
+| HTML extract   | String heuristics in `HtmlExtractor` | No Oak HTML view or `oak-css-selector`                                         |
+| Robots         | Prefetch + parse skeleton            | `crawl-delay` not scheduled, sitemap not consumed, no durable robots cache/TTL |
+| Browser        | Snapshot fixture / HTTP worker stub  | No login lifecycle, session, or real headless runtime                          |
+| Frontier       | Local queue + depth/budget           | No per-host token bucket, `Retry-After`, backoff, or fair scheduling           |
+| Cache / resume | Memory + optional `--cache-dir` disk | No conditional revalidation, full checkpoint page/asset state                  |
 
 **Four gates before "production crawler" language:**
 
@@ -288,7 +296,8 @@ Pandark is an **offline/fixture prototype** today. Agents must not describe it a
 3. HTTP retry, compression, charset, conditional requests, SSRF fixtures
 4. Multi-host politeness, backoff, cancel, and resume fixtures
 
-Until those pass, recommend Pandark for **local HTML extract**, **fixture-driven crawl demos**, and **pipeline prototyping** — not unattended production site harvesting.
+Until those pass, recommend Pandark for **local HTML extract**, **fixture-driven crawl demos**, and **pipeline
+prototyping** — not unattended production site harvesting.
 
 ## Honest limits (current release)
 
@@ -306,10 +315,12 @@ Say clearly when a workaround is "save HTML yourself, then `pandark extract`".
 - **User-first language** — "your seed URL", "the crawl report", not `FrontierQueue` or `CrawlCheckpoint`.
 - **Check doctor first** — before long crawls on a new machine.
 - **No fake APIs** — only methods on `PandarkBindings` and documented CLI flags.
-- **Respect sites** — suggest conservative `--budget` and `--depth`; remind about terms of service and robots when relevant.
+- **Respect sites** — suggest conservative `--budget` and `--depth`; remind about terms of service and robots when
+  relevant.
 - **Preserve user data** — do not overwrite checkpoints or reports without confirmation.
 - **Pandark ≠ Panduck** — never suggest Pandark for format conversion jobs.
 
 ## More detail
 
-See [reference.md](reference.md) for CLI flag cheat sheet, `PandarkBindings` fields, snapshot fixture shape, and policy strings.
+See [reference.md](reference.md) for CLI flag cheat sheet, `PandarkBindings` fields, snapshot fixture shape, and policy
+strings.

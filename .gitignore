@@ -26,5 +26,8 @@ yarn-error.log
 projects/crates/pandark-napi/index.js
 projects/crates/pandark-napi/index.d.ts
 projects/packages/pandark-*/lib/
+projects/packages/homepage/dist/
+projects/packages/homepage/public/
+dist/
 *.node
 *.wasm

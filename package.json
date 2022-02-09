@@ -6,6 +6,10 @@
         "build:napi": "node scripts/build-napi.mjs",
         "test": "cargo test --release && pnpm --filter @notedge/pandark test:e2e",
         "typecheck": "pnpm --filter @notedge/pandark typecheck",
+        "check:npm": "node scripts/check-npm-packages.mjs",
+        "homepage:dev": "pnpm --filter @notedge/homepage dev",
+        "homepage:build": "pnpm --filter @notedge/homepage build",
+        "homepage:check": "pnpm --filter @notedge/homepage check",
         "placeholder": "nifty publish --placeholder --dry-run",
         "placeholder:publish": "nifty publish --placeholder",
         "placeholder:trust": "nifty trust"
