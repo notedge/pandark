@@ -1,14 +1,14 @@
 {
     "name": "@notedge/pandark-skills",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "type": "module",
-    "description": "Agent skills for Pandark users 鈥?crawl and extract web pages with @notedge/pandark. Install with npx @notedge/pandark-skills.",
+    "description": "Agent skills for Pandark users. Crawl and extract web pages with @notedge/pandark. Install with npx @notedge/pandark-skills.",
     "repository": {
         "type": "git",
         "url": "https://github.com/notedge/pandark.git",
         "directory": "projects/packages/pandark-skills"
     },
-    "homepage": "https://github.com/notedge/pandark/tree/master/projects/packages/pandark-skills",
+    "homepage": "https://github.com/notedge/pandark/tree/dev/projects/packages/pandark-skills",
     "keywords": [
         "pandark",
         "crawler",

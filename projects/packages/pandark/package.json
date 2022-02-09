@@ -1,9 +1,15 @@
 {
     "name": "@notedge/pandark",
-    "version": "0.0.1",
-    "description": "Pandark crawl bindings (Node-API + TypeScript)",
+    "version": "0.0.2",
+    "description": "Crawl and extract web pages into notedown-ir with Node-API bindings and a TypeScript CLI.",
     "type": "module",
     "license": "MPL-2.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/notedge/pandark.git",
+        "directory": "projects/packages/pandark"
+    },
+    "homepage": "https://github.com/notedge/pandark/tree/dev/projects/packages/pandark",
     "publishConfig": {
         "access": "public"
     },
@@ -18,6 +24,7 @@
     "files": [
         "bin",
         "locales",
+        "readme.md",
         "src"
     ],
     "engines": {

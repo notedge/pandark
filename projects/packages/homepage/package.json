@@ -1,0 +1,22 @@
+{
+    "name": "@notedge/homepage",
+    "version": "0.0.2",
+    "private": true,
+    "type": "module",
+    "description": "Pandark marketing homepage (VMZ static site with @notedge/pandark probe)",
+    "scripts": {
+        "check": "node ../../../scripts/ensure-vmz-host-manifest.mjs && vmz check .",
+        "build": "node ../../../scripts/ensure-vmz-host-manifest.mjs && vmz build --release --profile static .",
+        "dev": "node ../../../scripts/ensure-vmz-host-manifest.mjs && vmz dev .",
+        "preview": "vmz serve --profile static .",
+        "test:pandark": "pnpm --filter @notedge/pandark test:e2e"
+    },
+    "dependencies": {
+        "@notedge/pandark": "workspace:*",
+        "@vmz/core": "0.2.7",
+        "@vmz/ui": "0.2.7"
+    },
+    "devDependencies": {
+        "@vmz/vmz": "0.2.7"
+    }
+}
