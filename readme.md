@@ -1,18 +1,18 @@
 # Pandark
 
-Pandark turns URLs and saved web pages into semantic `notedown-ir` documents and machine-readable crawl reports. Install
-`@notedge/pandark` on Node 20 or newer when you need a scriptable CLI or Node API for extraction, bounded collection
-planning, or fixture-driven crawling.
+Pandark is an **agent-friendly, TypeScript-first crawler library** with native bindings for speed. Give it URLs or saved
+HTML, set a depth and request budget, and get structured page data plus JSON crawl reports you and your coding agent can
+inspect.
 
-**Current release (0.0.2):** architecture skeleton with working extract, inspect, plan, fetch, and crawl entry points,
-but **not** a production crawler. Treat network collection as prototype work validated against fixtures and small scopes
-until politeness, HTML extraction, and multi-host behavior pass acceptance testing. Panduck converts files you already
-have on disk; Pandark collects or extracts from the web.
+Install `@notedge/pandark` on Node 20 or newer. Use the **`pandark` CLI**, **`createPandark()`**, or **`@notedge/pandark-skills`** for agent workflows.
+
+**Current release (0.0.2):** working extract, inspect, plan, fetch, and crawl APIs, but **not** a production crawler
+yet. Start with saved HTML or small scoped seeds before large site jobs.
 
 ## 🤖 Use with an agent
 
-`@notedge/pandark-skills` installs **agent instructions only**. It does not install the native binding, add a headless
-browser, or make an unbounded site crawl safe.
+`@notedge/pandark-skills` installs **agent instructions only**—not the runtime, not a browser, and not permission to
+crawl without limits.
 
 ```bash
 npx @notedge/pandark-skills
@@ -20,115 +20,94 @@ npx @notedge/pandark-skills -a cursor -y
 ```
 
 ```text
-Use Pandark to inspect ./fixtures/page.html and extract a semantic document if this
-release supports it. Write new output files and explain any extraction gaps in the report.
+Use Pandark to inspect ./fixtures/page.html and extract a structured document.
+Write ./out/page.json and ./out/page.report.json and explain any gaps in the report.
 ```
 
 Full agent workflow: [
 `projects/packages/pandark-skills/skills/pandark/SKILL.md`](projects/packages/pandark-skills/skills/pandark/SKILL.md).
 
-## 📦 Install and extract a saved page
+## 📦 Install and try it
 
 ```bash
 npm install @notedge/pandark
 npx pandark doctor
 ```
 
-Extract a local HTML snapshot to a new document file and report:
+CLI:
 
 ```bash
 npx pandark extract ./fixtures/page.html \
-  --output ./out/page.document.json \
+  --output ./out/page.json \
   --report ./out/page.report.json
+
+npx pandark crawl https://example.com/docs \
+  --depth 1 \
+  --budget 50 \
+  --report ./out/crawl.report.json
 ```
 
-Inspect structure before extraction:
-
-```bash
-npx pandark inspect ./fixtures/page.html --json
-```
-
-Node API (same engine as the CLI):
+TypeScript:
 
 ```ts
-import { loadPandarkNode } from "@notedge/pandark/node";
+import {createPandark} from "@notedge/pandark";
 
-const pandark = loadPandarkNode();
-const result = pandark.extractInput("./fixtures/page.html");
+const pandark = createPandark();
+const result = pandark.extract("./fixtures/page.html");
 console.log(result.status, result.reportJson);
 ```
 
-Optional platform packages (`@notedge/pandark-win32-x64`, `@notedge/pandark-darwin-arm64`, and siblings) install
-automatically when npm supports your OS and CPU.
+Run `npx pandark doctor` if the native binding fails to load on your machine.
 
-## ✅ What works in this release
+## ✅ What you can do today
 
-| Task               | Entry                                                   | Output                                                   |
-|--------------------|---------------------------------------------------------|----------------------------------------------------------|
-| Extract saved HTML | `pandark extract FILE`                                  | `notedown-ir` document JSON + extraction report          |
-| Inspect input      | `pandark inspect FILE`                                  | Stage report (links, metadata, diagnostics)              |
-| Plan a crawl       | `pandark plan SEED --depth N --budget M`                | Frontier preview + plan report                           |
-| Fetch one seed     | `pandark fetch SEED`                                    | Fetch artifact JSON                                      |
-| Bounded crawl      | `pandark crawl SEED --depth N --budget M --report FILE` | Crawl report, `committedPages` list, optional checkpoint |
-| Resume             | `pandark resume CHECKPOINT`                             | Continues from a written checkpoint                      |
+| Task                   | Command                                   | You get                                       |
+|------------------------|-------------------------------------------|-----------------------------------------------|
+| Extract saved HTML     | `pandark extract FILE`                    | Structured page JSON + report                 |
+| Inspect before extract | `pandark inspect FILE`                    | Links, metadata, diagnostics                  |
+| Plan a crawl           | `pandark plan SEED --depth N --budget M`  | Frontier preview + plan report                |
+| Fetch one URL          | `pandark fetch SEED`                      | Raw fetch payload JSON                        |
+| Crawl with limits      | `pandark crawl SEED --depth N --budget M` | Report, `committedPages`, optional checkpoint |
+| Resume                 | `pandark resume CHECKPOINT`               | Continues a paused run                        |
 
-**Request budget:** `--budget` caps crawl **fetch attempts** for the run. It does not separately cap robots lookups,
-retries, or browser activity unless you verify that behavior for your seed and options.
-
-**Reports vs saved bodies:** `--report` writes crawl or extraction diagnostics. It does **not** export every committed
-page to disk. Use `committedPages` and your own storage workflow for bulk document export.
-
-**Browser integration:** dynamic pages need a supplied browser endpoint or a **fixture directory**
-(`--browser-fixtures-dir`). There is no bundled login-capable headless browser in this release.
-
-**WASM (`pandark-wasm`):** extract, inspect, and plan helpers only. Crawl orchestration is intentionally unavailable in
-WASM hosts.
+**Budget:** `--budget` caps fetch attempts for the run. **Reports:** `--report` writes diagnostics; it does not dump
+every page to disk—check `committedPages` and export yourself. **Dynamic sites:** bring `--browser-endpoint` or
+`--browser-fixtures-dir`; there is no built-in login browser.
 
 ```mermaid
 flowchart LR
-    pages[URLs or saved HTML] --> pandark[Pandark CLI or Node API]
-    pandark --> docs[notedown-ir documents and crawl reports]
-    files[Local document files] --> panduck[Panduck convert]
-    panduck --> converted[Target files and conversion reports]
+    pages[URLs or saved HTML] --> pandark[pandark CLI or createPandark]
+    pandark --> out[Structured pages and crawl reports]
 ```
 
-## 📊 Read crawl and extraction results
+## 📊 Read the results
 
-Crawl and resume commands return a JSON report and a `committedPages` array. Read the report for committed, failed,
-skipped, and paused states before assuming the run finished cleanly.
+Open the JSON report for committed, failed, skipped, and paused pages. A zero exit code can still mean partial success.
 
-| Field / artifact    | Meaning                                                    |
-|---------------------|------------------------------------------------------------|
-| `status` on extract | Whether a document was produced or blocked                 |
-| `reportJson`        | Diagnostics, coverage, and crawl counters                  |
-| `committedPages`    | URLs or paths the run treated as committed                 |
-| `checkpointJson`    | Serialized frontier for `pandark resume` when a run pauses |
-
-A zero CLI exit code can still mean partial success. Always open the report when pages are missing or a run stops early.
+| Signal           | Meaning                                    |
+|------------------|--------------------------------------------|
+| `reportJson`     | Counters, diagnostics, extraction coverage |
+| `committedPages` | URLs the run committed                     |
+| `checkpointJson` | Resume point when a run pauses             |
 
 ## 🔧 When something fails
 
-| Symptom                                               | What to check                                                                    |
-|-------------------------------------------------------|----------------------------------------------------------------------------------|
-| `native bindings are not installed for this platform` | OS/CPU unsupported or optional platform package missing                          |
-| Empty document after extract                          | Open the report losses; heuristic HTML extraction may block on unknown markup    |
-| Crawl stops below budget                              | Report may show pause, challenge, or policy block—inspect before retrying        |
-| Browser fallback did nothing                          | Confirm `--browser-fixtures-dir` or `--browser-endpoint` is set and reachable    |
-| Expected site-wide archive                            | This release is not production-ready—reduce scope and verify with fixtures first |
+| Symptom                                               | What to check                                             |
+|-------------------------------------------------------|-----------------------------------------------------------|
+| `native bindings are not installed for this platform` | Run `npx pandark doctor` and reinstall `@notedge/pandark` |
+| Empty extract output                                  | Read the report; complex HTML may be partial              |
+| Crawl stops early                                     | Report may show pause or challenge—do not assume success  |
+| Need logged-in pages                                  | No bundled browser—provide your own endpoint or fixtures  |
 
-## 🛠 Develop and contribute
-
-From a clone of https://github.com/notedge/pandark:
+## 🛠 Develop
 
 ```bash
+git clone https://github.com/notedge/pandark.git
+cd pandark
 pnpm install
 pnpm run build:napi
-pnpm homepage:check
-cargo test --release
+pnpm check:npm
 pnpm --filter @notedge/pandark test:e2e
 ```
-
-Rust crates: `pandark-types` (contracts), `pandark-fetch` (transport), `pandark-extract` (semantic extractors),
-`pandark-store` (persistence), `pandark` (facade), `pandark-napi` (Node-API), `pandark-wasm` (browser helpers).
 
 License: MPL-2.0
