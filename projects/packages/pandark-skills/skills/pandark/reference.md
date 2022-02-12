@@ -4,8 +4,7 @@
 
 | Package                       | Role                                     |
 |-------------------------------|------------------------------------------|
-| `@notedge/pandark`            | TypeScript types and `loadPandarkNode()` |
-| `@notedge/pandark/node`       | Node-API entry                           |
+| `@notedge/pandark`            | TypeScript API and `createPandark()`     |
 | `@notedge/pandark-<platform>` | Prebuilt native binary for your OS/CPU   |
 | `@notedge/pandark-skills`     | Agent skill installer (this package)     |
 
@@ -81,81 +80,68 @@ pandark inspect INPUT
   [--json]
 ```
 
-## `PandarkBindings` (current surface)
+## `PandarkClient` (supported API)
+
+Create a client with `createPandark()` from `@notedge/pandark`:
 
 ```ts
-type PandarkBindings = {
-    pandarkVersion: () => string;
-    planCrawl: (seed: string, maxDepth?: number, maxRequests?: number) => {
+import { createPandark } from "@notedge/pandark";
+
+const pandark = createPandark();
+```
+
+```ts
+type PandarkClient = {
+    version: () => string;
+    plan: (seed: string, depth?: number, budget?: number) => {
         frontier: string[];
         reportJson: string;
     };
-    fetchSeed: (seed: string) => {
+    fetch: (seed: string) => {
         exitCode: number;
         artifactJson: string;
     };
-    crawlFile: (
-        seed: string,
-        maxDepth?: number,
-        maxRequests?: number,
-        browserFixturesDir?: string,
-        browserFallback?: string,
-        challengePolicy?: string,
-        browserEndpoint?: string,
-        cacheDir?: string,
-    ) => {
+    crawl: (seed: string, options?: {
+        depth?: number;
+        budget?: number;
+        browserFixturesDir?: string;
+        browserFallback?: string;
+        challengePolicy?: string;
+        browserEndpoint?: string;
+        cacheDir?: string;
+    }) => {
         exitCode: number;
         reportJson: string;
         committedPages: string[];
         checkpointJson?: string;
     };
-    resumeCrawlFile: (
-        checkpointJson: string,
-        browserFixturesDir?: string,
-        browserFallback?: string,
-        challengePolicy?: string,
-        browserEndpoint?: string,
-        cacheDir?: string,
-    ) => {
+    resume: (checkpointJson: string, options?: Omit<PandarkCrawlOptions, "depth" | "budget">) => {
         exitCode: number;
         reportJson: string;
         committedPages: string[];
         checkpointJson?: string;
     };
-    extractFile: (inputPath: string, sourceUrl?: string) => {
+    extract: (inputPath: string, options?: {
+        from?: string;
+        sourceUrl?: string;
+        challengePolicy?: string;
+    }) => {
         exitCode: number;
         status: string;
         documentJson?: string;
         reportJson: string;
     };
-    extractInput: (
-        inputPath: string,
-        from?: string,
-        sourceUrl?: string,
-        challengePolicy?: string,
-    ) => {
-        exitCode: number;
-        status: string;
-        documentJson?: string;
-        reportJson: string;
-    };
-    inspectFile: (inputPath: string, stage?: string) => {
-        exitCode: number;
-        reportJson: string;
-    };
-    inspectInput: (
-        inputPath: string,
-        stage?: string,
-        from?: string,
-        challengePolicy?: string,
-    ) => {
+    inspect: (inputPath: string, stage?: string, options?: {
+        from?: string;
+        challengePolicy?: string;
+    }) => {
         exitCode: number;
         reportJson: string;
     };
 };
 ```
 
-Agents should read the installed package `src/types.ts` rather than assuming undocumented methods.
+Prefer **`createPandark()`** and these client methods. Lower-level native bindings are for integrators only.
 
 ## Browser snapshot fixture (minimal)
 
@@ -193,11 +179,11 @@ When paused, `checkpoint` is populated and `checkpointPath` is set if `--checkpo
 ## Minimal probe script
 
 ```ts
-import { loadPandarkNode } from "@notedge/pandark/node";
+import { createPandark } from "@notedge/pandark";
 
-const p = loadPandarkNode();
-console.log("version", p.pandarkVersion());
-const { frontier } = p.planCrawl("https://example.com", 1, 10);
+const pandark = createPandark();
+console.log("version", pandark.version());
+const { frontier } = pandark.plan("https://example.com", 1, 10);
 console.log("frontier", frontier.length);
 ```
 

@@ -87,28 +87,24 @@ pandark inspect page.html --stage links --json
 ## Quick start (Node)
 
 ```ts
-import { loadPandarkNode } from "@notedge/pandark/node";
+import { createPandark } from "@notedge/pandark";
 
-const pandark = loadPandarkNode();
-console.log(pandark.pandarkVersion());
+const pandark = createPandark();
+console.log(pandark.version());
 
-const plan = pandark.planCrawl("https://example.com", 2, 100);
+const plan = pandark.plan("https://example.com", 2, 100);
 console.log(plan.frontier);
 
-const crawl = pandark.crawlFile(
-    "https://example.com",
-    1,
-    20,
-    undefined, // browserFixturesDir
-    "on-fetch-failure",
-    "stop",
-    undefined, // browserEndpoint
-    undefined, // cacheDir
-);
+const crawl = pandark.crawl("https://example.com", {
+    depth: 1,
+    budget: 20,
+    browserFallback: "on-fetch-failure",
+    challengePolicy: "stop",
+});
 console.log(crawl.exitCode, crawl.committedPages);
 ```
 
-Use the **public API** on `PandarkBindings` only. See [reference.md](reference.md) for the full method list.
+Use **`createPandark()`** and its client methods. See [reference.md](reference.md) for the full method list.
 
 ## Seed input
 
