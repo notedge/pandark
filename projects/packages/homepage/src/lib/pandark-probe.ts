@@ -13,36 +13,36 @@ const PLATFORM_PACKAGES: Record<string, string> = {
     'darwin-arm64': '@notedge/pandark-darwin-arm64',
 };
 
-function listPublicCommands(binding: {
-    pandarkVersion?: () => string;
-    planCrawl?: unknown;
-    extractInput?: unknown;
-    crawlFile?: unknown;
-    resumeCrawlFile?: unknown;
-    fetchSeed?: unknown;
-    inspectInput?: unknown;
+function listPublicCommands(client: {
+    version?: () => string;
+    plan?: unknown;
+    extract?: unknown;
+    crawl?: unknown;
+    resume?: unknown;
+    fetch?: unknown;
+    inspect?: unknown;
 }): string[] {
     const commands: string[] = [];
-    if (binding.pandarkVersion) commands.push('pandarkVersion()');
-    if (binding.planCrawl) commands.push('planCrawl()');
-    if (binding.extractInput) commands.push('extractInput()');
-    if (binding.crawlFile) commands.push('crawlFile()');
-    if (binding.resumeCrawlFile) commands.push('resumeCrawlFile()');
-    if (binding.fetchSeed) commands.push('fetchSeed()');
-    if (binding.inspectInput) commands.push('inspectInput()');
+    if (client.version) commands.push('version()');
+    if (client.plan) commands.push('plan()');
+    if (client.extract) commands.push('extract()');
+    if (client.crawl) commands.push('crawl()');
+    if (client.resume) commands.push('resume()');
+    if (client.fetch) commands.push('fetch()');
+    if (client.inspect) commands.push('inspect()');
     return commands;
 }
 
 /** Node probe for CI and local verify without a browser. */
 export async function probePandarkNode(): Promise<PandarkProbe> {
-    const { loadPandarkNode } = await import('@notedge/pandark/node');
-    const binding = loadPandarkNode();
+    const { createPandark } = await import('@notedge/pandark');
+    const pandark = createPandark();
     const key = `${process.platform}-${process.arch}`;
     return {
-        version: binding.pandarkVersion(),
+        version: pandark.version(),
         backend: 'node',
         platformPackage: PLATFORM_PACKAGES[key] ?? '(unsupported host)',
-        commands: listPublicCommands(binding),
+        commands: listPublicCommands(pandark),
     };
 }
 
@@ -52,7 +52,7 @@ export function probePandarkBrowserUnavailable(): PandarkProbe {
         version: '(Node binding required)',
         backend: 'browser-unavailable',
         platformPackage: '@notedge/pandark + optional @notedge/pandark-<platform>',
-        commands: ['extractInput()', 'planCrawl()', 'crawlFile()', 'inspectInput()'],
+        commands: ['extract()', 'plan()', 'crawl()', 'inspect()'],
     };
 }
 
