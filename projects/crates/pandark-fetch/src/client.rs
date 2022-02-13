@@ -1,4 +1,8 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    thread,
+    time::{Duration, Instant},
+};
 use std::path::Path;
 
 use pandark_types::{CrawlError, FetchArtifact, Result, TransportProvenance};
@@ -15,6 +19,7 @@ pub struct FetchClient<T: Transport> {
     transport: T,
     cache: LayeredResponseCache,
     robots: RobotsPolicy,
+    last_site_requests: BTreeMap<String, Instant>,
 }
 
 impl<T: Transport> FetchClient<T> {
@@ -24,6 +29,7 @@ impl<T: Transport> FetchClient<T> {
             transport,
             cache: LayeredResponseCache::memory_only(),
             robots,
+            last_site_requests: BTreeMap::new(),
         }
     }
 
@@ -71,12 +77,28 @@ impl<T: Transport> FetchClient<T> {
             return Ok(with_cache_provenance(cached));
         }
 
+        self.wait_for_crawl_delay(&request.url);
+        self.last_site_requests
+            .insert(site_key_for_url(&request.url), Instant::now());
         let artifact = self.transport.fetch(request)?;
         let key = self.cache.put(artifact)?;
         Ok(self
             .cache
             .get(&key)?
             .expect("artifact inserted into cache"))
+    }
+
+    fn wait_for_crawl_delay(&self, url: &Url) {
+        let Some(delay_seconds) = self.robots.crawl_delay_for_url(url) else {
+            return;
+        };
+        let Some(last_request) = self.last_site_requests.get(&site_key_for_url(url)) else {
+            return;
+        };
+        let delay = Duration::from_secs(u64::from(delay_seconds));
+        if let Some(remaining) = delay.checked_sub(last_request.elapsed()) {
+            thread::sleep(remaining);
+        }
     }
 
     fn ensure_site_robots(&mut self, request: &FetchRequest) -> Result<()> {
@@ -227,5 +249,44 @@ mod tests {
         let url = Url::parse("https://example.com/private/data").expect("url");
         let error = fetch_url(&mut client, url).expect_err("fallback deny");
         assert!(matches!(error, CrawlError::InvalidInput(_)));
+    }
+
+    #[test]
+    fn applies_loaded_crawl_delay_between_same_site_requests() {
+        let mut transport = MemoryTransport::new();
+        transport.insert(
+            "https://example.com/robots.txt",
+            MemoryEntry {
+                status: 200,
+                headers: Default::default(),
+                body: b"User-agent: *\nCrawl-delay: 1\n".to_vec(),
+            },
+        );
+        for path in ["/one", "/two"] {
+            transport.insert(
+                format!("https://example.com{path}"),
+                MemoryEntry {
+                    status: 200,
+                    headers: Default::default(),
+                    body: path.as_bytes().to_vec(),
+                },
+            );
+        }
+        let mut client = FetchClient::new(transport, RobotsPolicy::from_profile(PolitenessProfile::Developer));
+        fetch_url(&mut client, Url::parse("https://example.com/one").expect("url")).expect("first page");
+        let started = Instant::now();
+        fetch_url(&mut client, Url::parse("https://example.com/two").expect("url")).expect("second page");
+        assert!(started.elapsed() >= Duration::from_millis(900));
+    }
+
+    #[test]
+    fn failed_transport_attempt_keeps_site_timing_state() {
+        let mut policy = RobotsPolicy::from_profile(PolitenessProfile::Developer);
+        let url = Url::parse("https://example.com/missing").expect("url");
+        let site = site_key_for_url(&url);
+        policy.load_site_rules(&site, "User-agent: *\nCrawl-delay: 1\n");
+        let mut client = FetchClient::new(MemoryTransport::new(), policy);
+        fetch_url(&mut client, url).expect_err("missing fixture");
+        assert!(client.last_site_requests.contains_key(&site));
     }
 }

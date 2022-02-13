@@ -1,6 +1,5 @@
-use std::io::Read;
-
 use pandark_types::{BrowserSnapshot, CrawlError, Result};
+use request::{HttpTransport, HttpTransportConfig, Method, Request, Transport};
 use url::Url;
 
 /// Remote browser worker that returns `BrowserSnapshot` JSON over HTTP.
@@ -39,21 +38,22 @@ impl HttpBrowserProvider {
 impl super::provider::BrowserProvider for HttpBrowserProvider {
     fn capture_snapshot(&self, url: &Url) -> Result<BrowserSnapshot> {
         let request_url = self.snapshot_url(url);
-        let response = ureq::get(request_url.as_str())
-            .call()
+        let transport = HttpTransport::with_config(HttpTransportConfig {
+            max_body_bytes: 8 * 1024 * 1024,
+            max_redirects: 4,
+            ..HttpTransportConfig::default()
+        });
+        let request = Request::new(Method::Get, request_url);
+        let response = transport
+            .send(&request)
             .map_err(|error| CrawlError::InvalidInput(format!("browser worker request failed: {error}")))?;
-        let status = response.status();
+        let status = response.status;
         if !(200..300).contains(&status) {
             return Err(CrawlError::InvalidInput(format!(
                 "browser worker returned status {status}"
             )));
         }
-        let mut body = Vec::new();
-        response
-            .into_reader()
-            .read_to_end(&mut body)
-            .map_err(|error| CrawlError::InvalidInput(format!("browser worker body read failed: {error}")))?;
-        let snapshot: BrowserSnapshot = serde_json::from_slice(&body).map_err(|error| {
+        let snapshot: BrowserSnapshot = serde_json::from_slice(&response.body).map_err(|error| {
             CrawlError::InvalidInput(format!("browser worker JSON invalid: {error}"))
         })?;
         Ok(snapshot)

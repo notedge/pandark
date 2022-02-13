@@ -26,5 +26,3 @@ per-transport—do not assume a cache hit skips robots evaluation without verify
 ## 🔌 Integration
 
 `pandark` selects transports from crawl options. `pandark-napi` exposes `fetchSeed` for single-seed diagnostics.
-
-License: MPL-2.0

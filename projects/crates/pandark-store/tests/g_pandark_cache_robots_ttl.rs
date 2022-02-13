@@ -4,7 +4,9 @@
 use std::thread;
 use std::time::Duration;
 
-use pandark_store::{MemoryStore, Store, StoreConfig, YydbStore};
+use pandark_store::{MemoryStore, Store, StoreConfig};
+#[cfg(feature = "yydb")]
+use pandark_store::YydbStore;
 
 const SITE_KEY: &str = "example.com";
 const ROBOTS_BODY: &[u8] = b"User-agent: *\nDisallow: /private";

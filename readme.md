@@ -109,5 +109,3 @@ pnpm run build:napi
 pnpm check:npm
 pnpm --filter @notedge/pandark test:e2e
 ```
-
-License: MPL-2.0

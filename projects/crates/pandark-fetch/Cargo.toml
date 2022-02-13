@@ -15,7 +15,7 @@ pandark-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
-ureq = { workspace = true }
+request = { workspace = true }
 logger = { workspace = true, optional = true }
 
 [features]

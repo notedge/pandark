@@ -110,6 +110,13 @@ impl RobotsPolicy {
         site.document.crawl_delay_for_agent(&self.user_agent)
     }
 
+    /// Sitemap declarations from the loaded robots document for this site.
+    pub fn sitemaps_for_url(&self, url: &Url) -> &[String] {
+        self.sites.get(&site_key_for_url(url))
+            .map(|site| site.document.sitemaps.as_slice())
+            .unwrap_or(&[])
+    }
+
     /// Whether fetching the URL is allowed under this policy.
     pub fn is_allowed(&self, url: &Url) -> bool {
         if url.scheme() != "http" && url.scheme() != "https" && url.scheme() != "file" {

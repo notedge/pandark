@@ -155,58 +155,44 @@ fn path_matches_rule(pattern: &str, path: &str) -> bool {
         Some(prefix) => (prefix, true),
         None => (pattern, false),
     };
-    let matched = if pattern.contains('*') {
-        wildcard_match(pattern, path)
-    } else if path.starts_with(pattern) {
-        true
-    } else {
-        false
-    };
-    if !matched {
-        return false;
-    }
-    if end_anchor {
-        if pattern.contains('*') {
-            path.ends_with(
-                pattern
-                    .rsplit('*')
-                    .next()
-                    .filter(|suffix| !suffix.is_empty())
-                    .unwrap_or(pattern),
-            )
-        } else {
-            path.len() == pattern.len()
-        }
-    } else {
-        true
-    }
+    wildcard_match(pattern, path, end_anchor)
 }
 
-fn wildcard_match(pattern: &str, path: &str) -> bool {
-    if pattern == "*" {
-        return true;
-    }
-    let Some(star) = pattern.find('*') else {
-        return path.starts_with(pattern);
-    };
-    let (prefix, rest) = pattern.split_at(star);
-    let suffix = &rest[1..];
-    if prefix.is_empty() {
-        if suffix.is_empty() {
+fn wildcard_match(pattern: &str, path: &str, end_anchor: bool) -> bool {
+    let pattern: Vec<char> = pattern.chars().collect();
+    let path: Vec<char> = path.chars().collect();
+    let mut pattern_index = 0;
+    let mut path_index = 0;
+    let mut star_index = None;
+    let mut star_match = 0;
+
+    while path_index < path.len() {
+        if pattern_index == pattern.len() && !end_anchor {
             return true;
         }
-        return path.ends_with(suffix) || path.contains(suffix);
+        if pattern_index < pattern.len()
+            && pattern[pattern_index] != '*'
+            && pattern[pattern_index] == path[path_index]
+        {
+            pattern_index += 1;
+            path_index += 1;
+        } else if pattern_index < pattern.len() && pattern[pattern_index] == '*' {
+            star_index = Some(pattern_index);
+            star_match = path_index;
+            pattern_index += 1;
+        } else if let Some(star) = star_index {
+            pattern_index = star + 1;
+            star_match += 1;
+            path_index = star_match;
+        } else {
+            return false;
+        }
     }
-    if suffix.is_empty() {
-        return path.starts_with(prefix);
+
+    while pattern_index < pattern.len() && pattern[pattern_index] == '*' {
+        pattern_index += 1;
     }
-    if !path.starts_with(prefix) {
-        return false;
-    }
-    let remainder = &path[prefix.len()..];
-    remainder.ends_with(suffix)
-        || remainder.contains(suffix)
-        || wildcard_match(suffix, remainder)
+    pattern_index == pattern.len()
 }
 
 /// Stable site key for robots caching (`scheme://host:port`).
@@ -261,6 +247,28 @@ Allow: /public/*.pdf$
         let doc = RobotsTxt::parse(body);
         assert!(!doc.is_path_allowed("bot", "/report.pdf"));
         assert!(doc.is_path_allowed("bot", "/public/guide.pdf"));
+    }
+
+    #[test]
+    fn wildcard_rules_support_multiple_stars_and_end_anchor() {
+        assert!(path_matches_rule("/private/*/export/*", "/private/team/export/report"));
+        assert!(!path_matches_rule("/private/*/export/*", "/private/team/import/report"));
+        assert!(path_matches_rule("/api/*/v1", "/api/team/v1"));
+        assert!(path_matches_rule("/api/*/v1", "/api/team/v1/extra"));
+        assert!(!path_matches_rule("/api/*/v1$", "/api/team/v1/extra"));
+        assert!(path_matches_rule("/api/*/v1$", "/api/team/v1"));
+        assert!(path_matches_rule("/api/*$", "/api/team/v1/extra"));
+    }
+
+    #[test]
+    fn equal_specificity_allow_rule_wins_over_disallow() {
+        let group = RobotsGroup {
+            agents: vec!["*".into()],
+            allow: vec!["/private/*/export".into()],
+            disallow: vec!["/private/*/export".into()],
+            crawl_delay: None,
+        };
+        assert!(group.is_path_allowed("/private/team/export"));
     }
 
     #[test]

@@ -1,14 +1,16 @@
 use notedown_ir::{
-    Block, DocumentGraph, DocumentId, DocumentMetadata, Inline, LossMarker, SemanticStatus,
+    Asset, AssetKind, Block, DocumentGraph, DocumentId, DocumentMetadata, IdAllocator, Inline,
+    LossMarker, Relation, RelationEndpoint, RelationKind, SemanticStatus, SourceKind, SourceRef,
 };
 use pandark_types::{
     ExtractBudget, ExtractContext, ExtractInput, ExtractResult, ExtractStatus, FetchArtifact,
     ProbeResult, ProbeStatus,
 };
 
-use super::{Extractor, link_candidates_from_hrefs};
+use super::oak_view;
+use super::{link_candidates_from_targets, Extractor};
 
-/// HTML extractor using lightweight string heuristics until Oak lowering lands.
+/// HTML extractor backed by Oak HTML parsing and traversal.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct HtmlExtractor;
 
@@ -42,16 +44,22 @@ impl Extractor for HtmlExtractor {
         let artifact = input.artifact;
         let body = artifact.body_bytes().unwrap_or(&[]);
         let html = String::from_utf8_lossy(body);
-        let title = extract_title(&html);
-        let text = extract_body_text(&html);
-        let hrefs = extract_hrefs(&html);
-        let discovered_links = link_candidates_from_hrefs(&artifact.final_url, &hrefs);
+        let title = oak_view::extract_document_title(&html);
+        let text = oak_view::extract_body_text(&html);
+        let targets = oak_view::extract_link_targets(&html, &artifact.final_url);
+        let discovered_links = link_candidates_from_targets(&artifact.final_url, &targets);
+        let image_targets = targets
+            .iter()
+            .filter(|(_, hint)| matches!(*hint, "src" | "srcset"))
+            .map(|(target, _)| target.clone())
+            .collect::<Vec<_>>();
 
         let page_identity = ctx
             .page_identity
             .clone()
             .unwrap_or_else(|| artifact.final_url.to_string());
         let mut document = DocumentGraph::new(page_document_id(&page_identity));
+        let mut ids = IdAllocator::default();
         document.metadata = DocumentMetadata {
             title,
             language: None,
@@ -59,14 +67,60 @@ impl Extractor for HtmlExtractor {
             tags: Vec::new(),
         };
         if !text.is_empty() {
-            document.push_block(Block::Paragraph {
+            let node = document.push_block(Block::Paragraph {
                 content: vec![Inline::Text { text }],
+            });
+            document.attach_source(SourceRef {
+                node,
+                kind: SourceKind::Synthetic {
+                    reason: format!("HTML body from {}", artifact.final_url),
+                },
+                precision: SemanticStatus::Resolved,
             });
         } else {
             document.push_loss(LossMarker {
                 code: "pandark.extract.empty-body".into(),
                 message: "HTML body had no extractable text".into(),
                 status: SemanticStatus::Partial,
+            });
+        }
+
+        for source in image_targets {
+            let asset_id = ids.asset_id();
+            let node = document.push_block(Block::Paragraph {
+                content: vec![Inline::Styled {
+                    style: "image".into(),
+                    children: vec![
+                        Inline::Text {
+                            text: source.rsplit('/').next().unwrap_or("image").to_string(),
+                        },
+                        Inline::Text {
+                            text: source.clone(),
+                        },
+                    ],
+                }],
+            });
+            document.push_asset(Asset {
+                id: asset_id,
+                kind: AssetKind::Image,
+                content_identity: None,
+                source: Some(source.clone()),
+                media_type: media_type_for_url(&source),
+                status: SemanticStatus::Unresolved,
+                bytes: None,
+            });
+            document.push_relation(Relation {
+                id: ids.link_id(),
+                kind: RelationKind::Embeds,
+                source: RelationEndpoint::Node(node),
+                target: RelationEndpoint::Asset(asset_id),
+            });
+            document.attach_source(SourceRef {
+                node,
+                kind: SourceKind::Synthetic {
+                    reason: format!("HTML image reference from {}", artifact.final_url),
+                },
+                precision: SemanticStatus::Resolved,
             });
         }
 
@@ -97,60 +151,74 @@ impl Extractor for HtmlExtractor {
     }
 }
 
+fn media_type_for_url(url: &str) -> Option<String> {
+    let extension = url
+        .split('?')
+        .next()
+        .and_then(|value| value.rsplit('.').next())?
+        .to_ascii_lowercase();
+    let media_type = match extension.as_str() {
+        "avif" => "image/avif",
+        "gif" => "image/gif",
+        "jpeg" | "jpg" => "image/jpeg",
+        "png" => "image/png",
+        "svg" => "image/svg+xml",
+        "webp" => "image/webp",
+        _ => return None,
+    };
+    Some(media_type.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use pandark_types::{BodyStorage, ExtractContext, ExtractInput, TransportProvenance};
+    use url::Url;
+
+    use super::*;
+
+    #[test]
+    fn image_sources_become_ir_assets_and_embed_relations() {
+        let page = Url::parse("https://example.com/docs/page.html").expect("url");
+        let artifact = FetchArtifact {
+            request_url: page.clone(),
+            final_url: page,
+            status: 200,
+            response_headers: BTreeMap::new(),
+            content_type: Some("text/html".into()),
+            body: BodyStorage::inline(
+                br#"<html><body><p>Body</p><img src="../img/diagram.png" srcset="/img/large.webp 2x"></body></html>"#,
+            ),
+            redirect_chain: Vec::new(),
+            retrieved_at_epoch: 1,
+            transport_provenance: TransportProvenance::Test,
+            cache_key: "page".into(),
+        };
+        let result = HtmlExtractor.extract(
+            ExtractInput {
+                artifact: &artifact,
+                budget: ExtractBudget::default(),
+            },
+            &ExtractContext::default(),
+        );
+        let document = result.document.expect("document");
+        assert_eq!(document.assets.len(), 2);
+        assert_eq!(document.relations.len(), 2);
+        assert!(document
+            .assets
+            .iter()
+            .any(|asset| asset.media_type.as_deref() == Some("image/png")));
+        assert!(document
+            .sources
+            .iter()
+            .any(|source| matches!(source.kind, SourceKind::Synthetic { .. })));
+    }
+}
 fn page_document_id(page_identity: &str) -> DocumentId {
     let mut hash = 0u64;
     for byte in page_identity.bytes() {
         hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
     }
     DocumentId(hash)
-}
-
-fn extract_title(html: &str) -> Option<String> {
-    let lower = html.to_ascii_lowercase();
-    let start = lower.find("<title>")? + "<title>".len();
-    let end = lower[start..].find("</title>")? + start;
-    let raw = html.get(start..end)?.trim();
-    if raw.is_empty() {
-        None
-    } else {
-        Some(raw.to_string())
-    }
-}
-
-fn extract_body_text(html: &str) -> String {
-    let mut out = String::new();
-    let mut in_tag = false;
-    for ch in html.chars() {
-        match ch {
-            '<' => in_tag = true,
-            '>' => in_tag = false,
-            _ if !in_tag => out.push(ch),
-            _ => {}
-        }
-    }
-    collapse_whitespace(out)
-}
-
-fn collapse_whitespace(input: String) -> String {
-    input.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-/// Collect `href` attributes from an HTML string.
-pub fn extract_hrefs(html: &str) -> Vec<String> {
-    let mut hrefs = Vec::new();
-    let lower = html.to_ascii_lowercase();
-    let mut cursor = 0;
-    while let Some(index) = lower[cursor..].find("href=\"") {
-        let start = cursor + index + "href=\"".len();
-        if let Some(end) = lower[start..].find('"') {
-            let href = html[start..start + end].trim();
-            if !href.is_empty() && !href.starts_with('#') && !href.starts_with("javascript:") {
-                hrefs.push(href.to_string());
-            }
-            cursor = start + end + 1;
-        } else {
-            break;
-        }
-    }
-    hrefs
 }

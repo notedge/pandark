@@ -1,8 +1,7 @@
-use std::collections::BTreeMap;
-use std::io::Read;
 use std::time::Duration;
 
 use pandark_types::{BodyStorage, RedirectHop, Result, TransportProvenance};
+use request::{HttpTransport as RequestHttpTransport, HttpTransportConfig, Method, Request, Transport as RequestTransport};
 use super::{FetchRequest, Transport, build_artifact, map_transport_error};
 
 /// Network transport for `http://` and `https://` URLs.
@@ -43,102 +42,40 @@ impl Transport for HttpTransport {
             )));
         }
 
-        let agent = ureq::AgentBuilder::new()
-            .timeout(self.timeout)
-            .redirects(0)
-            .build();
-
-        let mut current_url = request.url.clone();
-        let mut redirect_chain = Vec::new();
-
-        for _ in 0..=self.max_redirects {
-            let mut http_request = agent.get(current_url.as_str());
-            for (key, value) in &request.headers {
-                http_request = http_request.set(key, value);
-            }
-
-            let response = http_request
-                .call()
-                .map_err(|error| map_transport_error(error.to_string()))?;
-            let status = response.status();
-            if is_redirect(status) {
-                let location = response
-                    .header("location")
-                    .ok_or_else(|| map_transport_error("redirect without location header"))?;
-                redirect_chain.push(RedirectHop {
-                    url: current_url.clone(),
-                    status,
-                });
-                current_url = current_url
-                    .join(location)
-                    .map_err(|error| map_transport_error(error.to_string()))?;
-                continue;
-            }
-
-            let etag = response.header("etag").map(str::to_string);
-            let headers = response_headers(&response);
-            let mut reader = response.into_reader();
-            let mut body = Vec::new();
-            let mut chunk = [0u8; 8192];
-            while body.len() < self.max_body_bytes {
-                let remaining = self.max_body_bytes - body.len();
-                let to_read = remaining.min(chunk.len());
-                let read = reader
-                    .read(&mut chunk[..to_read])
-                    .map_err(|error| map_transport_error(error.to_string()))?;
-                if read == 0 {
-                    break;
-                }
-                body.extend_from_slice(&chunk[..read]);
-            }
-            if body.len() >= self.max_body_bytes {
-                let extra = reader
-                    .read(&mut [0u8; 1])
-                    .map_err(|error| map_transport_error(error.to_string()))?;
-                if extra > 0 {
-                    return Err(map_transport_error(format!(
-                        "response body exceeds budget of {} bytes",
-                        self.max_body_bytes
-                    )));
-                }
-            }
-
-            return Ok(build_artifact(
-                request.url.clone(),
-                current_url,
-                status,
-                headers,
-                BodyStorage::inline(body),
-                redirect_chain,
-                TransportProvenance::Network,
-                etag.as_deref(),
-            ));
+        let max_redirects = u32::try_from(self.max_redirects)
+            .map_err(|_| map_transport_error("redirect budget exceeds supported range"))?;
+        let transport = RequestHttpTransport::with_config(HttpTransportConfig {
+            max_body_bytes: self.max_body_bytes,
+            max_redirects,
+            timeout: self.timeout,
+            ..HttpTransportConfig::default()
+        });
+        let mut http_request = Request::new(Method::Get, request.url.clone());
+        for (name, value) in &request.headers {
+            http_request.set_header(name, value);
         }
-
-        Err(map_transport_error(format!(
-            "redirect chain exceeded {} hops for `{}`",
-            self.max_redirects,
-            request.url
-        )))
+        let response = transport.send(&http_request)
+            .map_err(|error| map_transport_error(error.to_string()))?;
+        let etag = response.headers.get("etag").cloned();
+        let redirect_chain = response.redirects.into_iter()
+            .map(|redirect| RedirectHop { url: redirect.url, status: redirect.status })
+            .collect();
+        Ok(build_artifact(
+            request.url.clone(),
+            response.url,
+            response.status,
+            response.headers,
+            BodyStorage::inline(response.body),
+            redirect_chain,
+            TransportProvenance::Network,
+            etag.as_deref(),
+        ))
     }
-}
-
-fn is_redirect(status: u16) -> bool {
-    matches!(status, 301 | 302 | 303 | 307 | 308)
-}
-
-fn response_headers(response: &ureq::Response) -> BTreeMap<String, String> {
-    let mut headers = BTreeMap::new();
-    for name in response.headers_names() {
-        if let Some(value) = response.header(&name) {
-            headers.insert(name.to_ascii_lowercase(), value.to_string());
-        }
-    }
-    headers
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use url::Url;
 
     use super::*;

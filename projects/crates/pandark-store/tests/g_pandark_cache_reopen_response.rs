@@ -1,7 +1,9 @@
 // gate: G-PANDARK-1
 // fixture: pandark.cache.reopen_response
 
-use pandark_store::{MemoryStore, Store, StoreConfig, YydbStore};
+use pandark_store::{MemoryStore, Store, StoreConfig};
+#[cfg(feature = "yydb")]
+use pandark_store::YydbStore;
 use pandark_types::{BodyStorage, FetchArtifact, TransportProvenance};
 use url::Url;
 

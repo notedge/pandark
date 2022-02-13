@@ -25,5 +25,3 @@ sites still gap.
 See the `pandark` facade and integration tests for how extractors are invoked in this release.
 
 WASM exports extract and inspect only; crawl is intentionally excluded from `pandark-wasm`.
-
-License: MPL-2.0

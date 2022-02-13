@@ -13,7 +13,6 @@ fn g_arch_wasm_no_native_import() {
         "pandark-fetch",
         "pandark =",
         "napi",
-        "ureq",
     ] {
         assert!(
             !manifest.contains(&format!("{forbidden} =")),

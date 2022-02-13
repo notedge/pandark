@@ -1,7 +1,9 @@
 ﻿#![warn(missing_docs)]
 #![doc = include_str!("readme.md")]
 
+mod markdown_project;
 mod admission;
+mod assets;
 mod browser;
 mod crawl;
 mod extract;
@@ -9,9 +11,12 @@ mod frontier;
 mod input;
 mod inspect;
 mod seed_input;
+mod sitemap;
 mod transaction;
 
+pub use markdown_project::{publish_extracted_page, PublishedPageProject};
 pub use admission::{admit_frontier_item, seed_frontier};
+pub use assets::hydrate_assets;
 pub use browser::{
     BrowserProvider, BrowserProviderStack, ChallengeBlocked, FixtureBrowserProvider,
     HttpBrowserProvider, build_browser_stack, load_fixture_provider_from_dir,
@@ -26,6 +31,7 @@ pub use pandark_fetch::{
     MemoryTransport, ResponseCache, RobotsPolicy, SeedTransport, Transport, build_artifact,
     fetch_url, map_transport_error, transport_for_url,
 };
+#[cfg(feature = "yydb")]
 pub use pandark_store::YydbResponseCache;
 pub use frontier::{FrontierQueue, frontier_from_links};
 pub use input::{InputFormat, LoadedInput, load_input, parse_input_format};

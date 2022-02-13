@@ -3,7 +3,7 @@ use pandark_types::{
     ProbeStatus,
 };
 
-use super::{extract_hrefs, link_candidates_from_hrefs, run_extract, select_extractor, Extractor};
+use super::{link_candidates_from_targets, oak_view, run_extract, select_extractor, Extractor};
 
 /// Inspect a fetch artifact without committing IR.
 pub fn inspect_artifact(
@@ -25,8 +25,8 @@ pub fn inspect_artifact(
     if matches!(stage, InspectStage::Links | InspectStage::ExtractPlan) {
         if let Some(bytes) = artifact.body_bytes() {
             let html = std::str::from_utf8(bytes).unwrap_or("");
-            let hrefs = extract_hrefs(html);
-            report.discovered_links = link_candidates_from_hrefs(&artifact.final_url, &hrefs);
+            let targets = oak_view::extract_link_targets(html, &artifact.final_url);
+            report.discovered_links = link_candidates_from_targets(&artifact.final_url, &targets);
         }
     }
 
