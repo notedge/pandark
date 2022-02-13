@@ -5,7 +5,10 @@ use yydb::{Connection, OpenFlags};
 
 use crate::keyspace;
 
-const RESPONSE_CACHE_SCHEMA_VERSION: u32 = 1;
+/// Schema document for the response cache table.
+///
+/// The document itself carries the schema version (`// @yydb-schema-version`), so the
+/// initial version applies and no separate version argument is passed.
 const RESPONSE_CACHE_SCHEMA: &str = "table PandarkCache { @@key: utf8, value: utf8 }";
 
 /// YYDB-backed response cache. Metadata and inline bodies are stored as one record.
@@ -19,7 +22,7 @@ impl YydbResponseCache {
         let connection = Connection::open_with_flags(path, OpenFlags::wal())
             .map_err(|error| CrawlError::InvalidInput(format!("open YYDB cache: {error}")))?;
         connection
-            .ensure_schema(RESPONSE_CACHE_SCHEMA_VERSION, RESPONSE_CACHE_SCHEMA)
+            .ensure_schema(RESPONSE_CACHE_SCHEMA)
             .map_err(|error| {
                 CrawlError::InvalidInput(format!("initialize YYDB cache: {error}"))
             })?;
