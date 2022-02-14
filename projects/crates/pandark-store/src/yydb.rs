@@ -17,11 +17,18 @@ const SESSION_KEY: &str = "__pandark/store/session";
 /// File-backed store using embedded `yydb::Connection`.
 pub struct YydbStore {
     path: PathBuf,
-    conn: Connection,
+    /// File connection, absent while a reopen is between releasing and reacquiring it.
+    conn: Option<Connection>,
     session: StoreSession,
 }
 
 impl YydbStore {
+    fn connection(&self) -> Result<&Connection> {
+        self.conn
+            .as_ref()
+            .ok_or_else(|| StoreError::StoreInvalidState("yydb connection is closed".into()))
+    }
+
     fn load_session(conn: &Connection) -> Result<Option<StoreSession>> {
         match conn.get(SESSION_KEY).map_err(map_yydb_error)? {
             Some(bytes) => Ok(Some(StoreSession::from_bytes(&bytes)?)),
@@ -30,10 +37,10 @@ impl YydbStore {
     }
 
     fn persist(&mut self) -> Result<()> {
-        self.conn
+        self.connection()?
             .put(SESSION_KEY, &self.session.to_bytes()?)
             .map_err(map_yydb_error)?;
-        self.conn
+        self.connection()?
             .put(
                 keyspace::schema_version(),
                 &self.session.schema_version().to_le_bytes(),
@@ -52,14 +59,19 @@ impl Store for YydbStore {
         let session = Self::load_session(&conn)?.unwrap_or_else(|| StoreSession::new(config.schema_version));
         Ok(Self {
             path,
-            conn,
+            conn: Some(conn),
             session,
         })
     }
 
     fn reopen(&mut self) -> Result<()> {
-        self.conn = Connection::open(&self.path).map_err(map_yydb_error)?;
-        if let Some(bytes) = self.conn.get(SESSION_KEY).map_err(map_yydb_error)? {
+        // YYDB holds its exclusive writer lock for the lifetime of a file connection, so the
+        // current handle is released before the replacement is opened. A failed reopen leaves
+        // the store without a connection instead of quietly falling back to memory.
+        self.conn = None;
+        let conn = Connection::open(&self.path).map_err(map_yydb_error)?;
+        self.conn = Some(conn);
+        if let Some(bytes) = self.connection()?.get(SESSION_KEY).map_err(map_yydb_error)? {
             self.session = StoreSession::from_bytes(&bytes)?;
         }
         self.session.reopen()?;
@@ -132,14 +144,14 @@ impl Store for YydbStore {
     }
 
     fn put_orphan_object(&mut self, bytes: &[u8]) -> Result<()> {
-        self.conn
+        self.connection()?
             .put_chunk(ObjectKind::Blob, bytes)
             .map_err(map_yydb_error)?;
         Ok(())
     }
 
     fn doctor(&self) -> Result<StoreDiagnosticReport> {
-        let report = self.conn.doctor().map_err(map_yydb_error)?;
+        let report = self.connection()?.doctor().map_err(map_yydb_error)?;
         let mut issues = Vec::new();
         if report.orphan_object_count > 0 {
             issues.push(StoreDoctorIssue {
@@ -159,7 +171,7 @@ impl Store for YydbStore {
 
     fn get_response_cache(&self, cache_key: &str) -> Result<Option<FetchArtifact>> {
         let key = keyspace::response_cache(cache_key);
-        let Some(bytes) = self.conn.get(&key).map_err(map_yydb_error)? else {
+        let Some(bytes) = self.connection()?.get(&key).map_err(map_yydb_error)? else {
             return Ok(None);
         };
         let mut artifact: FetchArtifact = serde_json::from_slice(&bytes)
@@ -172,13 +184,13 @@ impl Store for YydbStore {
         let key = keyspace::response_cache(&artifact.cache_key);
         let bytes = serde_json::to_vec(artifact)
             .map_err(|error| StoreError::StoreCorrupt(error.to_string()))?;
-        self.conn.put(key, bytes).map_err(map_yydb_error)?;
+        self.connection()?.put(key, bytes).map_err(map_yydb_error)?;
         Ok(())
     }
 
     fn get_robots_cache(&self, site_key: &str) -> Result<Option<Vec<u8>>> {
         let key = keyspace::robots_cache(site_key);
-        self.conn.get(&key).map_err(map_yydb_error)
+        self.connection()?.get(&key).map_err(map_yydb_error)
     }
 
     fn put_robots_cache(
@@ -188,7 +200,7 @@ impl Store for YydbStore {
         ttl: std::time::Duration,
     ) -> Result<()> {
         let key = keyspace::robots_cache(site_key);
-        self.conn
+        self.connection()?
             .put_with_ttl(key, body, ttl)
             .map_err(map_yydb_error)?;
         Ok(())

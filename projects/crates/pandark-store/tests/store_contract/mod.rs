@@ -157,6 +157,13 @@ fn run_case_memory(gate: &str, case_id: &str, case_path: &Path) {
 }
 
 #[cfg(feature = "yydb")]
+fn reopen_yydb_store(previous: YydbStore, db_path: &Path, schema_version: u32) -> YydbStore {
+    drop(previous);
+    cleanup_db(db_path);
+    YydbStore::open(StoreConfig::yydb(db_path, schema_version)).expect("open yydb store")
+}
+
+#[cfg(feature = "yydb")]
 fn run_case_yydb(gate: &str, case_id: &str, case_path: &Path) {
     let case_file = load_case(case_id, case_path);
     let db_path = temp_db_path(case_id);
@@ -167,10 +174,10 @@ fn run_case_yydb(gate: &str, case_id: &str, case_path: &Path) {
     let mut last_doctor_report = None;
     for step in &case_file.initial.steps {
         if step.op == "open" {
-            cleanup_db(&db_path);
             let schema_version = step.store_schema_version.unwrap_or(1);
-            store = YydbStore::open(StoreConfig::yydb(&db_path, schema_version))
-                .expect("open yydb store");
+            // YYDB keeps an exclusive writer lock for a connection's lifetime, so the current
+            // handle is released before the database files are cleaned and the store reopened.
+            store = reopen_yydb_store(store, &db_path, schema_version);
             continue;
         }
         last_error = execute_step(&mut store, step, &mut last_doctor_report).err();
