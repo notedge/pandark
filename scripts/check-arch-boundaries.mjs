@@ -26,8 +26,43 @@ function readManifest(crate) {
   return readFileSync(join(CRATES_DIR, crate, "Cargo.toml"), "utf8");
 }
 
+const DEPENDENCY_SECTIONS = new Set([
+  "dependencies",
+  "dev-dependencies",
+  "build-dependencies",
+]);
+
+function isDependencySection(section) {
+  if (DEPENDENCY_SECTIONS.has(section)) {
+    return true;
+  }
+  return /^target\.(?:[^.[\]]+\.)*(?:dependencies|dev-dependencies|build-dependencies)$/.test(
+    section,
+  );
+}
+
+function declaredDependencies(manifest) {
+  const names = new Set();
+  let section = null;
+  for (const rawLine of manifest.split(/\r?\n/)) {
+    const header = rawLine.match(/^\s*\[(.+?)\]\s*$/);
+    if (header) {
+      section = header[1];
+      continue;
+    }
+    if (section === null || !isDependencySection(section)) {
+      continue;
+    }
+    const entry = rawLine.match(/^\s*([A-Za-z0-9_-]+)\s*=/);
+    if (entry) {
+      names.add(entry[1]);
+    }
+  }
+  return names;
+}
+
 function declaresDependency(manifest, name) {
-  return new RegExp(`^${name}\\s*=`, "m").test(manifest);
+  return declaredDependencies(manifest).has(name);
 }
 
 function checkYydbOnlyInStore() {
