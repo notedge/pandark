@@ -11,6 +11,7 @@
 
 # Rust
 target/
+Cargo.lock
 .cargo/config.toml
 
 # Node
@@ -21,6 +22,7 @@ distribution/
 coverage/
 package-lock.json
 yarn.lock
+pnpm-lock.yaml
 yarn-error.log
 projects/crates/pandark-napi/index.js
 projects/crates/pandark-napi/index.d.ts

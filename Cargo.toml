@@ -1,14 +1,35 @@
 [workspace]
 resolver = "2"
 members = ["projects/crates/*"]
+default-members = [
+    "projects/crates/pandark",
+    "projects/crates/pandark-types",
+    "projects/crates/pandark-fetch",
+    "projects/crates/pandark-extract",
+    "projects/crates/pandark-store",
+]
 
 [workspace.package]
 version = "0.0.2"
 authors = ["Aster <192607617@qq.com>"]
 license = "MPL-2.0"
-edition = "2021"
+edition = "2024"
 
 [workspace.dependencies]
+# Overlaid by local path `.cargo/config.toml` (git ignored).
+boost-diagnostic = { git = "https://github.com/oovm/rust-boost", rev = "2218a644af335aa4cef9f3e9e6b37475a829cfe2", default-features = false, features = ["std", "serde"] }
+boost-log = { git = "https://github.com/oovm/rust-boost", rev = "2218a644af335aa4cef9f3e9e6b37475a829cfe2" }
+boost-http = { git = "https://github.com/oovm/rust-boost", rev = "2218a644af335aa4cef9f3e9e6b37475a829cfe2" }
+# Overlaid by local path `.cargo/config.toml` (git ignored).
+oak-core = { git = "https://github.com/yggdrasil-language/oak.rs.git", rev = "8907696cd6929bdda632209e57705ee7b521bdc9" }
+oak-xml = { git = "https://github.com/yggdrasil-language/oak.rs.git", rev = "8907696cd6929bdda632209e57705ee7b521bdc9", default-features = false }
+oak-html = { git = "https://github.com/yggdrasil-language/oak.rs.git", rev = "8907696cd6929bdda632209e57705ee7b521bdc9", default-features = false }
+# Overlaid by local path `.cargo/config.toml` (git ignored).
+notedown-ir = { git = "https://github.com/notedge/notedown.git", branch = "dev" }
+notedown-formats = { git = "https://github.com/notedge/notedown.git", branch = "dev", default-features = false, features = ["markdown", "html"] }
+# Overlaid by local path `.cargo/config.toml` (git ignored).
+yydb = { git = "https://github.com/yy-database/yydb.rs", rev = "f7eaf8ecfdb1cbaf6089a4b560caffa0c2acabeb" }
+# Local dependencies
 pandark-types = { path = "projects/crates/pandark-types" }
 pandark-fetch = { path = "projects/crates/pandark-fetch" }
 pandark-extract = { path = "projects/crates/pandark-extract" }
@@ -16,24 +37,16 @@ pandark-store = { path = "projects/crates/pandark-store" }
 pandark = { path = "projects/crates/pandark" }
 pandark-napi = { path = "projects/crates/pandark-napi" }
 pandark-wasm = { path = "projects/crates/pandark-wasm" }
+
+# External dependencies
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+url = { version = "2.5.8", features = ["serde"] }
+napi = { version = "3.14.2", default-features = false, features = ["napi4"] }
+napi-derive = "3.6.12"
+blake3 = "1.8.7"
+flate2 = "1.1.10"
 wasm-bindgen = "0.2"
-notedown-ir = { git = "https://github.com/notedge/notedown.git", branch = "dev" }
-notedown-formats = { git = "https://github.com/notedge/notedown.git", branch = "dev", default-features = false, features = ["markdown", "html"] }
-diagnostic = { git = "https://github.com/oovm/rust-boost", branch = "dev", package = "diagnostic", default-features = false, features = ["std", "serde"] }
-logger = { git = "https://github.com/oovm/rust-boost", branch = "dev", package = "logger" }
-fs-tools = { git = "https://github.com/oovm/rust-boost", branch = "dev", package = "fs-tools" }
-oak-core = { git = "https://github.com/yggdrasil-language/oak.rs.git", branch = "dev" }
-oak-xml = { git = "https://github.com/yggdrasil-language/oak.rs.git", branch = "dev", default-features = false }
-oak-html = { git = "https://github.com/yggdrasil-language/oak.rs.git", branch = "dev", package = "oak-html", default-features = false }
-yydb = { git = "https://github.com/yy-database/yydb.rs", branch = "dev" }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-url = { version = "2.5", features = ["serde"] }
-napi = { version = "2", default-features = false, features = ["napi4"] }
-napi-derive = "2"
-request = { git = "https://github.com/oovm/rust-boost", branch = "dev", package = "request" }
-blake3 = "1.8"
-flate2 = "1"
 
 [profile.release]
 lto = true
