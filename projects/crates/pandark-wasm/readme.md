@@ -19,5 +19,3 @@ There is no separate `@notedge/pandark-wasm` npm carrier in this release. WASM b
 are wired; Node users should use `@notedge/pandark` native bindings.
 
 Build with `wasm-pack` from the repository when developing the adapter crate directly.
-
-License: MPL-2.0

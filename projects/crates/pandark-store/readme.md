@@ -22,5 +22,3 @@ invent parallel key formats in adapters—extend the trait instead.
 
 `pandark` writes checkpoints when crawl options request them. Node users pass `--checkpoint-out` or `--checkpoint-dir`
 on the CLI; the store layout is opaque to npm consumers but required for `resume`.
-
-License: MPL-2.0

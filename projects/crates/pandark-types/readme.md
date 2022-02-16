@@ -26,5 +26,3 @@ Policies for robots, challenges, and budgets are expressed as types in this crat
 - `pandark-napi` — serializes reports to JSON for Node
 
 Keep breaking changes rare: npm and CLI reports deserialize these contracts.
-
-License: MPL-2.0

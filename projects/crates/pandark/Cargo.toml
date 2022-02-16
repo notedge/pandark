@@ -25,13 +25,13 @@ pandark-store = { path = "../pandark-store", default-features = false }
 serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
-request = { workspace = true }
+boost-http = { workspace = true }
 oak-xml = { workspace = true }
 oak-core = { workspace = true, optional = true }
 oak-html = { workspace = true, optional = true }
 
 [dev-dependencies]
-logger = { workspace = true }
+boost-log = { workspace = true }
 serial_test = "3"
 
 [[example]]

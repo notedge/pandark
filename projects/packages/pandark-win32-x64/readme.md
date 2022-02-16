@@ -21,5 +21,3 @@ npm pulls `@notedge/pandark-win32-x64` when the host matches `os: win32` and `cp
 | Module loads but crawl fails                       | Runtime issue in `@notedge/pandark`—run `npx pandark doctor` |
 
 Main package: https://www.npmjs.com/package/@notedge/pandark
-
-License: MPL-2.0

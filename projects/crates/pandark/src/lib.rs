@@ -1,6 +1,30 @@
 ﻿#![warn(missing_docs)]
 #![doc = include_str!("readme.md")]
 
+/// Re-export of `pandark-types`.
+pub mod types {
+    //! Shared crawl contracts, reports, and frontier types.
+    pub use pandark_types::*;
+}
+
+/// Re-export of `pandark-fetch`.
+pub mod fetch {
+    //! Transports, robots policy, and response caching.
+    pub use pandark_fetch::*;
+}
+
+/// Re-export of `pandark-extract`.
+pub mod semantic {
+    //! Semantic extractors over fetch artifacts.
+    pub use pandark_extract::*;
+}
+
+/// Re-export of `pandark-store`.
+pub mod store {
+    //! Store contracts, record codec, and persistence backends.
+    pub use pandark_store::*;
+}
+
 mod markdown_project;
 mod admission;
 mod assets;

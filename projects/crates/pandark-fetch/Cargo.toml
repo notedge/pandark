@@ -15,12 +15,12 @@ pandark-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
-request = { workspace = true }
-logger = { workspace = true, optional = true }
+boost-http = { workspace = true }
+boost-log = { workspace = true, optional = true }
 
 [features]
 default = []
-logger = ["dep:logger"]
+logger = ["dep:boost-log"]
 
 [[test]]
 name = "g_arch_fetch_replace_transport"

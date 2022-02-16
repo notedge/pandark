@@ -1,5 +1,5 @@
 use pandark_types::{BrowserSnapshot, CrawlError, Result};
-use request::{HttpTransport, HttpTransportConfig, Method, Request, Transport};
+use boost_http::{HttpTransport, HttpTransportConfig, Method, Request, Transport};
 use url::Url;
 
 /// Remote browser worker that returns `BrowserSnapshot` JSON over HTTP.

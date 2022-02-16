@@ -1,8 +1,20 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
 
+use boost_http::{
+    Headers, HttpTransport as RequestHttpTransport, HttpTransportConfig, Method, Request,
+    Transport as RequestTransport,
+};
 use pandark_types::{BodyStorage, RedirectHop, Result, TransportProvenance};
-use request::{HttpTransport as RequestHttpTransport, HttpTransportConfig, Method, Request, Transport as RequestTransport};
+
 use super::{FetchRequest, Transport, build_artifact, map_transport_error};
+
+fn headers_to_map(headers: &Headers) -> BTreeMap<String, String> {
+    headers
+        .iter()
+        .map(|(name, value)| (name.to_string(), value.to_string()))
+        .collect()
+}
 
 /// Network transport for `http://` and `https://` URLs.
 #[derive(Debug, Clone)]
@@ -56,7 +68,8 @@ impl Transport for HttpTransport {
         }
         let response = transport.send(&http_request)
             .map_err(|error| map_transport_error(error.to_string()))?;
-        let etag = response.headers.get("etag").cloned();
+        let headers = headers_to_map(&response.headers);
+        let etag = headers.get("etag").cloned();
         let redirect_chain = response.redirects.into_iter()
             .map(|redirect| RedirectHop { url: redirect.url, status: redirect.status })
             .collect();
@@ -64,7 +77,7 @@ impl Transport for HttpTransport {
             request.url.clone(),
             response.url,
             response.status,
-            response.headers,
+            headers,
             BodyStorage::inline(response.body),
             redirect_chain,
             TransportProvenance::Network,

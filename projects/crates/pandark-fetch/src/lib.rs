@@ -104,7 +104,7 @@ pub fn map_transport_error(message: impl Into<String>) -> CrawlError {
 
 #[cfg(feature = "logger")]
 fn log_transport_error(message: &str) {
-    logger::event!(Error, "pandark.transport", message = message);
+    boost_log::event!(Error, "pandark.transport", message = message);
 }
 
 #[cfg(not(feature = "logger"))]

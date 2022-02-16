@@ -59,5 +59,3 @@ Read `reportJson` for coverage, crawl counters, and pause reasons. `--report` on
 | Dynamic/login pages | Provide `--browser-endpoint` or `--browser-fixtures-dir` |
 
 Repository: https://github.com/notedge/pandark
-
-License: MPL-2.0

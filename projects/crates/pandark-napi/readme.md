@@ -27,5 +27,3 @@ Copies `index.*.node` into `projects/packages/pandark-<platform>/lib/` for npm p
 ## ⚠️ WASM boundary
 
 Crawl bindings exist here only. `pandark-wasm` deliberately does not export crawl orchestration.
-
-License: MPL-2.0

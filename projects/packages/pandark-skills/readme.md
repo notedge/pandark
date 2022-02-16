@@ -58,5 +58,3 @@ Install the runtime separately:
 ```bash
 npm install @notedge/pandark
 ```
-
-License: MPL-2.0

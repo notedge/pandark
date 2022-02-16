@@ -21,5 +21,3 @@ npm pulls `@notedge/pandark-linux-arm64` when the host matches `os: linux` and `
 | Module loads but crawl fails                       | Runtime issue in `@notedge/pandark`—run `npx pandark doctor` |
 
 Main package: https://www.npmjs.com/package/@notedge/pandark
-
-License: MPL-2.0
