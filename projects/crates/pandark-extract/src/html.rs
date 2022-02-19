@@ -169,52 +169,6 @@ fn media_type_for_url(url: &str) -> Option<String> {
     Some(media_type.into())
 }
 
-#[cfg(test)]
-mod tests {
-    use std::collections::BTreeMap;
-
-    use pandark_types::{BodyStorage, ExtractContext, ExtractInput, TransportProvenance};
-    use url::Url;
-
-    use super::*;
-
-    #[test]
-    fn image_sources_become_ir_assets_and_embed_relations() {
-        let page = Url::parse("https://example.com/docs/page.html").expect("url");
-        let artifact = FetchArtifact {
-            request_url: page.clone(),
-            final_url: page,
-            status: 200,
-            response_headers: BTreeMap::new(),
-            content_type: Some("text/html".into()),
-            body: BodyStorage::inline(
-                br#"<html><body><p>Body</p><img src="../img/diagram.png" srcset="/img/large.webp 2x"></body></html>"#,
-            ),
-            redirect_chain: Vec::new(),
-            retrieved_at_epoch: 1,
-            transport_provenance: TransportProvenance::Test,
-            cache_key: "page".into(),
-        };
-        let result = HtmlExtractor.extract(
-            ExtractInput {
-                artifact: &artifact,
-                budget: ExtractBudget::default(),
-            },
-            &ExtractContext::default(),
-        );
-        let document = result.document.expect("document");
-        assert_eq!(document.assets.len(), 2);
-        assert_eq!(document.relations.len(), 2);
-        assert!(document
-            .assets
-            .iter()
-            .any(|asset| asset.media_type.as_deref() == Some("image/png")));
-        assert!(document
-            .sources
-            .iter()
-            .any(|source| matches!(source.kind, SourceKind::Synthetic { .. })));
-    }
-}
 fn page_document_id(page_identity: &str) -> DocumentId {
     let mut hash = 0u64;
     for byte in page_identity.bytes() {

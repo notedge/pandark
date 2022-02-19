@@ -46,20 +46,3 @@ fn seed_to_frontier(seed: &CrawlSeed) -> Result<FrontierItem> {
     ))
 }
 
-#[cfg(test)]
-mod tests {
-    use pandark_types::{AdmissionDecision, CrawlRequest};
-
-    use super::{admit_frontier_item, seed_frontier};
-
-    #[test]
-    fn rejects_items_beyond_depth() {
-        let request = CrawlRequest::from_seed("https://example.com").expect("seed");
-        let mut items = seed_frontier(&request).expect("frontier");
-        items[0].depth = request.budget.max_depth + 1;
-        assert!(matches!(
-            admit_frontier_item(&items[0], &request),
-            AdmissionDecision::Rejected { .. }
-        ));
-    }
-}

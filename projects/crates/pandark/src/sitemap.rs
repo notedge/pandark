@@ -7,9 +7,11 @@ use pandark_types::{CrawlError, CrawlEvent, DiscoverySource, FrontierItem, Resul
 
 use crate::crawl::CrawlState;
 
-const MAX_SITEMAP_LOCATIONS: usize = 10_000;
+/// Maximum number of sitemap locations accepted per document.
+pub const MAX_SITEMAP_LOCATIONS: usize = 10_000;
 
-fn locations(body: &[u8]) -> Result<(bool, Vec<String>)> {
+/// Parse sitemap XML and return whether the root is an index plus location URLs.
+pub fn locations(body: &[u8]) -> Result<(bool, Vec<String>)> {
     if body.len() > 1024 * 1024 {
         return Err(CrawlError::InvalidInput("sitemap exceeds one MiB XML budget".into()));
     }
@@ -59,7 +61,8 @@ fn is_xml_content_type(artifact: &pandark_types::FetchArtifact) -> bool {
     matches!(value.as_deref(), Some("application/xml" | "text/xml" | "application/xml+rss" | "application/xhtml+xml"))
 }
 
-fn sitemap_body(artifact: &pandark_types::FetchArtifact) -> Result<Vec<u8>> {
+/// Decode a fetched sitemap artifact body, honoring `content-encoding`.
+pub fn sitemap_body(artifact: &pandark_types::FetchArtifact) -> Result<Vec<u8>> {
     let body = artifact.body_bytes().ok_or_else(|| CrawlError::InvalidInput("sitemap body unavailable".into()))?;
     let encoding = artifact.response_headers.get("content-encoding").map(|value| value.trim().to_ascii_lowercase());
     let decoded = match encoding.as_deref() {
@@ -79,60 +82,6 @@ fn sitemap_body(artifact: &pandark_types::FetchArtifact) -> Result<Vec<u8>> {
     Ok(decoded)
 }
 
-#[cfg(test)]
-mod tests {
-    use std::io::Write;
-
-    use pandark_fetch::build_artifact;
-    use pandark_types::{BodyStorage, TransportProvenance};
-    use url::Url;
-
-    use super::{locations, sitemap_body, MAX_SITEMAP_LOCATIONS};
-
-    #[test]
-    fn rejects_unsupported_root_and_nested_location_payloads() {
-        assert!(locations(b"<html><body>not a sitemap</body></html>").is_err());
-        assert!(locations(b"<urlset><url><loc><span>https://example.com/</span></loc></url></urlset>").is_err());
-        assert!(locations(&[0xff]).is_err());
-    }
-
-    #[test]
-    fn rejects_xml_above_the_parse_budget() {
-        assert!(locations(&vec![b' '; 1024 * 1024 + 1]).is_err());
-    }
-
-    #[test]
-    fn rejects_excessive_location_count() {
-        let mut xml = String::from("<urlset>");
-        for index in 0..=MAX_SITEMAP_LOCATIONS {
-            xml.push_str(&format!("<url><loc>https://example.com/{index}</loc></url>"));
-        }
-        xml.push_str("</urlset>");
-        assert!(locations(xml.as_bytes()).is_err());
-    }
-
-    #[test]
-    fn decodes_gzip_and_rejects_unknown_encoding() {
-        let mut compressed = Vec::new();
-        let mut encoder = flate2::write::GzEncoder::new(&mut compressed, flate2::Compression::fast());
-        encoder.write_all(b"<urlset/>").expect("compress");
-        encoder.finish().expect("finish");
-        let url = Url::parse("https://example.com/map.xml").expect("url");
-        let artifact = build_artifact(
-            url.clone(), url.clone(), 200,
-            std::collections::BTreeMap::from([
-                ("content-type".into(), "application/xml".into()),
-                ("content-encoding".into(), "gzip".into()),
-            ]),
-            BodyStorage::inline(compressed), Vec::new(), TransportProvenance::Test, None,
-        );
-        assert_eq!(sitemap_body(&artifact).expect("decode"), b"<urlset/>");
-
-        let mut unknown = artifact;
-        unknown.response_headers.insert("content-encoding".into(), "br".into());
-        assert!(sitemap_body(&unknown).is_err());
-    }
-}
 
 pub(crate) fn discover<T: Transport>(
     state: &mut CrawlState,

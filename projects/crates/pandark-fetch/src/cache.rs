@@ -37,30 +37,3 @@ impl ResponseCache {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use url::Url;
-
-    use pandark_types::{BodyStorage, TransportProvenance, now_epoch};
-
-    use super::*;
-
-    #[test]
-    fn stores_and_retrieves_by_cache_key() {
-        let mut cache = ResponseCache::new();
-        let artifact = FetchArtifact {
-            request_url: Url::parse("https://example.com/").expect("url"),
-            final_url: Url::parse("https://example.com/").expect("url"),
-            status: 200,
-            response_headers: Default::default(),
-            content_type: Some("text/html".into()),
-            body: BodyStorage::inline(b"ok"),
-            redirect_chain: Vec::new(),
-            retrieved_at_epoch: now_epoch(),
-            transport_provenance: TransportProvenance::Test,
-            cache_key: "https://example.com/".into(),
-        };
-        cache.put(artifact);
-        assert!(cache.get("https://example.com/").is_some());
-    }
-}

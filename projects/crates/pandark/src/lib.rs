@@ -40,7 +40,8 @@ mod transaction;
 
 pub use markdown_project::{publish_extracted_page, PublishedPageProject};
 pub use admission::{admit_frontier_item, seed_frontier};
-pub use assets::hydrate_assets;
+pub use assets::{fingerprint, hydrate_assets};
+pub use sitemap::{locations, sitemap_body, MAX_SITEMAP_LOCATIONS};
 pub use browser::{
     BrowserProvider, BrowserProviderStack, ChallengeBlocked, FixtureBrowserProvider,
     HttpBrowserProvider, build_browser_stack, load_fixture_provider_from_dir,
@@ -49,6 +50,8 @@ pub use browser::{
     snapshot_to_fetch_artifact,
 };
 pub use crawl::{CrawlOptions, CrawlOutput, CrawlState, resume_crawl_from_checkpoint, run_crawl, run_crawl_with_options};
+pub use pandark_extract::{extract_body_text, extract_document_title, extract_hrefs};
+pub use pandark_types::{BrowserSnapshot, PageChallengeState};
 pub use extract::{Extractor, HtmlExtractor, run_extract, select_extractor};
 pub use pandark_fetch::{
     DiskResponseCache, FetchClient, FetchRequest, FileTransport, HttpTransport, MemoryEntry,

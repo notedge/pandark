@@ -86,21 +86,3 @@ impl Transport for HttpTransport {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::collections::BTreeMap;
-    use url::Url;
-
-    use super::*;
-
-    #[test]
-    fn rejects_non_http_schemes() {
-        let transport = HttpTransport::new();
-        let request = FetchRequest {
-            url: Url::parse("file:///tmp/page.html").expect("url"),
-            headers: BTreeMap::new(),
-        };
-        let error = transport.fetch(&request).unwrap_err();
-        assert!(error.to_string().contains("http transport"));
-    }
-}

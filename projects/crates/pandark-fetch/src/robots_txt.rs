@@ -111,7 +111,8 @@ impl RobotsGroup {
             .unwrap_or(0)
     }
 
-    fn is_path_allowed(&self, path: &str) -> bool {
+    /// Whether `path` is allowed for this robots group.
+    pub fn is_path_allowed(&self, path: &str) -> bool {
         let mut best: Option<(bool, usize)> = None;
         for pattern in &self.allow {
             if path_matches_rule(pattern, path) {
@@ -146,7 +147,8 @@ fn rule_specificity(pattern: &str) -> usize {
     pattern.trim_end_matches('$').len()
 }
 
-fn path_matches_rule(pattern: &str, path: &str) -> bool {
+/// Match one robots path rule against a URL path.
+pub fn path_matches_rule(pattern: &str, path: &str) -> bool {
     let pattern = pattern.trim();
     if pattern.is_empty() {
         return false;
@@ -202,89 +204,3 @@ pub fn site_key_for_url(url: &url::Url) -> String {
     format!("{}://{}:{}", url.scheme(), host, port)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_user_agent_groups_and_sitemaps() {
-        let body = r#"
-User-agent: *
-Disallow: /admin/
-Allow: /admin/public/
-
-User-agent: pandark
-Disallow: /secret
-Crawl-delay: 2
-
-Sitemap: https://example.com/sitemap.xml
-"#;
-        let doc = RobotsTxt::parse(body);
-        assert_eq!(doc.groups.len(), 2);
-        assert_eq!(doc.sitemaps, vec!["https://example.com/sitemap.xml"]);
-        assert_eq!(doc.crawl_delay_for_agent("pandark"), Some(2));
-    }
-
-    #[test]
-    fn longest_prefix_rule_wins() {
-        let body = r#"
-User-agent: *
-Disallow: /docs
-Allow: /docs/public
-"#;
-        let doc = RobotsTxt::parse(body);
-        assert!(!doc.is_path_allowed("pandark", "/docs/private"));
-        assert!(doc.is_path_allowed("pandark", "/docs/public/page"));
-    }
-
-    #[test]
-    fn wildcard_and_end_anchor_rules_match() {
-        let body = r#"
-User-agent: *
-Disallow: /*.pdf$
-Allow: /public/*.pdf$
-"#;
-        let doc = RobotsTxt::parse(body);
-        assert!(!doc.is_path_allowed("bot", "/report.pdf"));
-        assert!(doc.is_path_allowed("bot", "/public/guide.pdf"));
-    }
-
-    #[test]
-    fn wildcard_rules_support_multiple_stars_and_end_anchor() {
-        assert!(path_matches_rule("/private/*/export/*", "/private/team/export/report"));
-        assert!(!path_matches_rule("/private/*/export/*", "/private/team/import/report"));
-        assert!(path_matches_rule("/api/*/v1", "/api/team/v1"));
-        assert!(path_matches_rule("/api/*/v1", "/api/team/v1/extra"));
-        assert!(!path_matches_rule("/api/*/v1$", "/api/team/v1/extra"));
-        assert!(path_matches_rule("/api/*/v1$", "/api/team/v1"));
-        assert!(path_matches_rule("/api/*$", "/api/team/v1/extra"));
-    }
-
-    #[test]
-    fn equal_specificity_allow_rule_wins_over_disallow() {
-        let group = RobotsGroup {
-            agents: vec!["*".into()],
-            allow: vec!["/private/*/export".into()],
-            disallow: vec!["/private/*/export".into()],
-            crawl_delay: None,
-        };
-        assert!(group.is_path_allowed("/private/team/export"));
-    }
-
-    #[test]
-    fn developer_agent_uses_matching_group() {
-        let body = r#"
-User-agent: pandark
-Disallow: /private
-"#;
-        let doc = RobotsTxt::parse(body);
-        assert!(!doc.is_path_allowed("pandark", "/private/page"));
-        assert!(doc.is_path_allowed("pandark", "/open/page"));
-    }
-
-    #[test]
-    fn site_key_includes_port() {
-        let url = url::Url::parse("https://example.com:8443/page").expect("url");
-        assert_eq!(site_key_for_url(&url), "https://example.com:8443");
-    }
-}

@@ -22,11 +22,12 @@ mod select;
 
 pub use cache::ResponseCache;
 pub use client::{FetchClient, fetch_url};
-pub use disk_cache::DiskResponseCache;
+pub use disk_cache::{DiskResponseCache, LayeredResponseCache};
 pub use file::FileTransport;
 pub use http::HttpTransport;
 pub use memory::{MemoryEntry, MemoryTransport};
 pub use robots::RobotsPolicy;
+pub use robots_txt::{RobotsGroup, RobotsTxt, path_matches_rule, site_key_for_url};
 pub use select::{SeedTransport, transport_for_url};
 
 /// Fetch request passed to a transport.

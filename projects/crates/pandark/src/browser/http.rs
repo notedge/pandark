@@ -26,7 +26,8 @@ impl HttpBrowserProvider {
         self
     }
 
-    fn snapshot_url(&self, page_url: &Url) -> Url {
+    /// Build the worker snapshot URL for a page.
+    pub fn snapshot_url(&self, page_url: &Url) -> Url {
         let mut endpoint = self.endpoint.clone();
         endpoint
             .query_pairs_mut()
@@ -60,20 +61,3 @@ impl super::provider::BrowserProvider for HttpBrowserProvider {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn snapshot_url_appends_page_query() {
-        let provider = HttpBrowserProvider::new(
-            Url::parse("http://127.0.0.1:9333/snapshot").expect("url"),
-        );
-        let page = Url::parse("https://example.com/private").expect("url");
-        let request = provider.snapshot_url(&page);
-        assert_eq!(
-            request.as_str(),
-            "http://127.0.0.1:9333/snapshot?url=https%3A%2F%2Fexample.com%2Fprivate"
-        );
-    }
-}

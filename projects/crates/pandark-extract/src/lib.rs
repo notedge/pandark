@@ -13,6 +13,9 @@ mod oak_view;
 
 pub use html::HtmlExtractor;
 pub use inspect::inspect_artifact;
+pub use oak_view::{
+    HtmlParse, extract_body_text, extract_document_title, extract_hrefs,
+};
 
 /// Semantic extractor over fetch artifacts.
 pub trait Extractor {
