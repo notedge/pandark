@@ -33,7 +33,7 @@ yydb = { git = "https://github.com/yy-database/yydb.rs", rev = "f7eaf8ecfdb1cbaf
 pandark-types = { path = "projects/crates/pandark-types" }
 pandark-fetch = { path = "projects/crates/pandark-fetch" }
 pandark-extract = { path = "projects/crates/pandark-extract" }
-pandark-store = { path = "projects/crates/pandark-store" }
+pandark-store = { path = "projects/crates/pandark-store", default-features = false }
 pandark = { path = "projects/crates/pandark" }
 pandark-napi = { path = "projects/crates/pandark-napi" }
 pandark-wasm = { path = "projects/crates/pandark-wasm" }

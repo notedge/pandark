@@ -21,7 +21,7 @@ notedown-formats = { workspace = true }
 pandark-types = { workspace = true }
 pandark-extract = { workspace = true }
 pandark-fetch = { workspace = true }
-pandark-store = { path = "../pandark-store", default-features = false }
+pandark-store = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
