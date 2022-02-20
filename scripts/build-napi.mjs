@@ -8,23 +8,23 @@ const napiDir = join(root, "projects/crates/pandark-napi");
 
 /** @type {Record<string, { packageDir: string, fileName: string }>} */
 const ARTIFACTS = {
-    "index.win32-x64-msvc.node": {
+    "pandark.win32-x64-msvc.node": {
         packageDir: "pandark-win32-x64",
         fileName: "pandark-win32-x64-msvc.node",
     },
-    "index.linux-x64-gnu.node": {
+    "pandark.linux-x64-gnu.node": {
         packageDir: "pandark-linux-x64",
         fileName: "pandark-linux-x64-gnu.node",
     },
-    "index.darwin-x64.node": {
+    "pandark.darwin-x64.node": {
         packageDir: "pandark-darwin-x64",
         fileName: "pandark-darwin-x64.node",
     },
-    "index.darwin-arm64.node": {
+    "pandark.darwin-arm64.node": {
         packageDir: "pandark-darwin-arm64",
         fileName: "pandark-darwin-arm64.node",
     },
-    "index.linux-arm64-gnu.node": {
+    "pandark.linux-arm64-gnu.node": {
         packageDir: "pandark-linux-arm64",
         fileName: "pandark-linux-arm64-gnu.node",
     },
@@ -32,6 +32,10 @@ const ARTIFACTS = {
 
 function findBuiltNodes(dir) {
     return readdirSync(dir).filter((name) => name.endsWith(".node"));
+}
+
+for (const stale of findBuiltNodes(napiDir)) {
+    unlinkSync(join(napiDir, stale));
 }
 
 execSync("pnpm exec napi build --platform --release", {
