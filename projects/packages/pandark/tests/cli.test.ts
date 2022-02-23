@@ -7,7 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
-const cliEntry = join(packageRoot, "bin/pandark.mjs");
+const cliEntry = join(packageRoot, "bin/pandark");
 
 function runCli(args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
     return new Promise((resolve, reject) => {

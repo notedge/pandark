@@ -10,11 +10,15 @@ use pandark_store::YydbStore;
 
 const SITE_KEY: &str = "example.com";
 const ROBOTS_BODY: &[u8] = b"User-agent: *\nDisallow: /private";
+// Backends persist state synchronously on write, so a millisecond-scale TTL can
+// expire before the immediate read on a loaded machine. Keep a wide margin.
+const TTL: Duration = Duration::from_millis(1_000);
+const EXPIRY_WAIT: Duration = Duration::from_millis(1_100);
 
 fn assert_robots_ttl<S: Store>(make_store: impl FnOnce() -> S) {
     let mut store = make_store();
     store
-        .put_robots_cache(SITE_KEY, ROBOTS_BODY, Duration::from_millis(50))
+        .put_robots_cache(SITE_KEY, ROBOTS_BODY, TTL)
         .expect("put robots cache");
     assert_eq!(
         store
@@ -23,7 +27,7 @@ fn assert_robots_ttl<S: Store>(make_store: impl FnOnce() -> S) {
             .as_deref(),
         Some(ROBOTS_BODY)
     );
-    thread::sleep(Duration::from_millis(60));
+    thread::sleep(EXPIRY_WAIT);
     assert!(
         store
             .get_robots_cache(SITE_KEY)
