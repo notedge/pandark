@@ -44,7 +44,8 @@ pub fn load_input(path: &str, format: InputFormat) -> Result<LoadedInput> {
         InputFormat::Auto => {
             if path_looks_like_snapshot(file_path) {
                 InputFormat::Snapshot
-            } else {
+            }
+            else {
                 InputFormat::Html
             }
         }
@@ -53,14 +54,10 @@ pub fn load_input(path: &str, format: InputFormat) -> Result<LoadedInput> {
     match resolved {
         InputFormat::Snapshot => Ok(LoadedInput::Snapshot(load_snapshot_json(file_path)?)),
         InputFormat::Html => {
-            let file_url = url::Url::from_file_path(file_path).map_err(|_| {
-                CrawlError::InvalidInput(format!("invalid input path `{path}`"))
-            })?;
+            let file_url = url::Url::from_file_path(file_path)
+                .map_err(|_| CrawlError::InvalidInput(format!("invalid input path `{path}`")))?;
             let transport = FileTransport::new();
-            let artifact = transport.fetch(&FetchRequest {
-                url: file_url,
-                headers: Default::default(),
-            })?;
+            let artifact = transport.fetch(&FetchRequest { url: file_url, headers: Default::default() })?;
             Ok(LoadedInput::Artifact(artifact))
         }
         InputFormat::Auto => unreachable!("auto resolved above"),

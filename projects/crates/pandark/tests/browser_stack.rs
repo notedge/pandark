@@ -1,8 +1,6 @@
 //! Extracted from `src/browser/stack.rs`.
 
-use pandark::{
-    BrowserProvider, BrowserProviderStack, FixtureBrowserProvider, HttpBrowserProvider,
-};
+use pandark::{BrowserProvider, BrowserProviderStack, FixtureBrowserProvider, HttpBrowserProvider};
 use pandark_types::{BrowserSnapshot, PageChallengeState};
 use url::Url;
 
@@ -18,14 +16,8 @@ fn fixture_provider_wins_before_http_worker() {
         profile_id: "test".into(),
         challenge_state: PageChallengeState::Normal,
     });
-    let http = HttpBrowserProvider::new(
-        Url::parse("http://127.0.0.1:1/unreachable").expect("url"),
-    );
-    let stack = BrowserProviderStack::new()
-        .with_fixture(fixture)
-        .with_http(http);
-    let snapshot = stack
-        .capture_snapshot(&Url::parse("https://example.com/page").expect("url"))
-        .expect("snapshot");
+    let http = HttpBrowserProvider::new(Url::parse("http://127.0.0.1:1/unreachable").expect("url"));
+    let stack = BrowserProviderStack::new().with_fixture(fixture).with_http(http);
+    let snapshot = stack.capture_snapshot(&Url::parse("https://example.com/page").expect("url")).expect("snapshot");
     assert_eq!(snapshot.browser_engine, "fixture");
 }

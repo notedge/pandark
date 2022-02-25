@@ -1,10 +1,7 @@
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::browser::PageChallengeState;
-use crate::frontier::FrontierItem;
-use crate::request::CrawlRequest;
-use crate::result::CrawlReport;
+use crate::{browser::PageChallengeState, frontier::FrontierItem, request::CrawlRequest, result::CrawlReport};
 
 /// Serializable crawl state for operator resume after a pause.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

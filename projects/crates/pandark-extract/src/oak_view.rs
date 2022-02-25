@@ -1,7 +1,5 @@
-use oak_core::parser::session::ParseSession;
-use oak_core::{Parser, RedNode, RedTree, SourceText};
-use oak_html::parser::element_type::HtmlElementType;
-use oak_html::{HtmlLanguage, HtmlParser};
+use oak_core::{Parser, RedNode, RedTree, SourceText, parser::session::ParseSession};
+use oak_html::{HtmlLanguage, HtmlParser, parser::element_type::HtmlElementType};
 use pandark_types::CrawlError;
 use url::Url;
 
@@ -19,9 +17,7 @@ impl HtmlParse {
         let mut session = ParseSession::<HtmlLanguage>::default();
         let parser = HtmlParser::new(&language);
         let output = parser.parse(&source, &[], &mut session);
-        output
-            .result
-            .map_err(|error| CrawlError::InvalidInput(error.to_string()))?;
+        output.result.map_err(|error| CrawlError::InvalidInput(error.to_string()))?;
         if session.last_root().is_none() {
             return Err(CrawlError::InvalidInput("oak-html produced no document root".into()));
         }
@@ -47,24 +43,17 @@ struct LinkTarget {
 /// Discover navigational href strings relative to the page URL and optional `<base>`.
 pub fn extract_hrefs(html: &str, page_url: &Url) -> Vec<String> {
     match HtmlParse::parse(html) {
-        Ok(parsed) => collect_link_targets(&parsed, page_url)
-            .into_iter()
-            .map(|target| target.href)
-            .collect(),
+        Ok(parsed) => collect_link_targets(&parsed, page_url).into_iter().map(|target| target.href).collect(),
         Err(_) => Vec::new(),
     }
 }
 
 /// Discover links and preserve the HTML attribute that produced each target.
-pub(crate) fn extract_link_targets(
-    html: &str,
-    page_url: &Url,
-) -> Vec<(String, &'static str)> {
+pub(crate) fn extract_link_targets(html: &str, page_url: &Url) -> Vec<(String, &'static str)> {
     match HtmlParse::parse(html) {
-        Ok(parsed) => collect_link_targets(&parsed, page_url)
-            .into_iter()
-            .map(|target| (target.href, target.source_hint))
-            .collect(),
+        Ok(parsed) => {
+            collect_link_targets(&parsed, page_url).into_iter().map(|target| (target.href, target.source_hint)).collect()
+        }
         Err(_) => Vec::new(),
     }
 }
@@ -76,11 +65,7 @@ pub fn extract_document_title(html: &str) -> Option<String> {
     let title_node = find_first_element_by_tag(parsed.root(), source, "title")?;
     let text = collect_element_text(title_node, source);
     let collapsed = collapse_whitespace(text);
-    if collapsed.is_empty() {
-        None
-    } else {
-        Some(collapsed)
-    }
+    if collapsed.is_empty() { None } else { Some(collapsed) }
 }
 
 /// Visible body text with `script`/`style`/`noscript` content excluded.
@@ -88,8 +73,7 @@ pub fn extract_body_text(html: &str) -> String {
     match HtmlParse::parse(html) {
         Ok(parsed) => {
             let source = parsed.source();
-            let scope = find_first_element_by_tag(parsed.root(), source, "body")
-                .unwrap_or_else(|| parsed.root());
+            let scope = find_first_element_by_tag(parsed.root(), source, "body").unwrap_or_else(|| parsed.root());
             collapse_whitespace(collect_element_text(scope, source))
         }
         Err(_) => String::new(),
@@ -98,13 +82,14 @@ pub fn extract_body_text(html: &str) -> String {
 
 fn document_base_url(page_url: &Url, parsed: &HtmlParse) -> Url {
     let source = parsed.source();
-    let base_href = find_first_element_by_tag(parsed.root(), source, "base")
-        .and_then(|node| attribute_value(node, source, "href"));
+    let base_href =
+        find_first_element_by_tag(parsed.root(), source, "base").and_then(|node| attribute_value(node, source, "href"));
     resolve_base_url(page_url, base_href.as_deref())
 }
 
 fn resolve_base_url(page_url: &Url, base_href: Option<&str>) -> Url {
-    let Some(href) = base_href else {
+    let Some(href) = base_href
+    else {
         return page_url.clone();
     };
     if let Ok(absolute) = Url::parse(href) {
@@ -117,23 +102,18 @@ fn collect_link_targets(parsed: &HtmlParse, page_url: &Url) -> Vec<LinkTarget> {
     let source = parsed.source();
     let base_url = document_base_url(page_url, parsed);
     let mut targets = Vec::new();
-    walk_elements(parsed.root(), source, &mut |node, tag| {
-        match tag.as_str() {
-            "a" => push_href_target(node, source, "href", "href", &base_url, &mut targets),
-            "form" => push_href_target(node, source, "action", "form-action", &base_url, &mut targets),
-            "img" | "source" => {
-                push_href_target(node, source, "src", "src", &base_url, &mut targets);
-                if let Some(srcset) = attribute_value(node, source, "srcset") {
-                    for url in parse_srcset(&srcset) {
-                        targets.push(LinkTarget {
-                            href: normalize_href(&base_url, &url),
-                            source_hint: "srcset",
-                        });
-                    }
+    walk_elements(parsed.root(), source, &mut |node, tag| match tag.as_str() {
+        "a" => push_href_target(node, source, "href", "href", &base_url, &mut targets),
+        "form" => push_href_target(node, source, "action", "form-action", &base_url, &mut targets),
+        "img" | "source" => {
+            push_href_target(node, source, "src", "src", &base_url, &mut targets);
+            if let Some(srcset) = attribute_value(node, source, "srcset") {
+                for url in parse_srcset(&srcset) {
+                    targets.push(LinkTarget { href: normalize_href(&base_url, &url), source_hint: "srcset" });
                 }
             }
-            _ => {}
         }
+        _ => {}
     });
     targets
 }
@@ -148,10 +128,7 @@ fn push_href_target(
 ) {
     if let Some(href) = attribute_value(node, source, attr) {
         if is_navigable_href(&href) {
-            targets.push(LinkTarget {
-                href: normalize_href(page_url, &href),
-                source_hint: hint,
-            });
+            targets.push(LinkTarget { href: normalize_href(page_url, &href), source_hint: hint });
         }
     }
 }
@@ -160,10 +137,7 @@ fn normalize_href(page_url: &Url, href: &str) -> String {
     if let Ok(absolute) = Url::parse(href) {
         return absolute.to_string();
     }
-    page_url
-        .join(href)
-        .map(|url| url.to_string())
-        .unwrap_or_else(|_| href.to_string())
+    page_url.join(href).map(|url| url.to_string()).unwrap_or_else(|_| href.to_string())
 }
 
 fn is_navigable_href(href: &str) -> bool {
@@ -180,11 +154,7 @@ fn parse_srcset(value: &str) -> Vec<String> {
         .split(',')
         .filter_map(|part| {
             let url = part.trim().split_whitespace().next().unwrap_or("").trim();
-            if url.is_empty() {
-                None
-            } else {
-                Some(url.to_string())
-            }
+            if url.is_empty() { None } else { Some(url.to_string()) }
         })
         .collect()
 }
@@ -253,16 +223,10 @@ fn element_tag_name(node: RedNode<HtmlLanguage>, source: &SourceText) -> Option<
     None
 }
 
-fn attribute_value(
-    node: RedNode<HtmlLanguage>,
-    source: &SourceText,
-    name: &str,
-) -> Option<String> {
+fn attribute_value(node: RedNode<HtmlLanguage>, source: &SourceText, name: &str) -> Option<String> {
     for child in node.children() {
         let attr_node = match child {
-            RedTree::Node(child_node) if child_node.element_type() == HtmlElementType::Attribute => {
-                child_node
-            }
+            RedTree::Node(child_node) if child_node.element_type() == HtmlElementType::Attribute => child_node,
             _ => continue,
         };
         let mut attr_name = None;
@@ -302,11 +266,7 @@ fn collect_element_text<'a>(node: RedNode<'a, HtmlLanguage>, source: &'a SourceT
     parts.join("")
 }
 
-fn collect_text_parts<'a>(
-    node: RedNode<'a, HtmlLanguage>,
-    source: &'a SourceText,
-    parts: &mut Vec<String>,
-) {
+fn collect_text_parts<'a>(node: RedNode<'a, HtmlLanguage>, source: &'a SourceText, parts: &mut Vec<String>) {
     if node.element_type() == HtmlElementType::Element {
         if let Some(tag) = element_tag_name(node, source) {
             if is_skipped_text_tag(&tag) {
@@ -360,11 +320,10 @@ fn is_skipped_subtree_tag(tag: &str) -> bool {
 
 fn unquote(value: &str) -> String {
     let trimmed = value.trim();
-    if (trimmed.starts_with('"') && trimmed.ends_with('"'))
-        || (trimmed.starts_with('\'') && trimmed.ends_with('\''))
-    {
+    if (trimmed.starts_with('"') && trimmed.ends_with('"')) || (trimmed.starts_with('\'') && trimmed.ends_with('\'')) {
         trimmed[1..trimmed.len() - 1].to_string()
-    } else {
+    }
+    else {
         trimmed.to_string()
     }
 }
@@ -410,4 +369,3 @@ fn resolve_entity(entity: &str) -> &str {
         _ => entity,
     }
 }
-

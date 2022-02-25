@@ -23,21 +23,19 @@ impl YydbResponseCache {
             .map_err(|error| CrawlError::InvalidInput(format!("open YYDB cache: {error}")))?;
         connection
             .ensure_schema(RESPONSE_CACHE_SCHEMA)
-            .map_err(|error| {
-                CrawlError::InvalidInput(format!("initialize YYDB cache: {error}"))
-            })?;
+            .map_err(|error| CrawlError::InvalidInput(format!("initialize YYDB cache: {error}")))?;
         Ok(Self { connection })
     }
 
     /// Read an artifact and mark it as a cache hit.
     pub fn get(&self, cache_key: &str) -> Result<Option<FetchArtifact>> {
         let key = keyspace::response_cache(cache_key);
-        let Some(bytes) = self.connection.get(&key).map_err(map_error)? else {
+        let Some(bytes) = self.connection.get(&key).map_err(map_error)?
+        else {
             return Ok(None);
         };
-        let mut artifact: FetchArtifact = serde_json::from_slice(&bytes).map_err(|error| {
-            CrawlError::InvalidInput(format!("decode YYDB cache entry: {error}"))
-        })?;
+        let mut artifact: FetchArtifact = serde_json::from_slice(&bytes)
+            .map_err(|error| CrawlError::InvalidInput(format!("decode YYDB cache entry: {error}")))?;
         artifact.transport_provenance = TransportProvenance::CacheHit;
         Ok(Some(artifact))
     }
@@ -45,9 +43,8 @@ impl YydbResponseCache {
     /// Store an artifact in YYDB and return its cache key.
     pub fn put(&self, artifact: &FetchArtifact) -> Result<String> {
         let key = keyspace::response_cache(&artifact.cache_key);
-        let bytes = serde_json::to_vec(artifact).map_err(|error| {
-            CrawlError::InvalidInput(format!("encode YYDB cache entry: {error}"))
-        })?;
+        let bytes = serde_json::to_vec(artifact)
+            .map_err(|error| CrawlError::InvalidInput(format!("encode YYDB cache entry: {error}")))?;
         self.connection.put(key, bytes).map_err(map_error)?;
         Ok(artifact.cache_key.clone())
     }
@@ -61,4 +58,3 @@ impl YydbResponseCache {
 fn map_error(error: yydb::Error) -> CrawlError {
     CrawlError::InvalidInput(format!("YYDB cache error: {error}"))
 }
-

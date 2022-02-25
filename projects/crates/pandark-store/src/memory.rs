@@ -1,12 +1,12 @@
 use pandark_types::{FrontierItem, site_key};
 use url::Url;
 
-use crate::error::{Result, StoreError};
-use crate::session::StoreSession;
-use crate::types::{
-    ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig, StoreDiagnosticReport,
+use crate::{
+    Store,
+    error::{Result, StoreError},
+    session::StoreSession,
+    types::{ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig, StoreDiagnosticReport},
 };
-use crate::Store;
 
 /// In-memory `Store` backend for deterministic contract tests.
 #[derive(Debug, Clone)]
@@ -16,9 +16,7 @@ pub struct MemoryStore {
 
 impl Store for MemoryStore {
     fn open(config: StoreConfig) -> Result<Self> {
-        Ok(Self {
-            session: StoreSession::new(config.schema_version),
-        })
+        Ok(Self { session: StoreSession::new(config.schema_version) })
     }
 
     fn reopen(&mut self) -> Result<()> {
@@ -85,10 +83,7 @@ impl Store for MemoryStore {
         self.session.get_response_cache(cache_key)
     }
 
-    fn put_response_cache(
-        &mut self,
-        artifact: &pandark_types::FetchArtifact,
-    ) -> Result<()> {
+    fn put_response_cache(&mut self, artifact: &pandark_types::FetchArtifact) -> Result<()> {
         self.session.put_response_cache(artifact)
     }
 
@@ -96,23 +91,14 @@ impl Store for MemoryStore {
         self.session.get_robots_cache(site_key)
     }
 
-    fn put_robots_cache(
-        &mut self,
-        site_key: &str,
-        body: &[u8],
-        ttl: std::time::Duration,
-    ) -> Result<()> {
+    fn put_robots_cache(&mut self, site_key: &str, body: &[u8], ttl: std::time::Duration) -> Result<()> {
         self.session.put_robots_cache(site_key, body, ttl)
     }
 }
 
 /// Build a [`FrontierItem`] from contract JSON fields.
-pub fn frontier_item_from_contract(
-    canonical_request_url: &str,
-    depth: u32,
-) -> Result<FrontierItem> {
-    let request_url = Url::parse(canonical_request_url)
-        .map_err(|error| StoreError::StoreCorrupt(error.to_string()))?;
+pub fn frontier_item_from_contract(canonical_request_url: &str, depth: u32) -> Result<FrontierItem> {
+    let request_url = Url::parse(canonical_request_url).map_err(|error| StoreError::StoreCorrupt(error.to_string()))?;
     let site = site_key(&request_url);
     Ok(FrontierItem {
         request_url,

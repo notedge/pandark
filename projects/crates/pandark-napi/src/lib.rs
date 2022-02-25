@@ -4,18 +4,15 @@ use std::path::PathBuf;
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use pandark::CrawlOptions;
 use pandark::{
-    BrowserProvider, ChallengeBlocked, Extractor, HtmlExtractor, LoadedInput, initial_report,
-    inspect_artifact, inspect_snapshot, load_input, parse_input_format, build_browser_stack,
-    plan_crawl as build_plan, resolve_crawl_seed_specs, resume_crawl_from_checkpoint,
-    run_crawl_with_options, run_extract, run_extract_from_snapshot,
+    BrowserProvider, ChallengeBlocked, CrawlOptions, Extractor, HtmlExtractor, LoadedInput, build_browser_stack,
+    initial_report, inspect_artifact, inspect_snapshot, load_input, parse_input_format, plan_crawl as build_plan,
+    resolve_crawl_seed_specs, resume_crawl_from_checkpoint, run_crawl_with_options, run_extract, run_extract_from_snapshot,
 };
 use pandark_fetch::{FetchClient, FetchRequest, RobotsPolicy, transport_for_url};
-use pandark_types::PolitenessProfile;
 use pandark_types::{
-    BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlReport,
-    CrawlRequest, ExtractBudget, ExtractContext, ExtractStatus, InspectStage,
+    BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlReport, CrawlRequest, ExtractBudget,
+    ExtractContext, ExtractStatus, InspectStage, PolitenessProfile,
 };
 use url::Url;
 
@@ -67,18 +64,11 @@ pub fn pandark_version() -> String {
 
 /// Build a crawl plan without network I/O.
 #[napi]
-pub fn plan_crawl(
-    seed: String,
-    max_depth: Option<u32>,
-    max_requests: Option<u32>,
-) -> Result<PlanResponse> {
+pub fn plan_crawl(seed: String, max_depth: Option<u32>, max_requests: Option<u32>) -> Result<PlanResponse> {
     let request = parse_request(&seed, max_depth, max_requests)?;
     let plan = build_plan(request.clone()).map_err(map_crawl_error)?;
     let report = initial_report(&request).map_err(map_crawl_error)?;
-    Ok(PlanResponse {
-        frontier: plan.frontier,
-        report_json: serde_json::to_string(&report).map_err(map_serde_error)?,
-    })
+    Ok(PlanResponse { frontier: plan.frontier, report_json: serde_json::to_string(&report).map_err(map_serde_error)? })
 }
 
 /// Extract semantic IR from a local HTML file or browser snapshot.
@@ -102,13 +92,7 @@ pub fn extract_input(
             let result = run_extract(&artifact, &extractors, budget, &ctx);
             build_extract_response(result)
         }
-        LoadedInput::Snapshot(snapshot) => match run_extract_from_snapshot(
-            &snapshot,
-            policy,
-            &extractors,
-            budget,
-            &ctx,
-        ) {
+        LoadedInput::Snapshot(snapshot) => match run_extract_from_snapshot(&snapshot, policy, &extractors, budget, &ctx) {
             Ok(result) => build_extract_response(result),
             Err(blocked) => build_challenge_extract_response(&snapshot, blocked),
         },
@@ -138,19 +122,14 @@ pub fn inspect_input(
     let budget = ExtractBudget::default();
     let report = match loaded {
         LoadedInput::Artifact(artifact) => inspect_artifact(&artifact, &extractors, inspect_stage, budget),
-        LoadedInput::Snapshot(snapshot) => {
-            inspect_snapshot(&snapshot, policy, &extractors, inspect_stage, budget)
-        }
+        LoadedInput::Snapshot(snapshot) => inspect_snapshot(&snapshot, policy, &extractors, inspect_stage, budget),
     };
     let exit_code = match report.challenge_outcome {
         Some(ChallengeOutcome::Stop) => 2,
         Some(ChallengeOutcome::PauseForOperator) => 3,
         _ => 0,
     };
-    Ok(InspectResponse {
-        exit_code,
-        report_json: serde_json::to_string(&report).map_err(map_serde_error)?,
-    })
+    Ok(InspectResponse { exit_code, report_json: serde_json::to_string(&report).map_err(map_serde_error)? })
 }
 
 /// Inspect a local HTML file without writing IR.
@@ -166,16 +145,8 @@ pub fn fetch_seed(seed: String) -> Result<FetchResponse> {
     let url = Url::parse(&seed_url).map_err(|error| Error::from_reason(error.to_string()))?;
     let transport = transport_for_url(&url).map_err(map_crawl_error)?;
     let mut client = FetchClient::new(transport, RobotsPolicy::from_profile(PolitenessProfile::Conservative));
-    let artifact = client
-        .fetch(&FetchRequest {
-            url,
-            headers: Default::default(),
-        })
-        .map_err(map_crawl_error)?;
-    Ok(FetchResponse {
-        exit_code: 0,
-        artifact_json: serde_json::to_string(&artifact).map_err(map_serde_error)?,
-    })
+    let artifact = client.fetch(&FetchRequest { url, headers: Default::default() }).map_err(map_crawl_error)?;
+    Ok(FetchResponse { exit_code: 0, artifact_json: serde_json::to_string(&artifact).map_err(map_serde_error)? })
 }
 
 /// Crawl linked HTML pages through the transport implied by the seed URL.
@@ -192,40 +163,25 @@ pub fn crawl_file(
 ) -> Result<CrawlResponse> {
     let cache_path = cache_dir.map(PathBuf::from);
     let request = parse_request(&seed, max_depth, max_requests)?;
-    let seed_url = request
-        .seeds
-        .first()
-        .ok_or_else(|| Error::from_reason("at least one seed is required"))?;
+    let seed_url = request.seeds.first().ok_or_else(|| Error::from_reason("at least one seed is required"))?;
     let transport = transport_for_url(&seed_url.url).map_err(map_crawl_error)?;
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
 
-    let browser_stack = build_browser_stack(
-        browser_fixtures_dir.as_deref(),
-        browser_endpoint.as_deref(),
-    )
-    .map_err(map_crawl_error)?;
+    let browser_stack =
+        build_browser_stack(browser_fixtures_dir.as_deref(), browser_endpoint.as_deref()).map_err(map_crawl_error)?;
     let options = CrawlOptions {
-        browser: if browser_stack.is_empty() {
-            None
-        } else {
-            Some(&browser_stack as &dyn BrowserProvider)
-        },
+        browser: if browser_stack.is_empty() { None } else { Some(&browser_stack as &dyn BrowserProvider) },
         browser_fallback: parse_browser_fallback(browser_fallback.as_deref())?,
         challenge_policy: parse_challenge_policy(challenge_policy.as_deref())?,
         cache_dir: cache_path.as_deref(),
         ..Default::default()
     };
 
-    let output = run_crawl_with_options(request, transport, &extractors, options)
-        .map_err(map_crawl_error)?;
+    let output = run_crawl_with_options(request, transport, &extractors, options).map_err(map_crawl_error)?;
     let exit_code = crawl_exit_code(&output.report, output.checkpoint.is_some());
-    let checkpoint_json = output
-        .checkpoint
-        .as_ref()
-        .map(|checkpoint| serde_json::to_string(checkpoint))
-        .transpose()
-        .map_err(map_serde_error)?;
+    let checkpoint_json =
+        output.checkpoint.as_ref().map(|checkpoint| serde_json::to_string(checkpoint)).transpose().map_err(map_serde_error)?;
     Ok(CrawlResponse {
         exit_code,
         report_json: serde_json::to_string(&output.report).map_err(map_serde_error)?,
@@ -245,43 +201,26 @@ pub fn resume_crawl_file(
     cache_dir: Option<String>,
 ) -> Result<CrawlResponse> {
     let cache_path = cache_dir.map(PathBuf::from);
-    let checkpoint: CrawlCheckpoint =
-        serde_json::from_str(&checkpoint_json).map_err(map_serde_error)?;
-    let seed_url = checkpoint
-        .request
-        .seeds
-        .first()
-        .ok_or_else(|| Error::from_reason("checkpoint request has no seeds"))?;
+    let checkpoint: CrawlCheckpoint = serde_json::from_str(&checkpoint_json).map_err(map_serde_error)?;
+    let seed_url = checkpoint.request.seeds.first().ok_or_else(|| Error::from_reason("checkpoint request has no seeds"))?;
     let transport = transport_for_url(&seed_url.url).map_err(map_crawl_error)?;
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
 
-    let browser_stack = build_browser_stack(
-        browser_fixtures_dir.as_deref(),
-        browser_endpoint.as_deref(),
-    )
-    .map_err(map_crawl_error)?;
+    let browser_stack =
+        build_browser_stack(browser_fixtures_dir.as_deref(), browser_endpoint.as_deref()).map_err(map_crawl_error)?;
     let options = CrawlOptions {
-        browser: if browser_stack.is_empty() {
-            None
-        } else {
-            Some(&browser_stack as &dyn BrowserProvider)
-        },
+        browser: if browser_stack.is_empty() { None } else { Some(&browser_stack as &dyn BrowserProvider) },
         browser_fallback: parse_browser_fallback(browser_fallback.as_deref())?,
         challenge_policy: parse_challenge_policy(challenge_policy.as_deref())?,
         cache_dir: cache_path.as_deref(),
         ..Default::default()
     };
 
-    let output = resume_crawl_from_checkpoint(checkpoint, transport, &extractors, options)
-        .map_err(map_crawl_error)?;
+    let output = resume_crawl_from_checkpoint(checkpoint, transport, &extractors, options).map_err(map_crawl_error)?;
     let exit_code = crawl_exit_code(&output.report, output.checkpoint.is_some());
-    let checkpoint_json = output
-        .checkpoint
-        .as_ref()
-        .map(|checkpoint| serde_json::to_string(checkpoint))
-        .transpose()
-        .map_err(map_serde_error)?;
+    let checkpoint_json =
+        output.checkpoint.as_ref().map(|checkpoint| serde_json::to_string(checkpoint)).transpose().map_err(map_serde_error)?;
     Ok(CrawlResponse {
         exit_code,
         report_json: serde_json::to_string(&output.report).map_err(map_serde_error)?,
@@ -293,20 +232,19 @@ pub fn resume_crawl_file(
 fn crawl_exit_code(report: &CrawlReport, awaiting_resume: bool) -> u32 {
     if awaiting_resume {
         3
-    } else if report.failed > 0 {
+    }
+    else if report.failed > 0 {
         2
-    } else if report.skipped > 0 {
+    }
+    else if report.skipped > 0 {
         3
-    } else {
+    }
+    else {
         0
     }
 }
 
-fn parse_request(
-    seed: &str,
-    max_depth: Option<u32>,
-    max_requests: Option<u32>,
-) -> Result<CrawlRequest> {
+fn parse_request(seed: &str, max_depth: Option<u32>, max_requests: Option<u32>) -> Result<CrawlRequest> {
     let seed_urls = resolve_crawl_seed_specs(seed).map_err(map_crawl_error)?;
     let mut request = CrawlRequest::from_seeds(seed_urls).map_err(map_crawl_error)?;
     if let Some(depth) = max_depth {
@@ -323,9 +261,7 @@ fn normalize_seed_url(seed: &str) -> Result<String> {
         return Ok(seed.to_string());
     }
     let path = PathBuf::from(seed);
-    let url = Url::from_file_path(path).map_err(|_| {
-        Error::from_reason(format!("invalid crawl seed path or URL `{seed}`"))
-    })?;
+    let url = Url::from_file_path(path).map_err(|_| Error::from_reason(format!("invalid crawl seed path or URL `{seed}`")))?;
     Ok(url.to_string())
 }
 
@@ -336,12 +272,8 @@ fn build_extract_response(result: pandark_types::ExtractResult) -> Result<Extrac
         ExtractStatus::Unsupported => "unsupported",
         ExtractStatus::Failed => "failed",
     };
-    let document_json = result
-        .document
-        .as_ref()
-        .map(|graph| serde_json::to_string(graph))
-        .transpose()
-        .map_err(map_serde_error)?;
+    let document_json =
+        result.document.as_ref().map(|graph| serde_json::to_string(graph)).transpose().map_err(map_serde_error)?;
     let exit_code = match result.status {
         ExtractStatus::Complete => 0,
         ExtractStatus::Partial => 3,
@@ -357,12 +289,7 @@ fn build_extract_response(result: pandark_types::ExtractResult) -> Result<Extrac
         "discovered_links": result.discovered_links.len(),
     })
     .to_string();
-    Ok(ExtractResponse {
-        exit_code,
-        status: status.to_string(),
-        document_json,
-        report_json,
-    })
+    Ok(ExtractResponse { exit_code, status: status.to_string(), document_json, report_json })
 }
 
 fn parse_challenge_policy(policy: Option<&str>) -> Result<ChallengePolicy> {
@@ -397,12 +324,7 @@ fn build_challenge_extract_response(
         "challenge_outcome": blocked.outcome,
     })
     .to_string();
-    Ok(ExtractResponse {
-        exit_code: 2,
-        status: "challenge_blocked".into(),
-        document_json: None,
-        report_json,
-    })
+    Ok(ExtractResponse { exit_code: 2, status: "challenge_blocked".into(), document_json: None, report_json })
 }
 
 fn parse_inspect_stage(stage: Option<&str>) -> Result<InspectStage> {

@@ -31,10 +31,7 @@ fn materializes_bytes_identity_and_response_media_type() {
             body: b"asset-body".to_vec(),
         },
     );
-    let mut client = FetchClient::new(
-        transport,
-        RobotsPolicy::from_profile(pandark_types::PolitenessProfile::Developer),
-    );
+    let mut client = FetchClient::new(transport, RobotsPolicy::from_profile(pandark_types::PolitenessProfile::Developer));
     let mut document = document_with_asset(source);
 
     let count = hydrate_assets(&mut document, &mut client, 8, 1024).expect("hydrate");
@@ -52,10 +49,8 @@ fn materializes_bytes_identity_and_response_media_type() {
 #[test]
 fn fetch_failure_preserves_unresolved_asset_and_records_loss() {
     let source = "https://example.com/missing.png";
-    let mut client = FetchClient::new(
-        MemoryTransport::new(),
-        RobotsPolicy::from_profile(pandark_types::PolitenessProfile::Developer),
-    );
+    let mut client =
+        FetchClient::new(MemoryTransport::new(), RobotsPolicy::from_profile(pandark_types::PolitenessProfile::Developer));
     let mut document = document_with_asset(source);
 
     assert_eq!(hydrate_assets(&mut document, &mut client, 8, 1024).expect("hydrate"), 0);
@@ -68,18 +63,8 @@ fn fetch_failure_preserves_unresolved_asset_and_records_loss() {
 fn byte_budget_records_loss_without_materializing_asset() {
     let source = "https://example.com/large.png";
     let mut transport = MemoryTransport::new();
-    transport.insert(
-        source,
-        MemoryEntry {
-            status: 200,
-            headers: BTreeMap::new(),
-            body: b"12345".to_vec(),
-        },
-    );
-    let mut client = FetchClient::new(
-        transport,
-        RobotsPolicy::from_profile(pandark_types::PolitenessProfile::Developer),
-    );
+    transport.insert(source, MemoryEntry { status: 200, headers: BTreeMap::new(), body: b"12345".to_vec() });
+    let mut client = FetchClient::new(transport, RobotsPolicy::from_profile(pandark_types::PolitenessProfile::Developer));
     let mut document = document_with_asset(source);
 
     assert_eq!(hydrate_assets(&mut document, &mut client, 8, 4).expect("hydrate"), 0);
@@ -91,18 +76,8 @@ fn byte_budget_records_loss_without_materializing_asset() {
 fn non_success_response_records_loss_without_resolving_asset() {
     let source = "https://example.com/missing.png";
     let mut transport = MemoryTransport::new();
-    transport.insert(
-        source,
-        MemoryEntry {
-            status: 404,
-            headers: BTreeMap::new(),
-            body: b"not found".to_vec(),
-        },
-    );
-    let mut client = FetchClient::new(
-        transport,
-        RobotsPolicy::from_profile(pandark_types::PolitenessProfile::Developer),
-    );
+    transport.insert(source, MemoryEntry { status: 404, headers: BTreeMap::new(), body: b"not found".to_vec() });
+    let mut client = FetchClient::new(transport, RobotsPolicy::from_profile(pandark_types::PolitenessProfile::Developer));
     let mut document = document_with_asset(source);
 
     assert_eq!(hydrate_assets(&mut document, &mut client, 8, 1024).expect("hydrate"), 0);
@@ -113,10 +88,8 @@ fn non_success_response_records_loss_without_resolving_asset() {
 #[test]
 fn zero_asset_budget_records_loss_without_fetching() {
     let mut document = document_with_asset("https://example.com/image.png");
-    let mut client = FetchClient::new(
-        MemoryTransport::new(),
-        RobotsPolicy::from_profile(pandark_types::PolitenessProfile::Developer),
-    );
+    let mut client =
+        FetchClient::new(MemoryTransport::new(), RobotsPolicy::from_profile(pandark_types::PolitenessProfile::Developer));
     assert_eq!(hydrate_assets(&mut document, &mut client, 0, 1024).expect("hydrate"), 0);
     assert_eq!(document.assets[0].status, SemanticStatus::Unresolved);
     assert_eq!(document.coverage.loss.len(), 1);

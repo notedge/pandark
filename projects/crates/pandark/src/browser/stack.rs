@@ -1,9 +1,11 @@
 use pandark_types::{BrowserSnapshot, CrawlError, Result};
 use url::Url;
 
-use super::http::HttpBrowserProvider;
-use super::provider::{BrowserProvider, FixtureBrowserProvider};
-use super::snapshot_io::{load_fixture_provider_from_dirs, parse_browser_dirs};
+use super::{
+    http::HttpBrowserProvider,
+    provider::{BrowserProvider, FixtureBrowserProvider},
+    snapshot_io::{load_fixture_provider_from_dirs, parse_browser_dirs},
+};
 
 /// Ordered browser providers used during crawl fallback.
 #[derive(Debug, Default)]
@@ -37,10 +39,7 @@ impl BrowserProviderStack {
 }
 
 /// Build a browser provider stack from CLI-style configuration strings.
-pub fn build_browser_stack(
-    fixture_dirs: Option<&str>,
-    http_endpoint: Option<&str>,
-) -> Result<BrowserProviderStack> {
+pub fn build_browser_stack(fixture_dirs: Option<&str>, http_endpoint: Option<&str>) -> Result<BrowserProviderStack> {
     let mut stack = BrowserProviderStack::new();
     if let Some(spec) = fixture_dirs {
         let dirs = parse_browser_dirs(spec);
@@ -49,9 +48,8 @@ pub fn build_browser_stack(
         }
     }
     if let Some(endpoint) = http_endpoint {
-        let url = Url::parse(endpoint).map_err(|error| {
-            CrawlError::InvalidInput(format!("invalid browser endpoint `{endpoint}`: {error}"))
-        })?;
+        let url = Url::parse(endpoint)
+            .map_err(|error| CrawlError::InvalidInput(format!("invalid browser endpoint `{endpoint}`: {error}")))?;
         stack = stack.with_http(HttpBrowserProvider::new(url));
     }
     Ok(stack)
@@ -69,9 +67,6 @@ impl BrowserProvider for BrowserProviderStack {
         if let Some(http) = &self.http {
             return http.capture_snapshot(url);
         }
-        Err(last_error.unwrap_or_else(|| {
-            CrawlError::InvalidInput(format!("no browser snapshot available for `{url}`"))
-        }))
+        Err(last_error.unwrap_or_else(|| CrawlError::InvalidInput(format!("no browser snapshot available for `{url}`"))))
     }
 }
-

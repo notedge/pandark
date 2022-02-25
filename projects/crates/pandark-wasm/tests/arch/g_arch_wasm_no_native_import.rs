@@ -1,31 +1,18 @@
 // gate: G-ARCH-2
 // fixture: arch.wasm.no_native_import
 
-use std::fs;
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 #[test]
 fn g_arch_wasm_no_native_import() {
     let manifest = manifest_text();
-    for forbidden in [
-        "yydb",
-        "pandark-store",
-        "pandark-fetch",
-        "pandark =",
-        "napi",
-    ] {
-        assert!(
-            !manifest.contains(&format!("{forbidden} =")),
-            "pandark-wasm must not depend on `{forbidden}`"
-        );
+    for forbidden in ["yydb", "pandark-store", "pandark-fetch", "pandark =", "napi"] {
+        assert!(!manifest.contains(&format!("{forbidden} =")), "pandark-wasm must not depend on `{forbidden}`");
     }
 
     let lib_rs = fs::read_to_string(crate_root().join("src/lib.rs")).expect("read lib.rs");
     for forbidden in ["crawl_file", "resume_crawl", "fetch_seed", "run_crawl"] {
-        assert!(
-            !lib_rs.contains(forbidden),
-            "pandark-wasm must not export crawl surface `{forbidden}`"
-        );
+        assert!(!lib_rs.contains(forbidden), "pandark-wasm must not export crawl surface `{forbidden}`");
     }
 }
 

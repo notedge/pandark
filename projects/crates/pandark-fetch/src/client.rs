@@ -1,18 +1,20 @@
 use std::{
     collections::BTreeMap,
+    path::Path,
     thread,
     time::{Duration, Instant},
 };
-use std::path::Path;
 
 use pandark_types::{CrawlError, FetchArtifact, Result, TransportProvenance};
 use url::Url;
 
-use super::cache::ResponseCache;
-use super::disk_cache::{DiskResponseCache, LayeredResponseCache};
-use super::robots::RobotsPolicy;
-use super::robots_txt::site_key_for_url;
-use super::{FetchRequest, Transport};
+use super::{
+    FetchRequest, Transport,
+    cache::ResponseCache,
+    disk_cache::{DiskResponseCache, LayeredResponseCache},
+    robots::RobotsPolicy,
+    robots_txt::site_key_for_url,
+};
 
 /// Fetch orchestration with robots checks and response caching.
 pub struct FetchClient<T: Transport> {
@@ -25,12 +27,7 @@ pub struct FetchClient<T: Transport> {
 impl<T: Transport> FetchClient<T> {
     /// Build a client around a transport and robots policy.
     pub fn new(transport: T, robots: RobotsPolicy) -> Self {
-        Self {
-            transport,
-            cache: LayeredResponseCache::memory_only(),
-            robots,
-            last_site_requests: BTreeMap::new(),
-        }
+        Self { transport, cache: LayeredResponseCache::memory_only(), robots, last_site_requests: BTreeMap::new() }
     }
 
     /// Persist responses under the given cache directory.
@@ -66,10 +63,7 @@ impl<T: Transport> FetchClient<T> {
         }
 
         if !self.robots.is_allowed(&request.url) {
-            return Err(CrawlError::InvalidInput(format!(
-                "robots policy denied `{}`",
-                request.url
-            )));
+            return Err(CrawlError::InvalidInput(format!("robots policy denied `{}`", request.url)));
         }
 
         let request_key = request.url.to_string();
@@ -83,21 +77,19 @@ impl<T: Transport> FetchClient<T> {
         }
 
         self.wait_for_crawl_delay(&request.url);
-        self.last_site_requests
-            .insert(site_key_for_url(&request.url), Instant::now());
+        self.last_site_requests.insert(site_key_for_url(&request.url), Instant::now());
         let artifact = self.transport.fetch(request)?;
         let key = self.cache.put(artifact)?;
-        Ok(self
-            .cache
-            .get(&key)?
-            .expect("artifact inserted into cache"))
+        Ok(self.cache.get(&key)?.expect("artifact inserted into cache"))
     }
 
     fn wait_for_crawl_delay(&self, url: &Url) {
-        let Some(delay_seconds) = self.robots.crawl_delay_for_url(url) else {
+        let Some(delay_seconds) = self.robots.crawl_delay_for_url(url)
+        else {
             return;
         };
-        let Some(last_request) = self.last_site_requests.get(&site_key_for_url(url)) else {
+        let Some(last_request) = self.last_site_requests.get(&site_key_for_url(url))
+        else {
             return;
         };
         let delay = Duration::from_secs(u64::from(delay_seconds));
@@ -113,17 +105,15 @@ impl<T: Transport> FetchClient<T> {
 
         let site_key = site_key_for_url(&request.url);
         let robots_url = robots_txt_url_for(&request.url)?;
-        let robots_request = FetchRequest {
-            url: robots_url,
-            headers: BTreeMap::new(),
-        };
+        let robots_request = FetchRequest { url: robots_url, headers: BTreeMap::new() };
 
         match self.transport.fetch(&robots_request) {
             Ok(artifact) if artifact.status == 200 => {
                 if let Some(body) = artifact.body_bytes() {
                     let text = String::from_utf8_lossy(body);
                     self.robots.load_site_rules(&site_key, &text);
-                } else {
+                }
+                else {
                     self.robots.mark_site_unavailable(&site_key);
                 }
             }
@@ -156,13 +146,6 @@ fn with_cache_provenance(mut artifact: FetchArtifact) -> FetchArtifact {
 }
 
 /// Convenience fetch with empty headers.
-pub fn fetch_url<T: Transport>(
-    client: &mut FetchClient<T>,
-    url: Url,
-) -> Result<FetchArtifact> {
-    client.fetch(&FetchRequest {
-        url,
-        headers: BTreeMap::new(),
-    })
+pub fn fetch_url<T: Transport>(client: &mut FetchClient<T>, url: Url) -> Result<FetchArtifact> {
+    client.fetch(&FetchRequest { url, headers: BTreeMap::new() })
 }
-

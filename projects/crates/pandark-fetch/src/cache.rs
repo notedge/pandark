@@ -36,4 +36,3 @@ impl ResponseCache {
         self.entries.is_empty()
     }
 }
-

@@ -1,5 +1,7 @@
-use std::collections::{BTreeMap, HashSet};
-use std::io::Read;
+use std::{
+    collections::{BTreeMap, HashSet},
+    io::Read,
+};
 
 use oak_xml::ast::XmlValue;
 use pandark_fetch::{FetchClient, FetchRequest, Transport};
@@ -21,7 +23,8 @@ pub fn locations(body: &[u8]) -> Result<(bool, Vec<String>)> {
         XmlValue::Element(root) => Some(root),
         XmlValue::Fragment(values) => values.iter().find_map(XmlValue::as_element),
         _ => None,
-    }.ok_or_else(|| CrawlError::InvalidInput("sitemap has no XML root".into()))?;
+    }
+    .ok_or_else(|| CrawlError::InvalidInput("sitemap has no XML root".into()))?;
     let (index, entry) = match root.name.rsplit(':').next() {
         Some("urlset") => (false, "url"),
         Some("sitemapindex") => (true, "sitemap"),
@@ -70,7 +73,9 @@ pub fn sitemap_body(artifact: &pandark_types::FetchArtifact) -> Result<Vec<u8>> 
         Some("gzip") | Some("x-gzip") => {
             let decoder = flate2::read::GzDecoder::new(body);
             let mut decoded = Vec::new();
-            decoder.take(1024 * 1024 + 1).read_to_end(&mut decoded)
+            decoder
+                .take(1024 * 1024 + 1)
+                .read_to_end(&mut decoded)
                 .map_err(|error| CrawlError::InvalidInput(format!("sitemap gzip decode failed: {error}")))?;
             decoded
         }
@@ -82,7 +87,6 @@ pub fn sitemap_body(artifact: &pandark_types::FetchArtifact) -> Result<Vec<u8>> 
     Ok(decoded)
 }
 
-
 pub(crate) fn discover<T: Transport>(
     state: &mut CrawlState,
     source: &FrontierItem,
@@ -91,7 +95,10 @@ pub(crate) fn discover<T: Transport>(
 ) {
     let mut pending = client.robots().sitemaps_for_url(&source.request_url).to_vec();
     while let Some(location) = pending.pop() {
-        let Ok(url) = pandark_types::canonicalize_request_url(&location) else { continue };
+        let Ok(url) = pandark_types::canonicalize_request_url(&location)
+        else {
+            continue;
+        };
         if url.origin() != source.request_url.origin() || !matches!(url.scheme(), "http" | "https") {
             state.report.events.push(CrawlEvent::Skipped { url, reason: "sitemap-origin-policy".into() });
             continue;
@@ -107,7 +114,8 @@ pub(crate) fn discover<T: Transport>(
         let fetched = client.fetch(&FetchRequest { url: url.clone(), headers: BTreeMap::new() });
         let parsed = fetched.and_then(|artifact| {
             state.report.events.push(CrawlEvent::Fetched {
-                url: artifact.final_url.clone(), status: artifact.status,
+                url: artifact.final_url.clone(),
+                status: artifact.status,
                 cache_hit: artifact.transport_provenance == pandark_types::TransportProvenance::CacheHit,
             });
             if artifact.status != 200 || artifact.final_url.origin() != source.request_url.origin() {
@@ -132,7 +140,10 @@ pub(crate) fn discover<T: Transport>(
             continue;
         }
         for entry in entries {
-            let Ok(url) = pandark_types::canonicalize_request_url(&entry) else { continue };
+            let Ok(url) = pandark_types::canonicalize_request_url(&entry)
+            else {
+                continue;
+            };
             if url.origin() != source.request_url.origin() || !matches!(url.scheme(), "http" | "https") {
                 state.report.events.push(CrawlEvent::Skipped { url, reason: "sitemap-origin-policy".into() });
                 continue;

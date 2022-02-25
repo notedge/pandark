@@ -1,7 +1,7 @@
 //! Extracted from `src/browser/mod.rs`.
 
-use url::Url;
 use pandark::*;
+use url::Url;
 
 #[test]
 fn snapshot_produces_html_artifact() {

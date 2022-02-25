@@ -2,8 +2,7 @@
 
 use pandark::{Extractor, HtmlExtractor, run_extract_from_snapshot};
 use pandark_types::{
-    BrowserSnapshot, ChallengeOutcome, ChallengePolicy, ExtractBudget, ExtractContext,
-    ExtractStatus, PageChallengeState,
+    BrowserSnapshot, ChallengeOutcome, ChallengePolicy, ExtractBudget, ExtractContext, ExtractStatus, PageChallengeState,
 };
 use url::Url;
 

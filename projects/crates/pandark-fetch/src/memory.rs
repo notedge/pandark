@@ -49,12 +49,8 @@ impl Transport for MemoryTransport {
         for _ in 0..8 {
             let key = request_url.to_string();
             if let Some(target) = self.redirects.get(&key) {
-                redirect_chain.push(pandark_types::RedirectHop {
-                    url: request_url.clone(),
-                    status: 302,
-                });
-                request_url = Url::parse(target)
-                    .map_err(|error| map_transport_error(error.to_string()))?;
+                redirect_chain.push(pandark_types::RedirectHop { url: request_url.clone(), status: 302 });
+                request_url = Url::parse(target).map_err(|error| map_transport_error(error.to_string()))?;
                 continue;
             }
 
@@ -73,10 +69,6 @@ impl Transport for MemoryTransport {
             break;
         }
 
-        Err(map_transport_error(format!(
-            "memory transport has no entry for `{}`",
-            request.url
-        )))
+        Err(map_transport_error(format!("memory transport has no entry for `{}`", request.url)))
     }
 }
-

@@ -1,7 +1,7 @@
 use blake3::Hash;
+use notedown_ir::{DocumentGraph, LossMarker, SemanticStatus};
 use pandark_fetch::{FetchClient, FetchRequest, Transport};
 use pandark_types::Result;
-use notedown_ir::{DocumentGraph, LossMarker, SemanticStatus};
 use std::collections::BTreeMap;
 use url::Url;
 
@@ -36,10 +36,7 @@ pub fn hydrate_assets<T: Transport>(
                 continue;
             }
         };
-        let artifact = match client.fetch(&FetchRequest {
-            url,
-            headers: BTreeMap::new(),
-        }) {
+        let artifact = match client.fetch(&FetchRequest { url, headers: BTreeMap::new() }) {
             Ok(artifact) => artifact,
             Err(error) => {
                 document.push_loss(asset_loss("fetch_failed", &source, error.to_string()));
@@ -47,14 +44,11 @@ pub fn hydrate_assets<T: Transport>(
             }
         };
         if !(200..300).contains(&artifact.status) {
-            document.push_loss(asset_loss(
-                "http_status",
-                &source,
-                format!("asset response returned HTTP {}", artifact.status),
-            ));
+            document.push_loss(asset_loss("http_status", &source, format!("asset response returned HTTP {}", artifact.status)));
             continue;
         }
-        let Some(bytes) = artifact.body_bytes() else {
+        let Some(bytes) = artifact.body_bytes()
+        else {
             document.push_loss(asset_loss("body_unavailable", &source, "fetch body is out-of-line"));
             continue;
         };
@@ -75,7 +69,6 @@ pub fn hydrate_assets<T: Transport>(
     }
     Ok(hydrated)
 }
-
 
 /// Blake3 hex fingerprint for asset bytes.
 pub fn fingerprint(bytes: &[u8]) -> String {

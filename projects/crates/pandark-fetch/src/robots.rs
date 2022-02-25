@@ -45,12 +45,7 @@ impl RobotsPolicy {
             PolitenessProfile::Balanced => vec!["/admin".into()],
             PolitenessProfile::Developer => Vec::new(),
         };
-        Self {
-            profile,
-            user_agent: user_agent.into(),
-            fallback_disallowed,
-            sites: BTreeMap::new(),
-        }
+        Self { profile, user_agent: user_agent.into(), fallback_disallowed, sites: BTreeMap::new() }
     }
 
     /// Politeness profile backing this policy.
@@ -72,32 +67,21 @@ impl RobotsPolicy {
     pub fn load_site_rules(&mut self, site_key: &str, body: &str) {
         self.sites.insert(
             site_key.to_string(),
-            CachedSiteRobots {
-                state: SiteRobotsState::Loaded,
-                document: RobotsTxt::parse(body),
-            },
+            CachedSiteRobots { state: SiteRobotsState::Loaded, document: RobotsTxt::parse(body) },
         );
     }
 
     /// Mark a site as having no usable `robots.txt`.
     pub fn mark_site_missing(&mut self, site_key: &str) {
-        self.sites.insert(
-            site_key.to_string(),
-            CachedSiteRobots {
-                state: SiteRobotsState::Missing,
-                document: RobotsTxt::default(),
-            },
-        );
+        self.sites
+            .insert(site_key.to_string(), CachedSiteRobots { state: SiteRobotsState::Missing, document: RobotsTxt::default() });
     }
 
     /// Mark robots fetch as failed for a site.
     pub fn mark_site_unavailable(&mut self, site_key: &str) {
         self.sites.insert(
             site_key.to_string(),
-            CachedSiteRobots {
-                state: SiteRobotsState::Unavailable,
-                document: RobotsTxt::default(),
-            },
+            CachedSiteRobots { state: SiteRobotsState::Unavailable, document: RobotsTxt::default() },
         );
     }
 
@@ -112,9 +96,7 @@ impl RobotsPolicy {
 
     /// Sitemap declarations from the loaded robots document for this site.
     pub fn sitemaps_for_url(&self, url: &Url) -> &[String] {
-        self.sites.get(&site_key_for_url(url))
-            .map(|site| site.document.sitemaps.as_slice())
-            .unwrap_or(&[])
+        self.sites.get(&site_key_for_url(url)).map(|site| site.document.sitemaps.as_slice()).unwrap_or(&[])
     }
 
     /// Whether fetching the URL is allowed under this policy.
@@ -129,9 +111,7 @@ impl RobotsPolicy {
         let path = url.path();
         if let Some(site) = self.sites.get(&site_key_for_url(url)) {
             if matches!(site.state, SiteRobotsState::Loaded) {
-                return site
-                    .document
-                    .is_path_allowed(&self.user_agent, path);
+                return site.document.is_path_allowed(&self.user_agent, path);
             }
         }
 
@@ -139,10 +119,6 @@ impl RobotsPolicy {
             return true;
         }
 
-        !self
-            .fallback_disallowed
-            .iter()
-            .any(|prefix| path.starts_with(prefix))
+        !self.fallback_disallowed.iter().any(|prefix| path.starts_with(prefix))
     }
 }
-

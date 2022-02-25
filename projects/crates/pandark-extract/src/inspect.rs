@@ -1,9 +1,6 @@
-use pandark_types::{
-    ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact, InspectReport, InspectStage,
-    ProbeStatus,
-};
+use pandark_types::{ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact, InspectReport, InspectStage, ProbeStatus};
 
-use super::{link_candidates_from_targets, oak_view, run_extract, select_extractor, Extractor};
+use super::{Extractor, link_candidates_from_targets, oak_view, run_extract, select_extractor};
 
 /// Inspect a fetch artifact without committing IR.
 pub fn inspect_artifact(
@@ -43,4 +40,3 @@ pub fn inspect_artifact(
 
     report
 }
-

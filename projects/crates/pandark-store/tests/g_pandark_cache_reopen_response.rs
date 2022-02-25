@@ -1,9 +1,9 @@
 // gate: G-PANDARK-1
 // fixture: pandark.cache.reopen_response
 
-use pandark_store::{MemoryStore, Store, StoreConfig};
 #[cfg(feature = "yydb")]
 use pandark_store::YydbStore;
+use pandark_store::{MemoryStore, Store, StoreConfig};
 use pandark_types::{BodyStorage, FetchArtifact, TransportProvenance};
 use url::Url;
 
@@ -25,36 +25,27 @@ fn sample_artifact() -> FetchArtifact {
 fn assert_reopen_response_cache<S: Store>(make_store: impl FnOnce() -> S, reopen: fn(&mut S) -> pandark_store::Result<()>) {
     let mut store = make_store();
     let artifact = sample_artifact();
-    store
-        .put_response_cache(&artifact)
-        .expect("put response cache");
+    store.put_response_cache(&artifact).expect("put response cache");
     reopen(&mut store).expect("reopen store");
-    let hit = store
-        .get_response_cache(&artifact.cache_key)
-        .expect("get response cache")
-        .expect("cache hit after reopen");
+    let hit = store.get_response_cache(&artifact.cache_key).expect("get response cache").expect("cache hit after reopen");
     assert_eq!(hit.body_bytes(), Some(b"cached-body".as_slice()));
     assert_eq!(hit.transport_provenance, TransportProvenance::CacheHit);
 }
 
 #[test]
 fn g_pandark_cache_reopen_response_memory() {
-    assert_reopen_response_cache(
-        || MemoryStore::open(StoreConfig::memory(1)).expect("open"),
-        |store| store.reopen(),
-    );
+    assert_reopen_response_cache(|| MemoryStore::open(StoreConfig::memory(1)).expect("open"), |store| store.reopen());
 }
 
 #[cfg(feature = "yydb")]
 mod yydb_helpers {
-    use std::path::{Path, PathBuf};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::{
+        path::{Path, PathBuf},
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     pub fn temp_db_path(label: &str) -> PathBuf {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
         std::env::temp_dir().join(format!("pandark-store-{label}-{nonce}.yydb"))
     }
 
@@ -69,9 +60,6 @@ mod yydb_helpers {
 #[test]
 fn g_pandark_cache_reopen_response_yydb() {
     let path = yydb_helpers::temp_db_path("cache-reopen");
-    assert_reopen_response_cache(
-        || YydbStore::open(StoreConfig::yydb(&path, 1)).expect("open"),
-        |store| store.reopen(),
-    );
+    assert_reopen_response_cache(|| YydbStore::open(StoreConfig::yydb(&path, 1)).expect("open"), |store| store.reopen());
     yydb_helpers::cleanup_db(&path);
 }

@@ -17,10 +17,7 @@ fn serves_registered_response() {
         },
     );
     let artifact = transport
-        .fetch(&FetchRequest {
-            url: Url::parse("https://example.com/page.html").expect("url"),
-            headers: BTreeMap::new(),
-        })
+        .fetch(&FetchRequest { url: Url::parse("https://example.com/page.html").expect("url"), headers: BTreeMap::new() })
         .expect("artifact");
     assert_eq!(artifact.status, 200);
     assert_eq!(artifact.content_type.as_deref(), Some("text/html"));

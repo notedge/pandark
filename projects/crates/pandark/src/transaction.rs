@@ -13,17 +13,11 @@ pub fn commit_page(transaction: PageTransaction) -> Result<String> {
         ExtractStatus::Complete | ExtractStatus::Partial => {}
     }
 
-    let document = transaction
-        .extract
-        .document
-        .as_ref()
-        .ok_or_else(|| CrawlError::InvalidInput("missing document graph".into()))?;
+    let document =
+        transaction.extract.document.as_ref().ok_or_else(|| CrawlError::InvalidInput("missing document graph".into()))?;
     let validation = document.validate();
     if !validation.is_valid() {
-        return Err(CrawlError::InvalidInput(format!(
-            "document validation failed for `{}`",
-            transaction.page_identity
-        )));
+        return Err(CrawlError::InvalidInput(format!("document validation failed for `{}`", transaction.page_identity)));
     }
 
     Ok(transaction.page_identity)

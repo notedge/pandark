@@ -1,11 +1,11 @@
 //! Extracted from `src/sitemap.rs`.
 
-use std::io::Write;
 use pandark_fetch::build_artifact;
 use pandark_types::{BodyStorage, TransportProvenance};
+use std::io::Write;
 use url::Url;
 
-use pandark::{locations, sitemap_body, MAX_SITEMAP_LOCATIONS};
+use pandark::{MAX_SITEMAP_LOCATIONS, locations, sitemap_body};
 
 #[test]
 fn rejects_unsupported_root_and_nested_location_payloads() {
@@ -37,12 +37,17 @@ fn decodes_gzip_and_rejects_unknown_encoding() {
     encoder.finish().expect("finish");
     let url = Url::parse("https://example.com/map.xml").expect("url");
     let artifact = build_artifact(
-        url.clone(), url.clone(), 200,
+        url.clone(),
+        url.clone(),
+        200,
         std::collections::BTreeMap::from([
             ("content-type".into(), "application/xml".into()),
             ("content-encoding".into(), "gzip".into()),
         ]),
-        BodyStorage::inline(compressed), Vec::new(), TransportProvenance::Test, None,
+        BodyStorage::inline(compressed),
+        Vec::new(),
+        TransportProvenance::Test,
+        None,
     );
     assert_eq!(sitemap_body(&artifact).expect("decode"), b"<urlset/>");
 

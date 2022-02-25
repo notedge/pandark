@@ -27,17 +27,9 @@ impl Transport for FixtureTransport {
 
 #[test]
 fn g_arch_fetch_replace_transport() {
-    let mut client = FetchClient::new(
-        FixtureTransport,
-        RobotsPolicy::from_profile(PolitenessProfile::Developer),
-    );
+    let mut client = FetchClient::new(FixtureTransport, RobotsPolicy::from_profile(PolitenessProfile::Developer));
     let url = Url::parse("https://example.com/replace").expect("url");
-    let artifact = client
-        .fetch(&FetchRequest {
-            url,
-            headers: BTreeMap::new(),
-        })
-        .expect("fetch");
+    let artifact = client.fetch(&FetchRequest { url, headers: BTreeMap::new() }).expect("fetch");
     assert_eq!(artifact.body_bytes(), Some(b"fixture-body".as_slice()));
     assert_eq!(artifact.transport_provenance, TransportProvenance::Test);
 }

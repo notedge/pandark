@@ -1,12 +1,11 @@
 // gate: G-PANDARK-1
 // fixture: pandark.cache.robots_ttl
 
-use std::thread;
-use std::time::Duration;
+use std::{thread, time::Duration};
 
-use pandark_store::{MemoryStore, Store, StoreConfig};
 #[cfg(feature = "yydb")]
 use pandark_store::YydbStore;
+use pandark_store::{MemoryStore, Store, StoreConfig};
 
 const SITE_KEY: &str = "example.com";
 const ROBOTS_BODY: &[u8] = b"User-agent: *\nDisallow: /private";
@@ -17,24 +16,10 @@ const EXPIRY_WAIT: Duration = Duration::from_millis(1_100);
 
 fn assert_robots_ttl<S: Store>(make_store: impl FnOnce() -> S) {
     let mut store = make_store();
-    store
-        .put_robots_cache(SITE_KEY, ROBOTS_BODY, TTL)
-        .expect("put robots cache");
-    assert_eq!(
-        store
-            .get_robots_cache(SITE_KEY)
-            .expect("get robots cache")
-            .as_deref(),
-        Some(ROBOTS_BODY)
-    );
+    store.put_robots_cache(SITE_KEY, ROBOTS_BODY, TTL).expect("put robots cache");
+    assert_eq!(store.get_robots_cache(SITE_KEY).expect("get robots cache").as_deref(), Some(ROBOTS_BODY));
     thread::sleep(EXPIRY_WAIT);
-    assert!(
-        store
-            .get_robots_cache(SITE_KEY)
-            .expect("get robots cache after ttl")
-            .is_none(),
-        "expired robots cache must miss"
-    );
+    assert!(store.get_robots_cache(SITE_KEY).expect("get robots cache after ttl").is_none(), "expired robots cache must miss");
 }
 
 #[test]
@@ -44,14 +29,13 @@ fn g_pandark_cache_robots_ttl_memory() {
 
 #[cfg(feature = "yydb")]
 mod yydb_helpers {
-    use std::path::{Path, PathBuf};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::{
+        path::{Path, PathBuf},
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     pub fn temp_db_path(label: &str) -> PathBuf {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
         std::env::temp_dir().join(format!("pandark-store-{label}-{nonce}.yydb"))
     }
 

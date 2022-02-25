@@ -1,5 +1,7 @@
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use pandark_types::{CrawlError, Result};
 use url::Url;
@@ -26,15 +28,12 @@ pub fn resolve_crawl_seed_specs(input: &str) -> Result<Vec<String>> {
 }
 
 fn looks_like_url(value: &str) -> bool {
-    value.starts_with("http://")
-        || value.starts_with("https://")
-        || value.starts_with("file://")
+    value.starts_with("http://") || value.starts_with("https://") || value.starts_with("file://")
 }
 
 fn read_seed_file(path: &Path) -> Result<Vec<String>> {
-    let content = fs::read_to_string(path).map_err(|error| {
-        CrawlError::InvalidInput(format!("read seed file `{}`: {error}", path.display()))
-    })?;
+    let content = fs::read_to_string(path)
+        .map_err(|error| CrawlError::InvalidInput(format!("read seed file `{}`: {error}", path.display())))?;
     let mut seeds = Vec::new();
     for (index, line) in content.lines().enumerate() {
         let trimmed = line.trim();
@@ -43,22 +42,16 @@ fn read_seed_file(path: &Path) -> Result<Vec<String>> {
         }
         let seed = if looks_like_url(trimmed) {
             trimmed.to_string()
-        } else {
+        }
+        else {
             normalize_local_or_url_seed(trimmed).map_err(|error| {
-                CrawlError::InvalidInput(format!(
-                    "seed file `{}` line {}: {error}",
-                    path.display(),
-                    index + 1
-                ))
+                CrawlError::InvalidInput(format!("seed file `{}` line {}: {error}", path.display(), index + 1))
             })?
         };
         seeds.push(seed);
     }
     if seeds.is_empty() {
-        return Err(CrawlError::InvalidInput(format!(
-            "seed file `{}` contains no usable seeds",
-            path.display()
-        )));
+        return Err(CrawlError::InvalidInput(format!("seed file `{}` contains no usable seeds", path.display())));
     }
     Ok(seeds)
 }
@@ -68,9 +61,7 @@ fn normalize_local_or_url_seed(seed: &str) -> Result<String> {
         return Ok(seed.to_string());
     }
     let path = PathBuf::from(seed);
-    let url = Url::from_file_path(path).map_err(|_| {
-        CrawlError::InvalidInput(format!("invalid crawl seed path or URL `{seed}`"))
-    })?;
+    let url =
+        Url::from_file_path(path).map_err(|_| CrawlError::InvalidInput(format!("invalid crawl seed path or URL `{seed}`")))?;
     Ok(url.to_string())
 }
-

@@ -26,9 +26,6 @@ pub fn transport_for_url(url: &Url) -> Result<SeedTransport> {
     match url.scheme() {
         "file" => Ok(SeedTransport::File(FileTransport::new())),
         "http" | "https" => Ok(SeedTransport::Http(HttpTransport::new())),
-        other => Err(CrawlError::InvalidInput(format!(
-            "unsupported seed scheme `{other}` for `{}`",
-            url
-        ))),
+        other => Err(CrawlError::InvalidInput(format!("unsupported seed scheme `{other}` for `{}`", url))),
     }
 }

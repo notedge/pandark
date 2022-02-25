@@ -6,10 +6,7 @@ use url::Url;
 #[test]
 fn title_is_case_insensitive() {
     let html = "<html><HEAD><TITLE>Case &amp; Title</TITLE></HEAD><body></body></html>";
-    assert_eq!(
-        extract_document_title(html).as_deref(),
-        Some("Case & Title")
-    );
+    assert_eq!(extract_document_title(html).as_deref(), Some("Case & Title"));
 }
 
 #[test]

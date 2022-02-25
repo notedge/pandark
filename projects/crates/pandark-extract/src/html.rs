@@ -1,14 +1,12 @@
 use notedown_ir::{
-    Asset, AssetKind, Block, DocumentGraph, DocumentId, DocumentMetadata, IdAllocator, Inline,
-    LossMarker, Relation, RelationEndpoint, RelationKind, SemanticStatus, SourceKind, SourceRef,
+    Asset, AssetKind, Block, DocumentGraph, DocumentId, DocumentMetadata, IdAllocator, Inline, LossMarker, Relation,
+    RelationEndpoint, RelationKind, SemanticStatus, SourceKind, SourceRef,
 };
 use pandark_types::{
-    ExtractBudget, ExtractContext, ExtractInput, ExtractResult, ExtractStatus, FetchArtifact,
-    ProbeResult, ProbeStatus,
+    ExtractBudget, ExtractContext, ExtractInput, ExtractResult, ExtractStatus, FetchArtifact, ProbeResult, ProbeStatus,
 };
 
-use super::oak_view;
-use super::{link_candidates_from_targets, Extractor};
+use super::{Extractor, link_candidates_from_targets, oak_view};
 
 /// HTML extractor backed by Oak HTML parsing and traversal.
 #[derive(Debug, Clone, Copy, Default)]
@@ -16,28 +14,15 @@ pub struct HtmlExtractor;
 
 impl Extractor for HtmlExtractor {
     fn probe(&self, artifact: &FetchArtifact, budget: ExtractBudget) -> ProbeResult {
-        let supported = artifact
-            .content_type
-            .as_deref()
-            .map(|value| value.contains("html"))
-            .unwrap_or(false);
+        let supported = artifact.content_type.as_deref().map(|value| value.contains("html")).unwrap_or(false);
         if !supported {
-            return ProbeResult {
-                status: ProbeStatus::Unsupported,
-                extractor: None,
-            };
+            return ProbeResult { status: ProbeStatus::Unsupported, extractor: None };
         }
         let bytes = artifact.body_bytes().unwrap_or(&[]);
         if bytes.len() as u64 > budget.max_probe_bytes {
-            return ProbeResult {
-                status: ProbeStatus::Failed,
-                extractor: Some("html".into()),
-            };
+            return ProbeResult { status: ProbeStatus::Failed, extractor: Some("html".into()) };
         }
-        ProbeResult {
-            status: ProbeStatus::Supported,
-            extractor: Some("html".into()),
-        }
+        ProbeResult { status: ProbeStatus::Supported, extractor: Some("html".into()) }
     }
 
     fn extract(&self, input: ExtractInput<'_>, ctx: &ExtractContext) -> ExtractResult {
@@ -54,30 +39,19 @@ impl Extractor for HtmlExtractor {
             .map(|(target, _)| target.clone())
             .collect::<Vec<_>>();
 
-        let page_identity = ctx
-            .page_identity
-            .clone()
-            .unwrap_or_else(|| artifact.final_url.to_string());
+        let page_identity = ctx.page_identity.clone().unwrap_or_else(|| artifact.final_url.to_string());
         let mut document = DocumentGraph::new(page_document_id(&page_identity));
         let mut ids = IdAllocator::default();
-        document.metadata = DocumentMetadata {
-            title,
-            language: None,
-            authors: Vec::new(),
-            tags: Vec::new(),
-        };
+        document.metadata = DocumentMetadata { title, language: None, authors: Vec::new(), tags: Vec::new() };
         if !text.is_empty() {
-            let node = document.push_block(Block::Paragraph {
-                content: vec![Inline::Text { text }],
-            });
+            let node = document.push_block(Block::Paragraph { content: vec![Inline::Text { text }] });
             document.attach_source(SourceRef {
                 node,
-                kind: SourceKind::Synthetic {
-                    reason: format!("HTML body from {}", artifact.final_url),
-                },
+                kind: SourceKind::Synthetic { reason: format!("HTML body from {}", artifact.final_url) },
                 precision: SemanticStatus::Resolved,
             });
-        } else {
+        }
+        else {
             document.push_loss(LossMarker {
                 code: "pandark.extract.empty-body".into(),
                 message: "HTML body had no extractable text".into(),
@@ -91,12 +65,8 @@ impl Extractor for HtmlExtractor {
                 content: vec![Inline::Styled {
                     style: "image".into(),
                     children: vec![
-                        Inline::Text {
-                            text: source.rsplit('/').next().unwrap_or("image").to_string(),
-                        },
-                        Inline::Text {
-                            text: source.clone(),
-                        },
+                        Inline::Text { text: source.rsplit('/').next().unwrap_or("image").to_string() },
+                        Inline::Text { text: source.clone() },
                     ],
                 }],
             });
@@ -117,9 +87,7 @@ impl Extractor for HtmlExtractor {
             });
             document.attach_source(SourceRef {
                 node,
-                kind: SourceKind::Synthetic {
-                    reason: format!("HTML image reference from {}", artifact.final_url),
-                },
+                kind: SourceKind::Synthetic { reason: format!("HTML image reference from {}", artifact.final_url) },
                 precision: SemanticStatus::Resolved,
             });
         }
@@ -127,23 +95,16 @@ impl Extractor for HtmlExtractor {
         let validation = document.validate();
         let losses = document.coverage.loss.clone();
         let status = if validation.is_valid() {
-            if document.coverage.complete {
-                ExtractStatus::Complete
-            } else {
-                ExtractStatus::Partial
-            }
-        } else {
+            if document.coverage.complete { ExtractStatus::Complete } else { ExtractStatus::Partial }
+        }
+        else {
             ExtractStatus::Failed
         };
 
         ExtractResult {
             status,
             source_url: artifact.final_url.clone(),
-            document: if status == ExtractStatus::Failed {
-                None
-            } else {
-                Some(document)
-            },
+            document: if status == ExtractStatus::Failed { None } else { Some(document) },
             discovered_links,
             losses,
             extractor: "html".into(),
@@ -152,11 +113,7 @@ impl Extractor for HtmlExtractor {
 }
 
 fn media_type_for_url(url: &str) -> Option<String> {
-    let extension = url
-        .split('?')
-        .next()
-        .and_then(|value| value.rsplit('.').next())?
-        .to_ascii_lowercase();
+    let extension = url.split('?').next().and_then(|value| value.rsplit('.').next())?.to_ascii_lowercase();
     let media_type = match extension.as_str() {
         "avif" => "image/avif",
         "gif" => "image/gif",

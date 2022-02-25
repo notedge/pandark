@@ -2,14 +2,16 @@ use std::path::{Path, PathBuf};
 
 use yydb::{Connection, ObjectKind};
 
-use crate::error::{Result, StoreError};
-use crate::keyspace;
-use crate::session::StoreSession;
-use crate::types::{
-    ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig, StoreDiagnosticReport,
-    StoreDoctorIssue, StoreDoctorSeverity,
+use crate::{
+    Store,
+    error::{Result, StoreError},
+    keyspace,
+    session::StoreSession,
+    types::{
+        ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig, StoreDiagnosticReport, StoreDoctorIssue,
+        StoreDoctorSeverity,
+    },
 };
-use crate::Store;
 use pandark_types::{FetchArtifact, FrontierItem};
 
 const SESSION_KEY: &str = "__pandark/store/session";
@@ -24,9 +26,7 @@ pub struct YydbStore {
 
 impl YydbStore {
     fn connection(&self) -> Result<&Connection> {
-        self.conn
-            .as_ref()
-            .ok_or_else(|| StoreError::StoreInvalidState("yydb connection is closed".into()))
+        self.conn.as_ref().ok_or_else(|| StoreError::StoreInvalidState("yydb connection is closed".into()))
     }
 
     fn load_session(conn: &Connection) -> Result<Option<StoreSession>> {
@@ -37,31 +37,17 @@ impl YydbStore {
     }
 
     fn persist(&mut self) -> Result<()> {
-        self.connection()?
-            .put(SESSION_KEY, &self.session.to_bytes()?)
-            .map_err(map_yydb_error)?;
-        self.connection()?
-            .put(
-                keyspace::schema_version(),
-                &self.session.schema_version().to_le_bytes(),
-            )
-            .map_err(map_yydb_error)
+        self.connection()?.put(SESSION_KEY, &self.session.to_bytes()?).map_err(map_yydb_error)?;
+        self.connection()?.put(keyspace::schema_version(), &self.session.schema_version().to_le_bytes()).map_err(map_yydb_error)
     }
 }
 
 impl Store for YydbStore {
     fn open(config: StoreConfig) -> Result<Self> {
-        let path = config
-            .db_path
-            .clone()
-            .ok_or_else(|| StoreError::StoreInvalidState("YydbStore requires db_path".into()))?;
+        let path = config.db_path.clone().ok_or_else(|| StoreError::StoreInvalidState("YydbStore requires db_path".into()))?;
         let conn = Connection::open(&path).map_err(map_yydb_error)?;
         let session = Self::load_session(&conn)?.unwrap_or_else(|| StoreSession::new(config.schema_version));
-        Ok(Self {
-            path,
-            conn: Some(conn),
-            session,
-        })
+        Ok(Self { path, conn: Some(conn), session })
     }
 
     fn reopen(&mut self) -> Result<()> {
@@ -144,9 +130,7 @@ impl Store for YydbStore {
     }
 
     fn put_orphan_object(&mut self, bytes: &[u8]) -> Result<()> {
-        self.connection()?
-            .put_chunk(ObjectKind::Blob, bytes)
-            .map_err(map_yydb_error)?;
+        self.connection()?.put_chunk(ObjectKind::Blob, bytes).map_err(map_yydb_error)?;
         Ok(())
     }
 
@@ -157,33 +141,27 @@ impl Store for YydbStore {
             issues.push(StoreDoctorIssue {
                 severity: StoreDoctorSeverity::Warn,
                 code: "store.doctor.orphan_object".into(),
-                message: format!(
-                    "{} orphan objects are not referenced by committed metadata",
-                    report.orphan_object_count
-                ),
+                message: format!("{} orphan objects are not referenced by committed metadata", report.orphan_object_count),
             });
         }
-        Ok(StoreDiagnosticReport {
-            orphan_object_count: report.orphan_object_count,
-            issues,
-        })
+        Ok(StoreDiagnosticReport { orphan_object_count: report.orphan_object_count, issues })
     }
 
     fn get_response_cache(&self, cache_key: &str) -> Result<Option<FetchArtifact>> {
         let key = keyspace::response_cache(cache_key);
-        let Some(bytes) = self.connection()?.get(&key).map_err(map_yydb_error)? else {
+        let Some(bytes) = self.connection()?.get(&key).map_err(map_yydb_error)?
+        else {
             return Ok(None);
         };
-        let mut artifact: FetchArtifact = serde_json::from_slice(&bytes)
-            .map_err(|error| StoreError::StoreCorrupt(error.to_string()))?;
+        let mut artifact: FetchArtifact =
+            serde_json::from_slice(&bytes).map_err(|error| StoreError::StoreCorrupt(error.to_string()))?;
         artifact.transport_provenance = pandark_types::TransportProvenance::CacheHit;
         Ok(Some(artifact))
     }
 
     fn put_response_cache(&mut self, artifact: &FetchArtifact) -> Result<()> {
         let key = keyspace::response_cache(&artifact.cache_key);
-        let bytes = serde_json::to_vec(artifact)
-            .map_err(|error| StoreError::StoreCorrupt(error.to_string()))?;
+        let bytes = serde_json::to_vec(artifact).map_err(|error| StoreError::StoreCorrupt(error.to_string()))?;
         self.connection()?.put(key, bytes).map_err(map_yydb_error)?;
         Ok(())
     }
@@ -193,16 +171,9 @@ impl Store for YydbStore {
         self.connection()?.get(&key).map_err(map_yydb_error)
     }
 
-    fn put_robots_cache(
-        &mut self,
-        site_key: &str,
-        body: &[u8],
-        ttl: std::time::Duration,
-    ) -> Result<()> {
+    fn put_robots_cache(&mut self, site_key: &str, body: &[u8], ttl: std::time::Duration) -> Result<()> {
         let key = keyspace::robots_cache(site_key);
-        self.connection()?
-            .put_with_ttl(key, body, ttl)
-            .map_err(map_yydb_error)?;
+        self.connection()?.put_with_ttl(key, body, ttl).map_err(map_yydb_error)?;
         Ok(())
     }
 }

@@ -1,5 +1,5 @@
-use pandark_types::{BrowserSnapshot, CrawlError, Result};
 use boost_http::{HttpTransport, HttpTransportConfig, Method, Request, Transport};
+use pandark_types::{BrowserSnapshot, CrawlError, Result};
 use url::Url;
 
 /// Remote browser worker that returns `BrowserSnapshot` JSON over HTTP.
@@ -14,10 +14,7 @@ pub struct HttpBrowserProvider {
 impl HttpBrowserProvider {
     /// Build a provider for the given worker base URL.
     pub fn new(endpoint: Url) -> Self {
-        Self {
-            endpoint,
-            profile_id: "http-browser".into(),
-        }
+        Self { endpoint, profile_id: "http-browser".into() }
     }
 
     /// Override the profile label stored on fetched snapshots.
@@ -29,9 +26,7 @@ impl HttpBrowserProvider {
     /// Build the worker snapshot URL for a page.
     pub fn snapshot_url(&self, page_url: &Url) -> Url {
         let mut endpoint = self.endpoint.clone();
-        endpoint
-            .query_pairs_mut()
-            .append_pair("url", page_url.as_str());
+        endpoint.query_pairs_mut().append_pair("url", page_url.as_str());
         endpoint
     }
 }
@@ -50,14 +45,10 @@ impl super::provider::BrowserProvider for HttpBrowserProvider {
             .map_err(|error| CrawlError::InvalidInput(format!("browser worker request failed: {error}")))?;
         let status = response.status;
         if !(200..300).contains(&status) {
-            return Err(CrawlError::InvalidInput(format!(
-                "browser worker returned status {status}"
-            )));
+            return Err(CrawlError::InvalidInput(format!("browser worker returned status {status}")));
         }
-        let snapshot: BrowserSnapshot = serde_json::from_slice(&response.body).map_err(|error| {
-            CrawlError::InvalidInput(format!("browser worker JSON invalid: {error}"))
-        })?;
+        let snapshot: BrowserSnapshot = serde_json::from_slice(&response.body)
+            .map_err(|error| CrawlError::InvalidInput(format!("browser worker JSON invalid: {error}")))?;
         Ok(snapshot)
     }
 }
-

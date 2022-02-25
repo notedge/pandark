@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::extract::{ExtractResult, ExtractStatus};
-use crate::frontier::{AdmissionDecision, LinkCandidate};
+use crate::{
+    extract::{ExtractResult, ExtractStatus},
+    frontier::{AdmissionDecision, LinkCandidate},
+};
 
 /// Crawl lifecycle event kinds for reports.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

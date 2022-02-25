@@ -1,10 +1,12 @@
 use pandark_types::{
-    apply_challenge_policy, ChallengeOutcome, ChallengePolicy, ExtractBudget, ExtractContext,
-    ExtractResult, BrowserSnapshot, PageChallengeState,
+    BrowserSnapshot, ChallengeOutcome, ChallengePolicy, ExtractBudget, ExtractContext, ExtractResult, PageChallengeState,
+    apply_challenge_policy,
 };
 
-use crate::browser::snapshot_to_fetch_artifact;
-use crate::extract::{Extractor, run_extract};
+use crate::{
+    browser::snapshot_to_fetch_artifact,
+    extract::{Extractor, run_extract},
+};
 
 /// Extraction blocked by challenge policy before IR construction.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,12 +27,8 @@ pub fn run_extract_from_snapshot(
 ) -> Result<ExtractResult, ChallengeBlocked> {
     let outcome = apply_challenge_policy(snapshot.challenge_state, policy);
     if outcome != ChallengeOutcome::Proceed {
-        return Err(ChallengeBlocked {
-            state: snapshot.challenge_state,
-            outcome,
-        });
+        return Err(ChallengeBlocked { state: snapshot.challenge_state, outcome });
     }
     let artifact = snapshot_to_fetch_artifact(snapshot);
     Ok(run_extract(&artifact, extractors, budget, ctx))
 }
-

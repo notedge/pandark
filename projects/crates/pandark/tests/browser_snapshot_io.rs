@@ -28,9 +28,7 @@ fn load_fixture_provider_reads_snapshot_directory() {
     .expect("write");
 
     let provider = load_fixture_provider_from_dir(&dir).expect("load fixtures");
-    let snapshot = provider
-        .capture_snapshot(&Url::parse("https://example.com/page").expect("url"))
-        .expect("snapshot");
+    let snapshot = provider.capture_snapshot(&Url::parse("https://example.com/page").expect("url")).expect("snapshot");
     assert_eq!(snapshot.profile_id, "test");
     let _ = std::fs::remove_dir_all(&dir);
 }

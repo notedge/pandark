@@ -1,10 +1,7 @@
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::browser::PageChallengeState;
-use crate::challenge::ChallengeOutcome;
-use crate::extract::ProbeResult;
-use crate::frontier::LinkCandidate;
+use crate::{browser::PageChallengeState, challenge::ChallengeOutcome, extract::ProbeResult, frontier::LinkCandidate};
 
 /// Inspect report for probe, link discovery, and extract planning.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,10 +45,7 @@ impl InspectReport {
             schema_version: "pandark.inspect/v1".into(),
             source_url,
             stage,
-            probe: ProbeResult {
-                status: crate::extract::ProbeStatus::Unsupported,
-                extractor: None,
-            },
+            probe: ProbeResult { status: crate::extract::ProbeStatus::Unsupported, extractor: None },
             discovered_links: Vec::new(),
             content_type: None,
             body_bytes: 0,

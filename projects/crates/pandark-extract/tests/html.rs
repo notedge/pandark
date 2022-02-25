@@ -4,9 +4,7 @@ use std::collections::BTreeMap;
 
 use notedown_ir::SourceKind;
 use pandark_extract::{Extractor, HtmlExtractor};
-use pandark_types::{
-    BodyStorage, ExtractBudget, ExtractContext, ExtractInput, FetchArtifact, TransportProvenance,
-};
+use pandark_types::{BodyStorage, ExtractBudget, ExtractContext, ExtractInput, FetchArtifact, TransportProvenance};
 use url::Url;
 
 #[test]
@@ -26,22 +24,11 @@ fn image_sources_become_ir_assets_and_embed_relations() {
         transport_provenance: TransportProvenance::Test,
         cache_key: "page".into(),
     };
-    let result = HtmlExtractor.extract(
-        ExtractInput {
-            artifact: &artifact,
-            budget: ExtractBudget::default(),
-        },
-        &ExtractContext::default(),
-    );
+    let result = HtmlExtractor
+        .extract(ExtractInput { artifact: &artifact, budget: ExtractBudget::default() }, &ExtractContext::default());
     let document = result.document.expect("document");
     assert_eq!(document.assets.len(), 2);
     assert_eq!(document.relations.len(), 2);
-    assert!(document
-        .assets
-        .iter()
-        .any(|asset| asset.media_type.as_deref() == Some("image/png")));
-    assert!(document
-        .sources
-        .iter()
-        .any(|source| matches!(source.kind, SourceKind::Synthetic { .. })));
+    assert!(document.assets.iter().any(|asset| asset.media_type.as_deref() == Some("image/png")));
+    assert!(document.sources.iter().any(|source| matches!(source.kind, SourceKind::Synthetic { .. })));
 }

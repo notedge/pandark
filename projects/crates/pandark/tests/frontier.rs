@@ -1,7 +1,7 @@
 //! Extracted from `src/frontier.rs`.
 
-use pandark_types::{CrawlRequest, LinkCandidate, LinkRelation};
 use pandark::{FrontierQueue, frontier_from_links, seed_frontier};
+use pandark_types::{CrawlRequest, LinkCandidate, LinkRelation};
 
 #[test]
 fn deduplicates_frontier_items() {

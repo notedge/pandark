@@ -14,10 +14,7 @@ fn conservative_blocks_admin_paths_without_robots() {
 #[test]
 fn loaded_robots_denies_even_for_developer_profile() {
     let mut policy = RobotsPolicy::from_profile(PolitenessProfile::Developer);
-    policy.load_site_rules(
-        "https://example.com:443",
-        "User-agent: *\nDisallow: /secret\n",
-    );
+    policy.load_site_rules("https://example.com:443", "User-agent: *\nDisallow: /secret\n");
     let url = Url::parse("https://example.com/secret/page").expect("url");
     assert!(!policy.is_allowed(&url));
     let open = Url::parse("https://example.com/open/page").expect("url");

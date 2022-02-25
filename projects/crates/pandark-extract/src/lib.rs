@@ -3,8 +3,8 @@
 #![deny(missing_docs)]
 
 use pandark_types::{
-    ExtractBudget, ExtractContext, ExtractInput, ExtractResult, ExtractStatus, FetchArtifact,
-    LinkCandidate, LinkRelation, ProbeResult, ProbeStatus,
+    ExtractBudget, ExtractContext, ExtractInput, ExtractResult, ExtractStatus, FetchArtifact, LinkCandidate, LinkRelation,
+    ProbeResult, ProbeStatus,
 };
 
 mod html;
@@ -13,9 +13,7 @@ mod oak_view;
 
 pub use html::HtmlExtractor;
 pub use inspect::inspect_artifact;
-pub use oak_view::{
-    HtmlParse, extract_body_text, extract_document_title, extract_hrefs,
-};
+pub use oak_view::{HtmlParse, extract_body_text, extract_document_title, extract_hrefs};
 
 /// Semantic extractor over fetch artifacts.
 pub trait Extractor {
@@ -78,35 +76,21 @@ pub fn classify_link(page_url: &url::Url, target: &str) -> (LinkRelation, String
 
 /// Build link candidates from raw href strings.
 pub fn link_candidates_from_hrefs(page_url: &url::Url, hrefs: &[String]) -> Vec<LinkCandidate> {
-    let targets = hrefs
-        .iter()
-        .map(|href| (href.clone(), "href"))
-        .collect::<Vec<_>>();
+    let targets = hrefs.iter().map(|href| (href.clone(), "href")).collect::<Vec<_>>();
     link_candidates_from_targets(page_url, &targets)
 }
 
-pub(crate) fn link_candidates_from_targets(
-    page_url: &url::Url,
-    targets: &[(String, &'static str)],
-) -> Vec<LinkCandidate> {
+pub(crate) fn link_candidates_from_targets(page_url: &url::Url, targets: &[(String, &'static str)]) -> Vec<LinkCandidate> {
     targets
         .iter()
         .map(|(href, source_hint)| {
             let (relation, target) = classify_link_with_hint(page_url, href, source_hint);
-            LinkCandidate {
-                target,
-                relation,
-                source_hint: Some((*source_hint).into()),
-            }
+            LinkCandidate { target, relation, source_hint: Some((*source_hint).into()) }
         })
         .collect()
 }
 
-fn classify_link_with_hint(
-    page_url: &url::Url,
-    target: &str,
-    source_hint: &str,
-) -> (LinkRelation, String) {
+fn classify_link_with_hint(page_url: &url::Url, target: &str, source_hint: &str) -> (LinkRelation, String) {
     let (relation, resolved) = classify_link(page_url, target);
     if matches!(source_hint, "src" | "srcset") {
         return (LinkRelation::Asset, resolved);

@@ -32,7 +32,8 @@ impl RobotsTxt {
             if line.is_empty() {
                 continue;
             }
-            let Some((key, value)) = split_directive(line) else {
+            let Some((key, value)) = split_directive(line)
+            else {
                 continue;
             };
             let key = key.to_ascii_lowercase();
@@ -71,7 +72,8 @@ impl RobotsTxt {
 
     /// Whether a path is allowed for the given crawler user-agent.
     pub fn is_path_allowed(&self, user_agent: &str, path: &str) -> bool {
-        let Some(group) = self.group_for_agent(user_agent) else {
+        let Some(group) = self.group_for_agent(user_agent)
+        else {
             return true;
         };
         group.is_path_allowed(path)
@@ -79,18 +81,13 @@ impl RobotsTxt {
 
     /// Crawl-delay for the matching group, if present.
     pub fn crawl_delay_for_agent(&self, user_agent: &str) -> Option<u32> {
-        self.group_for_agent(user_agent)
-            .and_then(|group| group.crawl_delay)
+        self.group_for_agent(user_agent).and_then(|group| group.crawl_delay)
     }
 }
 
 impl RobotsGroup {
     fn matches_agent(&self, user_agent: &str) -> bool {
-        self.agent_specificity(user_agent) > 0
-            || self
-                .agents
-                .iter()
-                .any(|agent| agent.trim().eq_ignore_ascii_case("*"))
+        self.agent_specificity(user_agent) > 0 || self.agents.iter().any(|agent| agent.trim().eq_ignore_ascii_case("*"))
     }
 
     fn agent_specificity(&self, user_agent: &str) -> usize {
@@ -101,9 +98,11 @@ impl RobotsGroup {
                 let agent = agent.trim().to_ascii_lowercase();
                 if agent == "*" {
                     None
-                } else if ua.starts_with(&agent) {
+                }
+                else if ua.starts_with(&agent) {
                     Some(agent.len())
-                } else {
+                }
+                else {
                     None
                 }
             })
@@ -172,21 +171,21 @@ fn wildcard_match(pattern: &str, path: &str, end_anchor: bool) -> bool {
         if pattern_index == pattern.len() && !end_anchor {
             return true;
         }
-        if pattern_index < pattern.len()
-            && pattern[pattern_index] != '*'
-            && pattern[pattern_index] == path[path_index]
-        {
+        if pattern_index < pattern.len() && pattern[pattern_index] != '*' && pattern[pattern_index] == path[path_index] {
             pattern_index += 1;
             path_index += 1;
-        } else if pattern_index < pattern.len() && pattern[pattern_index] == '*' {
+        }
+        else if pattern_index < pattern.len() && pattern[pattern_index] == '*' {
             star_index = Some(pattern_index);
             star_match = path_index;
             pattern_index += 1;
-        } else if let Some(star) = star_index {
+        }
+        else if let Some(star) = star_index {
             pattern_index = star + 1;
             star_match += 1;
             path_index = star_match;
-        } else {
+        }
+        else {
             return false;
         }
     }
@@ -203,4 +202,3 @@ pub fn site_key_for_url(url: &url::Url) -> String {
     let port = url.port_or_known_default().unwrap_or(80);
     format!("{}://{}:{}", url.scheme(), host, port)
 }
-

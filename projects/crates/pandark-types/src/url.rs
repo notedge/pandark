@@ -18,22 +18,13 @@ pub fn canonicalize_request_url(raw: &str) -> Result<Url> {
 /// Canonicalize an already parsed URL.
 pub fn canonicalize_parsed_url(mut url: Url) -> Result<Url> {
     if url.scheme() != "http" && url.scheme() != "https" && url.scheme() != "file" {
-        return Err(CrawlError::InvalidInput(format!(
-            "unsupported URL scheme `{}`",
-            url.scheme()
-        )));
+        return Err(CrawlError::InvalidInput(format!("unsupported URL scheme `{}`", url.scheme())));
     }
 
-    let host = url
-        .host_str()
-        .ok_or_else(|| CrawlError::InvalidInput("URL must include a host".into()))?
-        .to_ascii_lowercase();
-    url.set_host(Some(&host))
-        .map_err(|error| CrawlError::InvalidInput(error.to_string()))?;
+    let host = url.host_str().ok_or_else(|| CrawlError::InvalidInput("URL must include a host".into()))?.to_ascii_lowercase();
+    url.set_host(Some(&host)).map_err(|error| CrawlError::InvalidInput(error.to_string()))?;
 
-    if (url.scheme() == "http" && url.port() == Some(80))
-        || (url.scheme() == "https" && url.port() == Some(443))
-    {
+    if (url.scheme() == "http" && url.port() == Some(80)) || (url.scheme() == "https" && url.port() == Some(443)) {
         let _ = url.set_port(None);
     }
 
@@ -63,9 +54,5 @@ pub fn site_key(url: &Url) -> String {
 
 /// Current unix epoch seconds.
 pub fn now_epoch() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .unwrap_or(0)
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|duration| duration.as_secs()).unwrap_or(0)
 }
-

@@ -1,7 +1,7 @@
 //! Extracted from `src/response_cache.rs`.
 
-use std::time::{SystemTime, UNIX_EPOCH};
 use pandark_types::{BodyStorage, FetchArtifact, TransportProvenance};
+use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
 use pandark_store::YydbResponseCache;
@@ -10,10 +10,7 @@ use pandark_store::YydbResponseCache;
 fn round_trips_artifact() {
     let path = std::env::temp_dir().join(format!(
         "pandark-store-cache-{}.yydb",
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos()
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos()
     ));
     let cache = YydbResponseCache::open(&path).expect("cache");
     let artifact = FetchArtifact {

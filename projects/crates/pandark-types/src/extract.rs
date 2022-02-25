@@ -2,8 +2,7 @@ use notedown_ir::{DocumentGraph, LossMarker};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::artifact::FetchArtifact;
-use crate::frontier::LinkCandidate;
+use crate::{artifact::FetchArtifact, frontier::LinkCandidate};
 
 /// Budget for extractor probe and lowering work.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -16,10 +15,7 @@ pub struct ExtractBudget {
 
 impl Default for ExtractBudget {
     fn default() -> Self {
-        Self {
-            max_probe_bytes: 256 * 1024,
-            max_extract_ms: 30_000,
-        }
+        Self { max_probe_bytes: 256 * 1024, max_extract_ms: 30_000 }
     }
 }
 

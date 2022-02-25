@@ -1,6 +1,6 @@
 //! Extracted from `src/robots_txt.rs`.
 
-use pandark_fetch::{path_matches_rule, RobotsGroup, RobotsTxt, site_key_for_url};
+use pandark_fetch::{RobotsGroup, RobotsTxt, path_matches_rule, site_key_for_url};
 use url::Url;
 #[test]
 fn parses_user_agent_groups_and_sitemaps() {

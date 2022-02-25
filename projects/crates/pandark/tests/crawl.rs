@@ -3,13 +3,13 @@
 use std::collections::BTreeMap;
 
 use pandark::{
-    CrawlOptions, Extractor, FixtureBrowserProvider, HtmlExtractor, resume_crawl_from_checkpoint,
-    run_crawl, run_crawl_with_options, run_extract,
+    CrawlOptions, Extractor, FixtureBrowserProvider, HtmlExtractor, resume_crawl_from_checkpoint, run_crawl,
+    run_crawl_with_options, run_extract,
 };
 use pandark_fetch::{MemoryEntry, MemoryTransport};
 use pandark_types::{
-    BrowserFallbackPolicy, BrowserSnapshot, ChallengePolicy, CrawlEvent, CrawlRequest,
-    ExtractBudget, ExtractContext, ExtractStatus, PageChallengeState,
+    BrowserFallbackPolicy, BrowserSnapshot, ChallengePolicy, CrawlEvent, CrawlRequest, ExtractBudget, ExtractContext,
+    ExtractStatus, PageChallengeState,
 };
 use url::Url;
 
@@ -22,18 +22,11 @@ fn crawls_multiple_seeds_in_one_request() {
             MemoryEntry {
                 status: 200,
                 headers: BTreeMap::from([("content-type".into(), "text/html".into())]),
-                body: format!(
-                    "<html><head><title>{title}</title></head><body>{title}</body></html>"
-                )
-                .into_bytes(),
+                body: format!("<html><head><title>{title}</title></head><body>{title}</body></html>").into_bytes(),
             },
         );
     }
-    let request = CrawlRequest::from_seeds([
-        "https://example.com/a",
-        "https://example.com/b",
-    ])
-    .expect("seeds");
+    let request = CrawlRequest::from_seeds(["https://example.com/a", "https://example.com/b"]).expect("seeds");
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
     let output = run_crawl(request, transport, &extractors).expect("crawl");
@@ -74,11 +67,7 @@ fn resume_rejects_browser_fallback_strategy_mismatch() {
         checkpoint,
         MemoryTransport::new(),
         &extractors,
-        CrawlOptions {
-            browser: Some(&browser),
-            browser_fallback: BrowserFallbackPolicy::Never,
-            ..Default::default()
-        },
+        CrawlOptions { browser: Some(&browser), browser_fallback: BrowserFallbackPolicy::Never, ..Default::default() },
     )
     .expect_err("mismatch");
     assert!(error.to_string().contains("resume strategy mismatch"));
@@ -154,19 +143,12 @@ fn crawl_skips_urls_denied_by_robots_txt() {
     let output = run_crawl(request, transport, &extractors).expect("crawl");
     assert_eq!(output.report.committed, 2);
     assert_eq!(output.report.failed, 1);
-    assert!(
-        output
-            .report
-            .events
-            .events()
-            .iter()
-            .any(|event| matches!(
-                event,
-                CrawlEvent::Failed { url, reason }
-                    if url.as_str() == "https://example.com/secret"
-                        && reason.contains("robots policy denied")
-            ))
-    );
+    assert!(output.report.events.events().iter().any(|event| matches!(
+        event,
+        CrawlEvent::Failed { url, reason }
+            if url.as_str() == "https://example.com/secret"
+                && reason.contains("robots policy denied")
+    )));
 }
 
 #[test]
@@ -176,9 +158,7 @@ fn browser_fallback_commits_when_http_fetch_missing() {
     browser.insert(BrowserSnapshot {
         requested_url: Url::parse("https://example.com/js-page").expect("url"),
         final_url: Url::parse("https://example.com/js-page").expect("url"),
-        document_html:
-            "<html><head><title>JS</title></head><body><p>rendered</p></body></html>"
-                .into(),
+        document_html: "<html><head><title>JS</title></head><body><p>rendered</p></body></html>".into(),
         captured_at_epoch: 1,
         browser_engine: "fixture".into(),
         profile_id: "test".into(),
@@ -201,14 +181,7 @@ fn browser_fallback_commits_when_http_fetch_missing() {
     )
     .expect("crawl");
     assert_eq!(output.report.committed, 1);
-    assert!(
-        output
-            .report
-            .events
-            .events()
-            .iter()
-            .any(|event| matches!(event, CrawlEvent::BrowserFallback { .. }))
-    );
+    assert!(output.report.events.events().iter().any(|event| matches!(event, CrawlEvent::BrowserFallback { .. })));
 }
 
 #[test]
@@ -312,8 +285,7 @@ fn browser_fallback_pauses_and_resumes_after_operator_snapshot() {
     browser.insert(BrowserSnapshot {
         requested_url: seed.clone(),
         final_url: seed.clone(),
-        document_html:
-            "<html><head><title>OK</title></head><body><p>ready</p></body></html>".into(),
+        document_html: "<html><head><title>OK</title></head><body><p>ready</p></body></html>".into(),
         captured_at_epoch: 2,
         browser_engine: "fixture".into(),
         profile_id: "test".into(),
@@ -349,43 +321,25 @@ fn disk_cache_reuses_response_without_transport() {
         MemoryEntry {
             status: 200,
             headers: BTreeMap::from([("content-type".into(), "text/html".into())]),
-            body: br#"<html><head><title>Cached</title></head><body>cached</body></html>"#
-                .to_vec(),
+            body: br#"<html><head><title>Cached</title></head><body>cached</body></html>"#.to_vec(),
         },
     );
     let request = CrawlRequest::from_seed("https://example.com/cache-page").expect("seed");
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
-    let options = CrawlOptions {
-        cache_dir: Some(dir.as_path()),
-        ..Default::default()
-    };
-    let first = run_crawl_with_options(request.clone(), transport, &extractors, options)
-        .expect("first crawl");
+    let options = CrawlOptions { cache_dir: Some(dir.as_path()), ..Default::default() };
+    let first = run_crawl_with_options(request.clone(), transport, &extractors, options).expect("first crawl");
     assert_eq!(first.report.committed, 1);
 
     let second = run_crawl_with_options(
         request,
         MemoryTransport::new(),
         &extractors,
-        CrawlOptions {
-            cache_dir: Some(dir.as_path()),
-            ..Default::default()
-        },
+        CrawlOptions { cache_dir: Some(dir.as_path()), ..Default::default() },
     )
     .expect("second crawl");
     assert_eq!(second.report.committed, 1);
-    assert!(
-        second
-            .report
-            .events
-            .events()
-            .iter()
-            .any(|event| matches!(
-                event,
-                CrawlEvent::Fetched { cache_hit: true, .. }
-            ))
-    );
+    assert!(second.report.events.events().iter().any(|event| matches!(event, CrawlEvent::Fetched { cache_hit: true, .. })));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -396,21 +350,14 @@ fn extract_mode_reuses_artifact_without_transport() {
         url::Url::parse("https://example.com/page").expect("url"),
         200,
         BTreeMap::from([("content-type".into(), "text/html".into())]),
-        pandark_types::BodyStorage::inline(
-            b"<html><head><title>T</title></head><body>body</body></html>",
-        ),
+        pandark_types::BodyStorage::inline(b"<html><head><title>T</title></head><body>body</body></html>"),
         Vec::new(),
         pandark_types::TransportProvenance::Test,
         None,
     );
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
-    let result = run_extract(
-        &artifact,
-        &extractors,
-        ExtractBudget::default(),
-        &ExtractContext::default(),
-    );
+    let result = run_extract(&artifact, &extractors, ExtractBudget::default(), &ExtractContext::default());
     assert_eq!(result.status, ExtractStatus::Complete);
     assert!(result.document.is_some());
 }

@@ -23,11 +23,9 @@ impl FixtureBrowserProvider {
 
     /// Register a snapshot keyed by final URL string.
     pub fn insert(&mut self, snapshot: BrowserSnapshot) {
-        self.snapshots
-            .insert(snapshot.final_url.to_string(), snapshot.clone());
+        self.snapshots.insert(snapshot.final_url.to_string(), snapshot.clone());
         if snapshot.requested_url != snapshot.final_url {
-            self.snapshots
-                .insert(snapshot.requested_url.to_string(), snapshot);
+            self.snapshots.insert(snapshot.requested_url.to_string(), snapshot);
         }
     }
 }

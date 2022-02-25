@@ -12,18 +12,12 @@ pub struct StoreConfig {
 impl StoreConfig {
     /// Memory-oriented defaults.
     pub fn memory(schema_version: u32) -> Self {
-        Self {
-            schema_version,
-            db_path: None,
-        }
+        Self { schema_version, db_path: None }
     }
 
     /// YYDB file path for integration tests and production.
     pub fn yydb(path: impl Into<std::path::PathBuf>, schema_version: u32) -> Self {
-        Self {
-            schema_version,
-            db_path: Some(path.into()),
-        }
+        Self { schema_version, db_path: Some(path.into()) }
     }
 }
 

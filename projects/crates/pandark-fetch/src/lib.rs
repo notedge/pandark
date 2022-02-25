@@ -4,10 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use pandark_types::{
-    BodyStorage, CrawlError, FetchArtifact, RedirectHop, Result, TransportProvenance,
-    now_epoch,
-};
+use pandark_types::{BodyStorage, CrawlError, FetchArtifact, RedirectHop, Result, TransportProvenance, now_epoch};
 use url::Url;
 
 mod cache;
@@ -64,10 +61,7 @@ pub fn build_artifact(
     provenance: TransportProvenance,
     validator: Option<&str>,
 ) -> FetchArtifact {
-    let content_type = headers
-        .get("content-type")
-        .cloned()
-        .or_else(|| infer_content_type(&final_url));
+    let content_type = headers.get("content-type").cloned().or_else(|| infer_content_type(&final_url));
     let cache_key = cache_key_for(&request_url, validator);
     FetchArtifact {
         request_url,
@@ -87,11 +81,14 @@ fn infer_content_type(url: &Url) -> Option<String> {
     let path = url.path().to_ascii_lowercase();
     if path.ends_with(".html") || path.ends_with(".htm") {
         Some("text/html".into())
-    } else if path.ends_with(".css") {
+    }
+    else if path.ends_with(".css") {
         Some("text/css".into())
-    } else if path.ends_with(".json") {
+    }
+    else if path.ends_with(".json") {
         Some("application/json".into())
-    } else {
+    }
+    else {
         None
     }
 }

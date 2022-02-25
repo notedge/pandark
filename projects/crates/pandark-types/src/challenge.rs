@@ -19,10 +19,7 @@ pub enum ChallengeOutcome {
 }
 
 /// Apply a challenge policy to a detected page state.
-pub fn apply_challenge_policy(
-    state: PageChallengeState,
-    policy: ChallengePolicy,
-) -> ChallengeOutcome {
+pub fn apply_challenge_policy(state: PageChallengeState, policy: ChallengePolicy) -> ChallengeOutcome {
     if state == PageChallengeState::Normal {
         return ChallengeOutcome::Proceed;
     }

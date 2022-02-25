@@ -1,7 +1,5 @@
-﻿use oak_core::parser::session::ParseSession;
-use oak_core::{Parser, RedTree, SourceText, RedNode};
-use oak_html::parser::element_type::HtmlElementType;
-use oak_html::{HtmlLanguage, HtmlParser};
+use oak_core::{Parser, RedNode, RedTree, SourceText, parser::session::ParseSession};
+use oak_html::{HtmlLanguage, HtmlParser, parser::element_type::HtmlElementType};
 
 fn main() {
     let html = r#"<a href='/next'>x</a>"#;

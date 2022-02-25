@@ -1,6 +1,4 @@
-use pandark_types::{
-    apply_challenge_policy, BrowserSnapshot, ChallengePolicy, ExtractBudget, InspectStage,
-};
+use pandark_types::{BrowserSnapshot, ChallengePolicy, ExtractBudget, InspectStage, apply_challenge_policy};
 
 use pandark_extract::Extractor;
 
@@ -14,12 +12,8 @@ pub fn inspect_snapshot(
     stage: InspectStage,
     budget: ExtractBudget,
 ) -> pandark_types::InspectReport {
-    let mut report = pandark_extract::inspect_artifact(
-        &crate::browser::snapshot_to_fetch_artifact(snapshot),
-        extractors,
-        stage,
-        budget,
-    );
+    let mut report =
+        pandark_extract::inspect_artifact(&crate::browser::snapshot_to_fetch_artifact(snapshot), extractors, stage, budget);
     report.challenge_state = Some(snapshot.challenge_state);
     report.challenge_outcome = Some(apply_challenge_policy(snapshot.challenge_state, policy));
     report

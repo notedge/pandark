@@ -11,10 +11,7 @@ fn sample_artifact(body: &[u8], cache_key: &str) -> FetchArtifact {
         request_url: Url::parse("https://example.com/").expect("url"),
         final_url: Url::parse("https://example.com/").expect("url"),
         status: 200,
-        response_headers: BTreeMap::from([
-            ("etag".into(), "\"abc\"".into()),
-            ("content-type".into(), "text/html".into()),
-        ]),
+        response_headers: BTreeMap::from([("etag".into(), "\"abc\"".into()), ("content-type".into(), "text/html".into())]),
         content_type: Some("text/html".into()),
         body: BodyStorage::inline(body),
         redirect_chain: Vec::new(),
@@ -31,10 +28,7 @@ fn disk_cache_round_trips_inline_body() {
     let mut cache = DiskResponseCache::open(&dir).expect("open");
     let artifact = sample_artifact(b"hello", "https://example.com/|etag=\"abc\"");
     cache.put(artifact).expect("put");
-    let loaded = cache
-        .get("https://example.com/")
-        .expect("get")
-        .expect("hit");
+    let loaded = cache.get("https://example.com/").expect("get").expect("hit");
     assert_eq!(loaded.body_bytes(), Some(b"hello".as_ref()));
     assert_eq!(loaded.transport_provenance, TransportProvenance::CacheHit);
     let _ = fs::remove_dir_all(&dir);
@@ -42,19 +36,13 @@ fn disk_cache_round_trips_inline_body() {
 
 #[test]
 fn layered_cache_promotes_disk_hit_to_memory() {
-    let dir = std::env::temp_dir().join(format!(
-        "pandark-layered-cache-{}",
-        std::process::id()
-    ));
+    let dir = std::env::temp_dir().join(format!("pandark-layered-cache-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     let disk = DiskResponseCache::open(&dir).expect("open");
     let mut layered = LayeredResponseCache::with_disk(disk);
     let artifact = sample_artifact(b"cached", "https://example.com/|etag=\"abc\"");
     layered.put(artifact).expect("put");
-    let loaded = layered
-        .get_by_request_url("https://example.com/")
-        .expect("get")
-        .expect("hit");
+    let loaded = layered.get_by_request_url("https://example.com/").expect("get").expect("hit");
     assert_eq!(loaded.body_bytes(), Some(b"cached".as_ref()));
     let _ = fs::remove_dir_all(&dir);
 }

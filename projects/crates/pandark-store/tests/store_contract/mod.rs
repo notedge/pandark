@@ -1,12 +1,13 @@
 //! Data-driven store contract runner for `MemoryStore` and `YydbStore`.
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use pandark_store::{
-    frontier_item_from_contract, MemoryStore, Store, StoreConfig, StoreDiagnosticReport,
-    StoreDoctorSeverity, StoreError,
+    MemoryStore, Store, StoreConfig, StoreDiagnosticReport, StoreDoctorSeverity, StoreError, frontier_item_from_contract,
 };
 use serde::Deserialize;
 
@@ -146,14 +147,7 @@ fn run_case_memory(gate: &str, case_id: &str, case_path: &Path) {
     for step in &case_file.steps {
         last_error = execute_step(&mut store, step, &mut last_doctor_report).err();
     }
-    evaluate_assertions(
-        gate,
-        case_id,
-        &store,
-        &case_file.assertions,
-        last_error,
-        last_doctor_report,
-    );
+    evaluate_assertions(gate, case_id, &store, &case_file.assertions, last_error, last_doctor_report);
 }
 
 #[cfg(feature = "yydb")]
@@ -168,8 +162,7 @@ fn run_case_yydb(gate: &str, case_id: &str, case_path: &Path) {
     let case_file = load_case(case_id, case_path);
     let db_path = temp_db_path(case_id);
     cleanup_db(&db_path);
-    let mut store =
-        YydbStore::open(StoreConfig::yydb(&db_path, 1)).expect("open yydb store");
+    let mut store = YydbStore::open(StoreConfig::yydb(&db_path, 1)).expect("open yydb store");
     let mut last_error = None;
     let mut last_doctor_report = None;
     for step in &case_file.initial.steps {
@@ -185,26 +178,14 @@ fn run_case_yydb(gate: &str, case_id: &str, case_path: &Path) {
     for step in &case_file.steps {
         last_error = execute_step(&mut store, step, &mut last_doctor_report).err();
     }
-    evaluate_assertions(
-        gate,
-        case_id,
-        &store,
-        &case_file.assertions,
-        last_error,
-        last_doctor_report,
-    );
+    evaluate_assertions(gate, case_id, &store, &case_file.assertions, last_error, last_doctor_report);
     cleanup_db(&db_path);
 }
 
 fn load_case(case_id: &str, case_path: &Path) -> CaseFile {
     let text = fs::read_to_string(case_path).expect("read case json");
     let case_file: CaseFile = serde_json::from_str(&text).expect("parse case json");
-    assert_eq!(
-        case_file.case_id,
-        case_id,
-        "case_id mismatch in {}",
-        case_path.display()
-    );
+    assert_eq!(case_file.case_id, case_id, "case_id mismatch in {}", case_path.display());
     case_file
 }
 
@@ -216,18 +197,11 @@ fn execute_step<S: Store>(
     match step.op.as_str() {
         "begin_run" => {
             let spec = step.run_spec.as_ref().expect("begin_run run_spec");
-            store
-                .begin_run(pandark_store::RunSpec {
-                    seed_url: spec.seed_url.clone(),
-                })
-                .map(|_| ())
+            store.begin_run(pandark_store::RunSpec { seed_url: spec.seed_url.clone() }).map(|_| ())
         }
         "enqueue" => {
             let item = step.frontier_item.as_ref().expect("enqueue frontier_item");
-            let frontier = frontier_item_from_contract(
-                &item.canonical_request_url,
-                item.depth,
-            )?;
+            let frontier = frontier_item_from_contract(&item.canonical_request_url, item.depth)?;
             store.enqueue(frontier)
         }
         "claim_next" => {
@@ -257,11 +231,8 @@ fn execute_step<S: Store>(
         "abort_page_tx" => store.abort_page_tx(),
         "reopen" => store.reopen(),
         "put_orphan_object" => {
-            let bytes = if let Some(fixture) = &step.fixture {
-                read_fixture(fixture)?
-            } else {
-                b"orphan-contract-payload".to_vec()
-            };
+            let bytes =
+                if let Some(fixture) = &step.fixture { read_fixture(fixture)? } else { b"orphan-contract-payload".to_vec() };
             store.put_orphan_object(&bytes)
         }
         "doctor" => {
@@ -290,69 +261,38 @@ fn evaluate_assertions<S: Store>(
             "page_phase" => {
                 let page_id = assertion.page_id.as_deref().unwrap_or("auto");
                 let expected = assertion.expected.as_deref().expect("page_phase expected");
-                let actual = store
-                    .page_phase(page_id)
-                    .expect("page_phase query")
-                    .as_contract_str();
-                assert_eq!(
-                    actual,
-                    expected,
-                    "gate {gate} case {case_id} page_phase expected {expected}, got {actual}"
-                );
+                let actual = store.page_phase(page_id).expect("page_phase query").as_contract_str();
+                assert_eq!(actual, expected, "gate {gate} case {case_id} page_phase expected {expected}, got {actual}");
             }
             "event_count" => {
                 let count = store.event_count().expect("event_count");
                 let min = assertion.min.unwrap_or(0);
                 let max = assertion.max.unwrap_or(u64::MAX);
-                assert!(
-                    count >= min && count <= max,
-                    "gate {gate} case {case_id} event_count {count} not in [{min}, {max}]"
-                );
+                assert!(count >= min && count <= max, "gate {gate} case {case_id} event_count {count} not in [{min}, {max}]");
             }
             "schema_version" => {
-                let expected = assertion
-                    .expected
-                    .as_deref()
-                    .expect("schema_version expected");
+                let expected = assertion.expected.as_deref().expect("schema_version expected");
                 let actual = store.schema_version().to_string();
-                assert_eq!(
-                    actual,
-                    expected,
-                    "gate {gate} case {case_id} schema_version expected {expected}, got {actual}"
-                );
+                assert_eq!(actual, expected, "gate {gate} case {case_id} schema_version expected {expected}, got {actual}");
             }
             "error" => {
                 let code = assertion.code.as_deref().expect("error code");
-                let err = last_error.as_ref().unwrap_or_else(|| {
-                    panic!("gate {gate} case {case_id} expected error {code}, got success")
-                });
+                let err = last_error
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("gate {gate} case {case_id} expected error {code}, got success"));
                 let actual = format!("{err}");
-                assert!(
-                    actual.contains(code),
-                    "gate {gate} case {case_id} expected error {code}, got {actual}"
-                );
+                assert!(actual.contains(code), "gate {gate} case {case_id} expected error {code}, got {actual}");
             }
             "doctor_issue" => {
                 let code = assertion.code.as_deref().expect("doctor_issue code");
-                let severity = assertion
-                    .severity
-                    .as_deref()
-                    .expect("doctor_issue severity");
-                let expected_severity =
-                    StoreDoctorSeverity::parse(severity).expect("doctor_issue severity");
-                let report = last_doctor_report.as_ref().unwrap_or_else(|| {
-                    panic!("gate {gate} case {case_id} expected doctor report for {code}")
+                let severity = assertion.severity.as_deref().expect("doctor_issue severity");
+                let expected_severity = StoreDoctorSeverity::parse(severity).expect("doctor_issue severity");
+                let report = last_doctor_report
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("gate {gate} case {case_id} expected doctor report for {code}"));
+                let issue = report.issues.iter().find(|issue| issue.code == code).unwrap_or_else(|| {
+                    panic!("gate {gate} case {case_id} expected doctor issue {code}, got {:?}", report.issues)
                 });
-                let issue = report
-                    .issues
-                    .iter()
-                    .find(|issue| issue.code == code)
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "gate {gate} case {case_id} expected doctor issue {code}, got {:?}",
-                            report.issues
-                        )
-                    });
                 assert_eq!(
                     issue.severity.as_contract_str(),
                     expected_severity.as_contract_str(),
@@ -366,10 +306,7 @@ fn evaluate_assertions<S: Store>(
 
 #[cfg(feature = "yydb")]
 fn temp_db_path(label: &str) -> PathBuf {
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
+    let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
     std::env::temp_dir().join(format!("pandark-store-{label}-{nonce}.yydb"))
 }
 

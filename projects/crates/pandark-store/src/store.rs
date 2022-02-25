@@ -1,8 +1,8 @@
 use pandark_types::{FetchArtifact, FrontierItem};
 
-use crate::error::Result;
-use crate::types::{
-    ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig, StoreDiagnosticReport,
+use crate::{
+    error::Result,
+    types::{ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec, StoreConfig, StoreDiagnosticReport},
 };
 
 /// Store contract implemented by `MemoryStore` and `YydbStore`.
@@ -67,10 +67,5 @@ pub trait Store {
     fn get_robots_cache(&self, site_key: &str) -> Result<Option<Vec<u8>>>;
 
     /// Store robots document bytes with a time-to-live.
-    fn put_robots_cache(
-        &mut self,
-        site_key: &str,
-        body: &[u8],
-        ttl: std::time::Duration,
-    ) -> Result<()>;
+    fn put_robots_cache(&mut self, site_key: &str, body: &[u8], ttl: std::time::Duration) -> Result<()>;
 }

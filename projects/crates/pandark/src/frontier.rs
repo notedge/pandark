@@ -86,7 +86,8 @@ pub fn frontier_from_links(
         if link.relation != LinkRelation::Navigation {
             continue;
         }
-        let Ok(url) = pandark_types::canonicalize_request_url(&link.target) else {
+        let Ok(url) = pandark_types::canonicalize_request_url(&link.target)
+        else {
             continue;
         };
         if source.depth + 1 > max_depth {
@@ -94,9 +95,7 @@ pub fn frontier_from_links(
         }
         let item = FrontierItem {
             request_url: url.clone(),
-            discovery: pandark_types::DiscoverySource::NavigationLink {
-                from: source.request_url.clone(),
-            },
+            discovery: pandark_types::DiscoverySource::NavigationLink { from: source.request_url.clone() },
             depth: source.depth + 1,
             site_key: pandark_types::site_key(&url),
             priority: source.priority + 1,
@@ -109,4 +108,3 @@ pub fn frontier_from_links(
     }
     admitted
 }
-
