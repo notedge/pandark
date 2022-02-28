@@ -2,6 +2,7 @@
 
 #![deny(missing_docs)]
 
+use notedown_formats::import::html::{HtmlImport, HtmlLink, HtmlLinkRole, import_html_with_links};
 use pandark_types::{
     ExtractBudget, ExtractContext, ExtractInput, ExtractResult, ExtractStatus, FetchArtifact, LinkCandidate, LinkRelation,
     ProbeResult, ProbeStatus,
@@ -9,11 +10,9 @@ use pandark_types::{
 
 mod html;
 mod inspect;
-mod oak_view;
 
 pub use html::HtmlExtractor;
 pub use inspect::inspect_artifact;
-pub use oak_view::{HtmlParse, extract_body_text, extract_document_title, extract_hrefs};
 
 /// Semantic extractor over fetch artifacts.
 pub trait Extractor {
@@ -59,6 +58,61 @@ pub fn run_extract(
     }
 }
 
+/// Import an HTML page through `notedown-formats`.
+pub(crate) fn import_html_page(page_url: &url::Url, html: &str) -> Option<HtmlImport> {
+    import_html_with_links(&page_url.to_string(), html).ok()
+}
+
+/// Build link and asset candidates from a Notedown HTML import.
+///
+/// Format semantics stay in Notedown. This only applies crawl policy: base URI
+/// resolution, non-crawlable target rejection, and relation classification.
+pub(crate) fn link_candidates_from_import(
+    page_url: &url::Url,
+    base_href: Option<&str>,
+    links: &[HtmlLink],
+) -> Vec<LinkCandidate> {
+    let base = resolve_base_url(page_url, base_href);
+    links
+        .iter()
+        .filter(|link| is_crawl_candidate(&link.target))
+        .map(|link| {
+            let hint = link_role_hint(link.role);
+            classify_candidate(&base, &link.target, hint)
+        })
+        .collect()
+}
+
+fn link_role_hint(role: HtmlLinkRole) -> &'static str {
+    match role {
+        HtmlLinkRole::Href => "href",
+        HtmlLinkRole::FormAction => "form-action",
+        HtmlLinkRole::Src => "src",
+        HtmlLinkRole::SrcSet => "srcset",
+    }
+}
+
+/// Resolve a document base URI against the fetched page URL.
+pub(crate) fn resolve_base_url(page_url: &url::Url, base_href: Option<&str>) -> url::Url {
+    let Some(href) = base_href
+    else {
+        return page_url.clone();
+    };
+    if let Ok(absolute) = url::Url::parse(href) {
+        return absolute;
+    }
+    page_url.join(href).unwrap_or_else(|_| page_url.clone())
+}
+
+fn is_crawl_candidate(target: &str) -> bool {
+    let trimmed = target.trim();
+    !trimmed.is_empty()
+        && !trimmed.starts_with('#')
+        && !trimmed.starts_with("javascript:")
+        && !trimmed.starts_with("mailto:")
+        && !trimmed.starts_with("data:")
+}
+
 /// Classify a discovered href relative to a page URL.
 pub fn classify_link(page_url: &url::Url, target: &str) -> (LinkRelation, String) {
     let resolved = page_url.join(target).map(|url| url.to_string());
@@ -76,18 +130,12 @@ pub fn classify_link(page_url: &url::Url, target: &str) -> (LinkRelation, String
 
 /// Build link candidates from raw href strings.
 pub fn link_candidates_from_hrefs(page_url: &url::Url, hrefs: &[String]) -> Vec<LinkCandidate> {
-    let targets = hrefs.iter().map(|href| (href.clone(), "href")).collect::<Vec<_>>();
-    link_candidates_from_targets(page_url, &targets)
+    hrefs.iter().map(|href| classify_candidate(page_url, href, "href")).collect()
 }
 
-pub(crate) fn link_candidates_from_targets(page_url: &url::Url, targets: &[(String, &'static str)]) -> Vec<LinkCandidate> {
-    targets
-        .iter()
-        .map(|(href, source_hint)| {
-            let (relation, target) = classify_link_with_hint(page_url, href, source_hint);
-            LinkCandidate { target, relation, source_hint: Some((*source_hint).into()) }
-        })
-        .collect()
+fn classify_candidate(page_url: &url::Url, target: &str, source_hint: &'static str) -> LinkCandidate {
+    let (relation, target) = classify_link_with_hint(page_url, target, source_hint);
+    LinkCandidate { target, relation, source_hint: Some(source_hint.into()) }
 }
 
 fn classify_link_with_hint(page_url: &url::Url, target: &str, source_hint: &str) -> (LinkRelation, String) {

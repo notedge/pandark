@@ -1,4 +1,4 @@
-//! Acceptance gate 1 fixtures for Oak HTML extraction and link discovery.
+//! Acceptance gate 1 fixtures for HTML import and link discovery.
 
 use pandark::{Extractor, HtmlExtractor, run_extract};
 use pandark_types::{BodyStorage, ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact, TransportProvenance};
@@ -45,7 +45,8 @@ fn gate_single_quote_href_and_script_exclusion() {
     });
     assert!(matches!(
         body,
-        Some(notedown_ir::Inline::Text { text }) if text == "x"
+        Some(notedown_ir::Inline::Link { display, .. })
+            if matches!(display.as_slice(), [notedown_ir::Inline::Text { text }] if text == "x")
     ));
     assert_eq!(result.discovered_links.len(), 1);
     assert_eq!(result.discovered_links[0].target, "https://example.com/next");
@@ -85,12 +86,14 @@ fn gate_form_action_and_srcset() {
             .all(|link| link.relation == pandark_types::LinkRelation::Asset)
     );
     let document = result.document.expect("document");
-    assert_eq!(document.assets.len(), 3);
-    assert_eq!(document.relations.len(), 3);
-    assert!(document
-    .blocks
-    .iter()
-    .any(|node| matches!(node.block, notedown_ir::Block::Paragraph { ref content } if content.iter().any(|inline| matches!(inline, notedown_ir::Inline::Styled { style, .. } if style == "image")))));
+    assert_eq!(document.assets.len(), 1, "one authored image occurrence maps to one asset");
+    assert_eq!(document.assets[0].source.as_deref(), Some("https://example.com/a.png"));
+    assert_eq!(document.relations.len(), 1);
+    assert!(document.blocks.iter().any(|node| match &node.block {
+        notedown_ir::Block::Paragraph { content } =>
+            content.iter().any(|inline| matches!(inline, notedown_ir::Inline::Image { asset: Some(_), .. })),
+        _ => false,
+    }));
 }
 
 #[test]

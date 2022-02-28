@@ -1,6 +1,6 @@
 use pandark_types::{ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact, InspectReport, InspectStage, ProbeStatus};
 
-use super::{Extractor, link_candidates_from_targets, oak_view, run_extract, select_extractor};
+use super::{Extractor, import_html_page, link_candidates_from_import, run_extract, select_extractor};
 
 /// Inspect a fetch artifact without committing IR.
 pub fn inspect_artifact(
@@ -21,9 +21,11 @@ pub fn inspect_artifact(
 
     if matches!(stage, InspectStage::Links | InspectStage::ExtractPlan) {
         if let Some(bytes) = artifact.body_bytes() {
-            let html = std::str::from_utf8(bytes).unwrap_or("");
-            let targets = oak_view::extract_link_targets(html, &artifact.final_url);
-            report.discovered_links = link_candidates_from_targets(&artifact.final_url, &targets);
+            let html = String::from_utf8_lossy(bytes);
+            if let Some(import) = import_html_page(&artifact.final_url, &html) {
+                report.discovered_links =
+                    link_candidates_from_import(&artifact.final_url, import.base_href.as_deref(), &import.links);
+            }
         }
     }
 

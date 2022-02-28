@@ -11,8 +11,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+notedown-formats = { workspace = true }
 notedown-ir = { workspace = true }
 pandark-types = { workspace = true }
-oak-core = { workspace = true }
-oak-html = { workspace = true }
 url = { workspace = true }

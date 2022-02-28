@@ -22,7 +22,7 @@ fn g_arch_wasm_capability_fixture() {
 
     let extract_json = extract_artifact_json_str(artifact_json).expect("extract_artifact_json_str");
     assert!(extract_json.contains("\"operation\":\"extract\""));
-    assert!(extract_json.contains("\"status\":\"complete\""));
+    assert!(extract_json.contains("\"status\":\"partial\""));
 
     let inspect_json = inspect_artifact_json_str(artifact_json, "links").expect("inspect_artifact_json_str");
     assert!(inspect_json.contains("\"discovered_links\""));

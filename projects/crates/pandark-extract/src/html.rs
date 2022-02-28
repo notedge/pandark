@@ -1,14 +1,15 @@
-use notedown_ir::{
-    Asset, AssetKind, Block, DocumentGraph, DocumentId, DocumentMetadata, IdAllocator, Inline, LossMarker, Relation,
-    RelationEndpoint, RelationKind, SemanticStatus, SourceKind, SourceRef,
-};
+use notedown_ir::{Block, DocumentGraph, DocumentId, Inline, LossMarker, SemanticStatus};
 use pandark_types::{
     ExtractBudget, ExtractContext, ExtractInput, ExtractResult, ExtractStatus, FetchArtifact, ProbeResult, ProbeStatus,
 };
 
-use super::{Extractor, link_candidates_from_targets, oak_view};
+use super::{Extractor, import_html_page, link_candidates_from_import, resolve_base_url};
 
-/// HTML extractor backed by Oak HTML parsing and traversal.
+/// HTML extractor backed by the `notedown-formats` HTML import.
+///
+/// The format layer owns document lowering, provenance, and loss. This
+/// extractor only applies crawl policy: base URI resolution for assets and
+/// navigation candidate classification.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct HtmlExtractor;
 
@@ -27,79 +28,37 @@ impl Extractor for HtmlExtractor {
 
     fn extract(&self, input: ExtractInput<'_>, ctx: &ExtractContext) -> ExtractResult {
         let artifact = input.artifact;
-        let body = artifact.body_bytes().unwrap_or(&[]);
-        let html = String::from_utf8_lossy(body);
-        let title = oak_view::extract_document_title(&html);
-        let text = oak_view::extract_body_text(&html);
-        let targets = oak_view::extract_link_targets(&html, &artifact.final_url);
-        let discovered_links = link_candidates_from_targets(&artifact.final_url, &targets);
-        let image_targets = targets
-            .iter()
-            .filter(|(_, hint)| matches!(*hint, "src" | "srcset"))
-            .map(|(target, _)| target.clone())
-            .collect::<Vec<_>>();
-
-        let page_identity = ctx.page_identity.clone().unwrap_or_else(|| artifact.final_url.to_string());
-        let mut document = DocumentGraph::new(page_document_id(&page_identity));
-        let mut ids = IdAllocator::default();
-        document.metadata = DocumentMetadata { title, language: None, authors: Vec::new(), tags: Vec::new() };
-        if !text.is_empty() {
-            let node = document.push_block(Block::Paragraph { content: vec![Inline::Text { text }] });
-            document.attach_source(SourceRef {
-                node,
-                kind: SourceKind::Synthetic { reason: format!("HTML body from {}", artifact.final_url) },
-                precision: SemanticStatus::Resolved,
-            });
-        }
+        let label = artifact.final_url.to_string();
+        let html = String::from_utf8_lossy(artifact.body_bytes().unwrap_or(&[]));
+        let Some(import) = import_html_page(&artifact.final_url, &html)
         else {
-            document.push_loss(LossMarker {
-                code: "pandark.extract.empty-body".into(),
-                message: "HTML body had no extractable text".into(),
-                status: SemanticStatus::Partial,
-            });
-        }
-
-        for source in image_targets {
-            let asset_id = ids.asset_id();
-            let node = document.push_block(Block::Paragraph {
-                content: vec![Inline::Styled {
-                    style: "image".into(),
-                    children: vec![
-                        Inline::Text { text: source.rsplit('/').next().unwrap_or("image").to_string() },
-                        Inline::Text { text: source.clone() },
-                    ],
+            return ExtractResult {
+                status: ExtractStatus::Failed,
+                source_url: artifact.final_url.clone(),
+                document: None,
+                discovered_links: Vec::new(),
+                losses: vec![LossMarker {
+                    code: "pandark.extract.html_import_failed".into(),
+                    message: format!("`notedown-formats` could not import HTML from {label}"),
+                    status: SemanticStatus::Partial,
                 }],
-            });
-            document.push_asset(Asset {
-                id: asset_id,
-                kind: AssetKind::Image,
-                content_identity: None,
-                source: Some(source.clone()),
-                media_type: media_type_for_url(&source),
-                status: SemanticStatus::Unresolved,
-                bytes: None,
-            });
-            document.push_relation(Relation {
-                id: ids.link_id(),
-                kind: RelationKind::Embeds,
-                source: RelationEndpoint::Node(node),
-                target: RelationEndpoint::Asset(asset_id),
-            });
-            document.attach_source(SourceRef {
-                node,
-                kind: SourceKind::Synthetic { reason: format!("HTML image reference from {}", artifact.final_url) },
-                precision: SemanticStatus::Resolved,
-            });
-        }
+                extractor: "html".into(),
+            };
+        };
 
-        let validation = document.validate();
-        let losses = document.coverage.loss.clone();
-        let status = if validation.is_valid() {
+        let discovered_links = link_candidates_from_import(&artifact.final_url, import.base_href.as_deref(), &import.links);
+        let base_url = resolve_base_url(&artifact.final_url, import.base_href.as_deref());
+        let mut document = import.document;
+        document.id = page_document_id(ctx.page_identity.as_deref().unwrap_or(&label));
+        resolve_asset_targets(&mut document, &base_url);
+
+        let status = if document.validate().is_valid() {
             if document.coverage.complete { ExtractStatus::Complete } else { ExtractStatus::Partial }
         }
         else {
             ExtractStatus::Failed
         };
+        let losses = document.coverage.loss.clone();
 
         ExtractResult {
             status,
@@ -112,18 +71,61 @@ impl Extractor for HtmlExtractor {
     }
 }
 
-fn media_type_for_url(url: &str) -> Option<String> {
-    let extension = url.split('?').next().and_then(|value| value.rsplit('.').next())?.to_ascii_lowercase();
-    let media_type = match extension.as_str() {
-        "avif" => "image/avif",
-        "gif" => "image/gif",
-        "jpeg" | "jpg" => "image/jpeg",
-        "png" => "image/png",
-        "svg" => "image/svg+xml",
-        "webp" => "image/webp",
-        _ => return None,
-    };
-    Some(media_type.into())
+/// Resolve asset targets against the document base URI so downloads and
+/// reports see absolute locations. The format layer keeps authored targets.
+fn resolve_asset_targets(document: &mut DocumentGraph, base_url: &url::Url) {
+    for asset in &mut document.assets {
+        let Some(source) = asset.source.clone()
+        else {
+            continue;
+        };
+        if let Some(resolved) = resolve_target(base_url, &source) {
+            asset.source = Some(resolved);
+        }
+    }
+    for node in &mut document.blocks {
+        resolve_block_targets(&mut node.block, base_url);
+    }
+}
+
+fn resolve_block_targets(block: &mut Block, base_url: &url::Url) {
+    match block {
+        Block::Section { title, .. } => resolve_inline_targets(title, base_url),
+        Block::Paragraph { content } | Block::Quote { content } => resolve_inline_targets(content, base_url),
+        Block::List { items, .. } => {
+            for item in items {
+                resolve_inline_targets(&mut item.content, base_url);
+            }
+        }
+        Block::Table { rows } => {
+            for row in rows {
+                for cell in &mut row.cells {
+                    resolve_inline_targets(cell, base_url);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn resolve_inline_targets(inlines: &mut [Inline], base_url: &url::Url) {
+    for inline in inlines {
+        match inline {
+            Inline::Image { source, .. } if !source.is_empty() => {
+                if let Some(resolved) = resolve_target(base_url, source) {
+                    *source = resolved;
+                }
+            }
+            Inline::Styled { children, .. } | Inline::Attributed { children, .. } => {
+                resolve_inline_targets(children, base_url);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn resolve_target(base_url: &url::Url, target: &str) -> Option<String> {
+    url::Url::parse(target).or_else(|_| base_url.join(target)).ok().map(|url| url.to_string())
 }
 
 fn page_document_id(page_identity: &str) -> DocumentId {

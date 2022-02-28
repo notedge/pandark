@@ -45,5 +45,5 @@ fn normal_snapshot_extracts() {
         &ExtractContext::default(),
     )
     .expect("extract");
-    assert_eq!(result.status, ExtractStatus::Complete);
+    assert_eq!(result.status, ExtractStatus::Partial);
 }

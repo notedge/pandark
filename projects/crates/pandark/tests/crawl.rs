@@ -358,6 +358,6 @@ fn extract_mode_reuses_artifact_without_transport() {
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
     let result = run_extract(&artifact, &extractors, ExtractBudget::default(), &ExtractContext::default());
-    assert_eq!(result.status, ExtractStatus::Complete);
+    assert_eq!(result.status, ExtractStatus::Partial);
     assert!(result.document.is_some());
 }
