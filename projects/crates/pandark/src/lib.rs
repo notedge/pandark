@@ -51,7 +51,6 @@ pub use frontier::{FrontierQueue, frontier_from_links};
 pub use input::{InputFormat, LoadedInput, load_input, parse_input_format};
 pub use inspect::{inspect_artifact, inspect_snapshot};
 pub use markdown_project::{PublishedPageProject, publish_extracted_page};
-pub use pandark_extract::{extract_body_text, extract_document_title, extract_hrefs};
 pub use pandark_fetch::{
     DiskResponseCache, FetchClient, FetchRequest, FileTransport, HttpTransport, MemoryEntry, MemoryTransport, ResponseCache,
     RobotsPolicy, SeedTransport, Transport, build_artifact, fetch_url, map_transport_error, transport_for_url,

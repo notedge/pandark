@@ -21,9 +21,7 @@ boost-diagnostic = { git = "https://github.com/oovm/rust-boost", rev = "2218a644
 boost-log = { git = "https://github.com/oovm/rust-boost", rev = "2218a644af335aa4cef9f3e9e6b37475a829cfe2" }
 boost-http = { git = "https://github.com/oovm/rust-boost", rev = "2218a644af335aa4cef9f3e9e6b37475a829cfe2" }
 # Overlaid by local path `.cargo/config.toml` (git ignored).
-oak-core = { git = "https://github.com/yggdrasil-language/oak.rs.git", rev = "5ad929047783b8750191b3d8dc25a94bd88681e4" }
 oak-xml = { git = "https://github.com/yggdrasil-language/oak.rs.git", rev = "5ad929047783b8750191b3d8dc25a94bd88681e4", default-features = false }
-oak-html = { git = "https://github.com/yggdrasil-language/oak.rs.git", rev = "5ad929047783b8750191b3d8dc25a94bd88681e4", default-features = false }
 # Overlaid by local path `.cargo/config.toml` (git ignored).
 notedown-ir = { git = "https://github.com/notedge/notedown.git", branch = "dev" }
 notedown-formats = { git = "https://github.com/notedge/notedown.git", branch = "dev", default-features = false, features = ["markdown", "html"] }
