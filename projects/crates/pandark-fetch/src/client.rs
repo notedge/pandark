@@ -16,6 +16,31 @@ use super::{
     robots_txt::site_key_for_url,
 };
 
+/// Maximum retries for retryable HTTP status codes with `Retry-After` or exponential backoff.
+const MAX_HTTP_RETRIES: usize = 3;
+
+/// Whether an HTTP status warrants a retry after a delay.
+fn is_retryable_status(status: u16) -> bool {
+    matches!(status, 429 | 500 | 502 | 503)
+}
+
+/// Compute the delay before the next retry attempt.
+///
+/// Prefers the `Retry-After` header (numeric seconds only); falls back to exponential
+/// backoff bounded at 30 seconds. Returns `None` when the status is not retryable.
+fn compute_retry_delay(artifact: &FetchArtifact, attempt: usize) -> Option<Duration> {
+    if !is_retryable_status(artifact.status) {
+        return None;
+    }
+    if let Some(raw) = artifact.response_headers.get("retry-after") {
+        if let Ok(seconds) = raw.trim().parse::<u64>() {
+            return Some(Duration::from_secs(seconds));
+        }
+    }
+    let expo = 2u64.pow(attempt.min(4) as u32).min(30);
+    Some(Duration::from_secs(expo))
+}
+
 /// Fetch orchestration with robots checks and response caching.
 pub struct FetchClient<T: Transport> {
     transport: T,
@@ -78,7 +103,19 @@ impl<T: Transport> FetchClient<T> {
 
         self.wait_for_crawl_delay(&request.url);
         self.last_site_requests.insert(site_key_for_url(&request.url), Instant::now());
-        let artifact = self.transport.fetch(request)?;
+        let mut artifact = self.transport.fetch(request)?;
+
+        for attempt in 0..MAX_HTTP_RETRIES {
+            let Some(delay) = compute_retry_delay(&artifact, attempt)
+            else {
+                break;
+            };
+            thread::sleep(delay);
+            self.wait_for_crawl_delay(&request.url);
+            self.last_site_requests.insert(site_key_for_url(&request.url), Instant::now());
+            artifact = self.transport.fetch(request)?;
+        }
+
         let key = self.cache.put(artifact)?;
         Ok(self.cache.get(&key)?.expect("artifact inserted into cache"))
     }

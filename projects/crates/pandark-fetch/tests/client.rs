@@ -1,10 +1,48 @@
 //! Extracted from `src/client.rs`.
 
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use pandark_fetch::{FetchClient, MemoryEntry, MemoryTransport, RobotsPolicy, fetch_url, site_key_for_url};
-use pandark_types::{CrawlError, PolitenessProfile, TransportProvenance};
+use pandark_fetch::{FetchClient, MemoryEntry, MemoryTransport, RobotsPolicy, Transport, fetch_url, site_key_for_url};
+use pandark_types::{CrawlError, FetchArtifact, HttpStatus, PolitenessProfile, TransportProvenance, BodyStorage};
 use url::Url;
+
+/// Test transport that plays back artifacts or errors in FIFO order.
+#[derive(Clone)]
+struct SeqTransport {
+    queue: Arc<Mutex<Vec<std::result::Result<FetchArtifact, CrawlError>>>>,
+}
+
+impl SeqTransport {
+    fn new(items: Vec<std::result::Result<FetchArtifact, CrawlError>>) -> Self {
+        Self { queue: Arc::new(Mutex::new(items)) }
+    }
+
+    fn remaining(&self) -> usize {
+        self.queue.lock().unwrap().len()
+    }
+
+    fn artifact(url: &str, status: HttpStatus, headers: BTreeMap<String, String>, body: &[u8]) -> FetchArtifact {
+        let request_url = Url::parse(url).unwrap();
+        pandark_fetch::build_artifact(
+            request_url.clone(),
+            request_url,
+            status,
+            headers,
+            BodyStorage::inline(body),
+            Vec::new(),
+            TransportProvenance::Test,
+            None,
+        )
+    }
+}
+
+impl Transport for SeqTransport {
+    fn fetch(&self, _request: &pandark_fetch::FetchRequest) -> std::result::Result<FetchArtifact, CrawlError> {
+        self.queue.lock().unwrap().remove(0)
+    }
+}
 
 #[test]
 fn cache_hit_marks_provenance() {
@@ -87,4 +125,44 @@ fn failed_transport_attempt_keeps_site_timing_state() {
     let mut client = FetchClient::new(MemoryTransport::new(), policy);
     fetch_url(&mut client, url).expect_err("missing fixture");
     assert!(client.has_tracked_site(&site));
+}
+
+#[test]
+fn retries_429_after_retry_after_header_until_success() {
+    let url = Url::parse("file:///seq").expect("url");
+    let transport = SeqTransport::new(vec![
+        Ok(SeqTransport::artifact(
+            url.as_str(),
+            429,
+            BTreeMap::from([("retry-after".into(), "1".into())]),
+            b"rate-limited".as_slice(),
+        )),
+        Ok(SeqTransport::artifact(
+            url.as_str(),
+            200,
+            Default::default(),
+            b"ok".as_slice(),
+        )),
+    ]);
+    let mut client = FetchClient::new(transport.clone(), RobotsPolicy::from_profile(PolitenessProfile::Developer));
+    let started = Instant::now();
+    let artifact = fetch_url(&mut client, url).expect("success after retry");
+    assert_eq!(artifact.status, 200);
+    assert!(started.elapsed() >= Duration::from_millis(900), "Retry-After should have caused at least 1s delay");
+    assert_eq!(transport.remaining(), 0, "both queued artifacts should be consumed");
+}
+
+#[test]
+fn retries_stop_after_max_attempts_and_keep_final_status() {
+    let url = Url::parse("file:///seq").expect("url");
+    let transport = SeqTransport::new(vec![
+        Ok(SeqTransport::artifact(url.as_str(), 429, BTreeMap::from([("retry-after".into(), "1".into())]), b"too-busy")),
+        Ok(SeqTransport::artifact(url.as_str(), 429, BTreeMap::from([("retry-after".into(), "1".into())]), b"too-busy")),
+        Ok(SeqTransport::artifact(url.as_str(), 429, BTreeMap::from([("retry-after".into(), "1".into())]), b"too-busy")),
+        Ok(SeqTransport::artifact(url.as_str(), 429, BTreeMap::from([("retry-after".into(), "1".into())]), b"too-busy")),
+    ]);
+    let mut client = FetchClient::new(transport.clone(), RobotsPolicy::from_profile(PolitenessProfile::Developer));
+    let artifact = fetch_url(&mut client, url).expect("final 429 returned as artifact");
+    assert_eq!(artifact.status, 429, "retry loop should stop after MAX_HTTP_RETRIES");
+    assert_eq!(transport.remaining(), 0, "all queued artifacts should be consumed (1 initial + 3 retries)");
 }
