@@ -108,6 +108,22 @@ impl DiskResponseCache {
             .count())
     }
 
+    /// Cached ETag and Last-Modified pair for a request URL, if both were stored.
+    pub fn validators_for_url(&self, request_url: &str) -> Result<Option<(String, String)>> {
+        let entry_dir = self.entry_dir(request_url);
+        let meta_path = entry_dir.join("meta.json");
+        if !meta_path.is_file() {
+            return Ok(None);
+        }
+        let meta_bytes = fs::read(&meta_path).map_err(|error| map_io_error("read cache meta", &meta_path, error))?;
+        let entry: DiskCacheEntry = serde_json::from_slice(&meta_bytes)
+            .map_err(|error| CrawlError::InvalidInput(format!("parse cache meta `{}`: {error}", meta_path.display())))?;
+        Ok(match (entry.etag, entry.last_modified) {
+            (Some(etag), Some(last_modified)) => Some((etag, last_modified)),
+            _ => None,
+        })
+    }
+
     fn entry_dir(&self, cache_key: &str) -> PathBuf {
         self.root.join("entries").join(hash_cache_key(cache_key))
     }
@@ -193,6 +209,19 @@ impl LayeredResponseCache {
     /// Mutable in-memory cache access for tests.
     pub fn memory_mut(&mut self) -> &mut ResponseCache {
         &mut self.memory
+    }
+
+    /// Validators from the memory layer by cache key.
+    pub fn validators_for_cache_key(&self, cache_key: &str) -> Option<(String, String)> {
+        self.memory.validators_for(cache_key)
+    }
+
+    /// Validators from the disk layer by request URL.
+    pub fn validators_for_url(&self, request_url: &str) -> Result<Option<(String, String)>> {
+        if let Some(disk) = self.disk.as_ref() {
+            return disk.validators_for_url(request_url);
+        }
+        Ok(None)
     }
 }
 

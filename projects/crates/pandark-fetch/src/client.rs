@@ -92,12 +92,16 @@ impl<T: Transport> FetchClient<T> {
         }
 
         let request_key = request.url.to_string();
-        if let Some(cached) = self.cache.get_by_request_url(&request_key)? {
-            return Ok(with_cache_provenance(cached));
-        }
-
         let cache_key = super::cache_key_for(&request.url, None);
-        if let Some(cached) = self.cache.get(&cache_key)? {
+
+        // Cache hit — drop the cache-layer &mut borrow before attempting revalidation
+        // (which needs &mut self for transport fetch and cache put).
+        let cached = self.cache.get_by_request_url(&request_key)?.or_else(|| self.cache.get(&cache_key).ok().flatten());
+
+        if let Some(cached) = cached {
+            if let Some(revalidated) = self.try_revalidate(request, &cached)? {
+                return Ok(revalidated);
+            }
             return Ok(with_cache_provenance(cached));
         }
 
@@ -118,6 +122,39 @@ impl<T: Transport> FetchClient<T> {
 
         let key = self.cache.put(artifact)?;
         Ok(self.cache.get(&key)?.expect("artifact inserted into cache"))
+    }
+
+    fn try_revalidate(&mut self, request: &FetchRequest, cached: &FetchArtifact) -> Result<Option<FetchArtifact>> {
+        let request_url = request.url.to_string();
+        let cache_key = super::cache_key_for(&request.url, None);
+        let (etag, last_modified) = match self.cache.validators_for_url(&request_url)? {
+            Some(v) => v,
+            None => match self.cache.validators_for_cache_key(&cache_key) {
+                Some(v) => v,
+                None => return Ok(None),
+            },
+        };
+
+        let mut cond_request = request.clone();
+        cond_request.headers.insert("if-none-match".into(), etag);
+        cond_request.headers.insert("if-modified-since".into(), last_modified);
+
+        self.wait_for_crawl_delay(&request.url);
+        self.last_site_requests.insert(site_key_for_url(&request.url), Instant::now());
+        match self.transport.fetch(&cond_request) {
+            Ok(artifact) if artifact.status == 304 => {
+                let mut result = artifact;
+                result.body = cached.body.clone();
+                result.transport_provenance = TransportProvenance::CacheHit;
+                let _ = self.cache.put(result.clone())?;
+                Ok(Some(result))
+            }
+            Ok(artifact) => {
+                let key = self.cache.put(artifact.clone())?;
+                Ok(Some(self.cache.get(&key)?.expect("artifact inserted")))
+            }
+            Err(_) => Ok(None),
+        }
     }
 
     fn wait_for_crawl_delay(&self, url: &Url) {

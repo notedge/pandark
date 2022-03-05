@@ -35,4 +35,12 @@ impl ResponseCache {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+
+    /// ETag and Last-Modified response headers from a cached artifact, when both are present.
+    pub fn validators_for(&self, cache_key: &str) -> Option<(String, String)> {
+        let artifact = self.entries.get(cache_key)?;
+        let etag = artifact.response_headers.get("etag")?.clone();
+        let last_modified = artifact.response_headers.get("last-modified")?.clone();
+        Some((etag, last_modified))
+    }
 }
