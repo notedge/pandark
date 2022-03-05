@@ -344,6 +344,56 @@ fn disk_cache_reuses_response_without_transport() {
 }
 
 #[test]
+fn crawl_discovers_sitemap_urls_after_robots_loaded() {
+    let mut transport = MemoryTransport::new();
+    transport.insert(
+        "https://example.com/robots.txt",
+        MemoryEntry {
+            status: 200,
+            headers: BTreeMap::from([("content-type".into(), "text/plain".into())]),
+            body: b"User-agent: *\nSitemap: https://example.com/sitemap.xml\n".to_vec(),
+        },
+    );
+    transport.insert(
+        "https://example.com/",
+        MemoryEntry {
+            status: 200,
+            headers: BTreeMap::from([("content-type".into(), "text/html".into())]),
+            body: br#"<html><head><title>Home</title></head><body>home</body></html>"#.to_vec(),
+        },
+    );
+    transport.insert(
+        "https://example.com/sitemap.xml",
+        MemoryEntry {
+            status: 200,
+            headers: BTreeMap::from([("content-type".into(), "application/xml".into())]),
+            body: br#"<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://example.com/from-sitemap</loc></url>
+</urlset>"#.to_vec(),
+        },
+    );
+    transport.insert(
+        "https://example.com/from-sitemap",
+        MemoryEntry {
+            status: 200,
+            headers: BTreeMap::from([("content-type".into(), "text/html".into())]),
+            body: br#"<html><head><title>Sitemap</title></head><body>from sitemap</body></html>"#.to_vec(),
+        },
+    );
+    let request = CrawlRequest::from_seed("https://example.com/").expect("seed");
+    let html = HtmlExtractor;
+    let extractors: [&dyn Extractor; 1] = [&html];
+    let output = run_crawl(request, transport, &extractors).expect("crawl");
+    assert_eq!(output.report.committed, 2);
+    assert!(output.report.events.events().iter().any(|event| matches!(
+        event,
+        CrawlEvent::Discovered { url, .. }
+            if url.as_str() == "https://example.com/from-sitemap"
+    )));
+}
+
+#[test]
 fn extract_mode_reuses_artifact_without_transport() {
     let artifact = pandark_fetch::build_artifact(
         url::Url::parse("https://example.com/page").expect("url"),

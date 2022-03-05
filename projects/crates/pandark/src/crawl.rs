@@ -1,7 +1,7 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use crate::browser::{BrowserProvider, snapshot_to_fetch_artifact};
-use pandark_fetch::{FetchClient, FetchRequest, RobotsPolicy, Transport};
+use pandark_fetch::{FetchClient, FetchRequest, RobotsPolicy, Transport, site_key_for_url};
 use pandark_types::{
     AdmissionDecision, BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlError, CrawlEvent,
     CrawlReport, CrawlRequest, ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact, FrontierItem, PageChallengeState,
@@ -13,6 +13,7 @@ use crate::{
     extract::{Extractor, run_extract},
     frontier::{FrontierQueue, frontier_from_links},
     initial_report,
+    sitemap,
     transaction::commit_page,
 };
 use pandark_types::PageTransaction;
@@ -140,6 +141,7 @@ fn run_crawl_loop<T: Transport>(
     let mut committed_pages = Vec::new();
     let mut artifacts = Vec::new();
     let extract_budget = ExtractBudget::default();
+    let mut sitemap_discovered = HashSet::new();
 
     while let Some(item) = state.queue.pop() {
         if state.requests_used >= request.budget.max_requests {
@@ -192,6 +194,13 @@ fn run_crawl_loop<T: Transport>(
                 }
             }
         };
+
+        let host_key = site_key_for_url(&item.request_url);
+        if sitemap_discovered.insert(host_key) {
+            if !client.robots().sitemaps_for_url(&item.request_url).is_empty() {
+                sitemap::discover(&mut state, &item, &mut client, &mut sitemap_discovered);
+            }
+        }
 
         process_fetched_item(
             &mut state,
