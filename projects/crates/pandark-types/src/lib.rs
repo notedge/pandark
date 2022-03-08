@@ -31,7 +31,7 @@ pub use crate::{
     inspect::{InspectReport, InspectStage},
     request::{BrowserFallbackPolicy, CrawlBudget, CrawlRequest, CrawlSeed, PolitenessProfile},
     result::{CrawlPageStatus, CrawlReport},
-    url::{canonicalize_parsed_url, canonicalize_request_url, now_epoch, site_key},
+    url::{MAX_URL_LENGTH, canonicalize_parsed_url, canonicalize_request_url, now_epoch, site_key},
 };
 
 /// Notedown document semantic IR — Pandark extraction hub type.

@@ -15,11 +15,25 @@ pub fn canonicalize_request_url(raw: &str) -> Result<Url> {
     canonicalize_parsed_url(parsed)
 }
 
+/// Maximum request URL length accepted before admission.
+pub const MAX_URL_LENGTH: usize = 8192;
+
 /// Canonicalize an already parsed URL.
 pub fn canonicalize_parsed_url(mut url: Url) -> Result<Url> {
     if url.scheme() != "http" && url.scheme() != "https" && url.scheme() != "file" {
         return Err(CrawlError::InvalidInput(format!("unsupported URL scheme `{}`", url.scheme())));
     }
+
+    if url.as_str().len() > MAX_URL_LENGTH {
+        return Err(CrawlError::InvalidInput(format!(
+            "URL exceeds maximum length {} bytes (got {})",
+            MAX_URL_LENGTH,
+            url.as_str().len()
+        )));
+    }
+
+    // Fragments never leave the client; strip to avoid frontier duplicate entries.
+    url.set_fragment(None);
 
     let host = url.host_str().ok_or_else(|| CrawlError::InvalidInput("URL must include a host".into()))?.to_ascii_lowercase();
     url.set_host(Some(&host)).map_err(|error| CrawlError::InvalidInput(error.to_string()))?;
@@ -34,9 +48,6 @@ pub fn canonicalize_parsed_url(mut url: Url) -> Result<Url> {
     }
     while path.contains("//") {
         path = path.replace("//", "/");
-    }
-    if path.len() > 1 && path.ends_with('/') && !path.ends_with("/./") {
-        // keep trailing slash for directory-like paths
     }
     url.set_path(&path);
 
