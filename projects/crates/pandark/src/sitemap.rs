@@ -1,13 +1,21 @@
 use std::{
     collections::{BTreeMap, HashSet},
-    io::Read,
 };
 
+use acorn_codec::{CodecLimits, compression::gzip::Gzip};
 use oak_xml::ast::XmlValue;
 use pandark_fetch::{FetchClient, FetchRequest, Transport};
 use pandark_types::{CrawlError, CrawlEvent, DiscoverySource, FrontierItem, Result};
 
 use crate::crawl::CrawlState;
+
+/// Maximum sitemap body budget before gzip decoding.
+const SITEMAP_BUDGET_BYTES: u64 = 1024 * 1024;
+
+/// Creates codec limits tuned for sitemap decoding.
+fn sitemap_limits() -> CodecLimits {
+    CodecLimits::new().with_max_output_bytes(SITEMAP_BUDGET_BYTES + 1)
+}
 
 /// Maximum number of sitemap locations accepted per document.
 pub const MAX_SITEMAP_LOCATIONS: usize = 10_000;
@@ -71,17 +79,13 @@ pub fn sitemap_body(artifact: &pandark_types::FetchArtifact) -> Result<Vec<u8>> 
     let decoded = match encoding.as_deref() {
         None | Some("") | Some("identity") => body.to_vec(),
         Some("gzip") | Some("x-gzip") => {
-            let decoder = flate2::read::GzDecoder::new(body);
-            let mut decoded = Vec::new();
-            decoder
-                .take(1024 * 1024 + 1)
-                .read_to_end(&mut decoded)
+            let facts = Gzip::decode(body, sitemap_limits())
                 .map_err(|error| CrawlError::InvalidInput(format!("sitemap gzip decode failed: {error}")))?;
-            decoded
+            facts.value
         }
         Some(other) => return Err(CrawlError::InvalidInput(format!("unsupported sitemap content encoding `{other}`"))),
     };
-    if decoded.len() > 1024 * 1024 {
+    if decoded.len() > SITEMAP_BUDGET_BYTES as usize {
         return Err(CrawlError::InvalidInput("sitemap exceeds one MiB decoded XML budget".into()));
     }
     Ok(decoded)

@@ -5,6 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use boost_random::{Random, Secure};
 use pandark_types::{CrawlError, FetchArtifact, Result, TransportProvenance};
 use url::Url;
 
@@ -19,15 +20,44 @@ use super::{
 /// Maximum retries for retryable HTTP status codes with `Retry-After` or exponential backoff.
 const MAX_HTTP_RETRIES: usize = 3;
 
+/// Fraction of the computed backoff used as a symmetric ±jitter window.
+/// The final delay is `backoff ± backoff * JITTER_FRACTION`.
+const JITTER_FRACTION: f64 = 0.25;
+
+/// Classify an HTTP response status for crawl policy decisions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HttpStatusClass {
+    /// Normal — proceed with extract pipeline (2xx, informational, or non-error client 3xx).
+    Proceed,
+    /// Permanent failure — do not retry and do not re-enqueue.
+    /// Includes 404 Not Found and 410 Gone.
+    PermanentFailure,
+    /// Temporary failure — retry after a delay (429, 500, 502, 503).
+    Retryable,
+    /// Client error — do not retry, but not marked as permanent (401, 403).
+    ClientError,
+}
+
+/// Classify an HTTP status code into a crawl policy bucket.
+pub fn classify_http_status(status: u16) -> HttpStatusClass {
+    match status {
+        404 | 410 => HttpStatusClass::PermanentFailure,
+        429 | 500 | 502 | 503 => HttpStatusClass::Retryable,
+        401 | 403 => HttpStatusClass::ClientError,
+        _ => HttpStatusClass::Proceed,
+    }
+}
+
 /// Whether an HTTP status warrants a retry after a delay.
 fn is_retryable_status(status: u16) -> bool {
-    matches!(status, 429 | 500 | 502 | 503)
+    matches!(classify_http_status(status), HttpStatusClass::Retryable)
 }
 
 /// Compute the delay before the next retry attempt.
 ///
-/// Prefers the `Retry-After` header (numeric seconds only); falls back to exponential
-/// backoff bounded at 30 seconds. Returns `None` when the status is not retryable.
+/// Prefers the `Retry-After` header (numeric seconds only); falls back to
+/// exponential backoff bounded at 30 seconds with ±25% jitter. Returns `None`
+/// when the status is not retryable.
 fn compute_retry_delay(artifact: &FetchArtifact, attempt: usize) -> Option<Duration> {
     if !is_retryable_status(artifact.status) {
         return None;
@@ -37,8 +67,24 @@ fn compute_retry_delay(artifact: &FetchArtifact, attempt: usize) -> Option<Durat
             return Some(Duration::from_secs(seconds));
         }
     }
-    let expo = 2u64.pow(attempt.min(4) as u32).min(30);
-    Some(Duration::from_secs(expo))
+    let base_secs = 2u64.pow(attempt.min(4) as u32).min(30);
+    let jittered = apply_jitter(base_secs);
+    Some(Duration::from_secs(jittered.max(1)))
+}
+
+/// Apply ±25% jitter to a base seconds value.
+///
+/// Uses the current monotonic clock's nanosecond fraction as a cheap random
+/// source so we don't need a dedicated RNG dependency.
+fn apply_jitter(base: u64) -> u64 {
+    // Sample a uniform f64 in [0, 1) from the OS entropy source.
+    let frac = Random::new(Secure::system())
+        .unit_f64()
+        .unwrap_or_else(|_| 0.5);
+    // Map to [-1, 1], scale by JITTER_FRACTION, apply symmetric ±jitter.
+    let offset = (frac - 0.5) * 2.0 * JITTER_FRACTION;
+    let jittered = base as f64 * (1.0 + offset);
+    jittered.round() as u64
 }
 
 /// Fetch orchestration with robots checks and response caching.

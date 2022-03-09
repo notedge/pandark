@@ -159,7 +159,22 @@ fn run_crawl_loop<T: Transport>(
         state.requests_used += 1;
         let fetch_request = FetchRequest { url: item.request_url.clone(), headers: BTreeMap::new() };
         let artifact = match client.fetch(&fetch_request) {
-            Ok(artifact) => artifact,
+            Ok(artifact) => {
+                // Classify HTTP status before feeding into extract pipeline.
+                let status_class = pandark_fetch::classify_http_status(artifact.status);
+                match status_class {
+                    pandark_fetch::HttpStatusClass::PermanentFailure => {
+                        record_skipped(&mut state, &item, &format!("permanent-http-failure:{}", artifact.status));
+                        continue;
+                    }
+                    pandark_fetch::HttpStatusClass::ClientError => {
+                        // 401/403 — don't extract, don't retry.
+                        record_skipped(&mut state, &item, &format!("client-http-error:{}", artifact.status));
+                        continue;
+                    }
+                    pandark_fetch::HttpStatusClass::Proceed | pandark_fetch::HttpStatusClass::Retryable => artifact,
+                }
+            }
             Err(error) => {
                 let fetch_error = error.to_string();
                 match try_browser_fallback(&item, options) {

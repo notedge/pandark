@@ -1,8 +1,9 @@
 //! Extracted from `src/sitemap.rs`.
 
+use acorn_codec::compression::deflate::DeflateLevel;
+use acorn_codec::compression::gzip::Gzip;
 use pandark_fetch::build_artifact;
 use pandark_types::{BodyStorage, TransportProvenance};
-use std::io::Write;
 use url::Url;
 
 use pandark::{MAX_SITEMAP_LOCATIONS, locations, sitemap_body};
@@ -31,10 +32,7 @@ fn rejects_excessive_location_count() {
 
 #[test]
 fn decodes_gzip_and_rejects_unknown_encoding() {
-    let mut compressed = Vec::new();
-    let mut encoder = flate2::write::GzEncoder::new(&mut compressed, flate2::Compression::fast());
-    encoder.write_all(b"<urlset/>").expect("compress");
-    encoder.finish().expect("finish");
+    let compressed = Gzip::encode(b"<urlset/>", DeflateLevel::Fast);
     let url = Url::parse("https://example.com/map.xml").expect("url");
     let artifact = build_artifact(
         url.clone(),
