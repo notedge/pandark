@@ -14,6 +14,7 @@ doctest = false
 notedown-ir = { workspace = true }
 serde = { workspace = true }
 url = { workspace = true }
+boost-diagnostic = { workspace = true }
 
 [[test]]
 name = "g_arch_types_no_backend_deps"

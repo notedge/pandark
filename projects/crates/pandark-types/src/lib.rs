@@ -2,6 +2,8 @@
 #![warn(missing_docs, rustdoc::missing_crate_level_docs)]
 #![doc = include_str!("readme.md")]
 
+pub mod diagnostics;
+
 mod artifact;
 mod browser;
 mod challenge;
@@ -22,6 +24,7 @@ pub use crate::{
     },
     challenge::{ChallengeOutcome, apply_challenge_policy},
     checkpoint::CrawlCheckpoint,
+    diagnostics::{NAMESPACE as DIAGNOSTIC_NAMESPACE, code, origin_browser, origin_crawl, origin_extract, origin_fetch, origin_fetch_http, origin_frontier, origin_politeness, origin_robots, origin_store},
     error::{CrawlError, Result},
     events::{CrawlEvent, EventLog, PageTransaction},
     extract::{
