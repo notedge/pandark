@@ -6,7 +6,7 @@ inspect.
 
 Install `@notedge/pandark` on Node 20 or newer. Use the **`pandark` CLI**, **`createPandark()`**, or **`@notedge/pandark-skills`** for agent workflows.
 
-**Current release (0.0.4):** working extract, inspect, plan, fetch, and crawl APIs, but **not** a production crawler
+**Current release (0.0.5):** working extract, inspect, plan, fetch, and crawl APIs, but **not** a production crawler
 yet. Start with saved HTML or small scoped seeds before large site jobs.
 
 ## 🤖 Use with an agent
