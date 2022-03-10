@@ -5,8 +5,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
 use boost_random::{Random, Secure};
-use pandark_types::{CrawlError, FetchArtifact, Result, TransportProvenance};
+use pandark_types::{CrawlError, FetchArtifact, Result, TransportProvenance, diagnostics as pd};
 use url::Url;
 
 use super::{
@@ -134,7 +135,15 @@ impl<T: Transport> FetchClient<T> {
         }
 
         if !self.robots.is_allowed(&request.url) {
-            return Err(CrawlError::InvalidInput(format!("robots policy denied `{}`", request.url)));
+            let diagnostic = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::ROBOTS_DENIED),
+                DiagnosticSeverity::Warning,
+                pd::origin_robots(),
+                Message::new("pandark.diagnostic.robotsDenied")
+                    .with_arg("url", MessageArg::Text(request.url.to_string()))
+                    .with_fallback(format!("robots policy denied `{}`", request.url)),
+            );
+            return Err(CrawlError::from(diagnostic));
         }
 
         let request_key = request.url.to_string();

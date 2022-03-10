@@ -18,6 +18,7 @@ url = { workspace = true }
 boost-http = { workspace = true }
 boost-log = { workspace = true, optional = true }
 boost-random = { workspace = true }
+boost-diagnostic = { workspace = true }
 
 [features]
 default = []

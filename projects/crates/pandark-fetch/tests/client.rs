@@ -62,7 +62,8 @@ fn robots_denies_admin_path() {
     let mut client = FetchClient::new(transport, RobotsPolicy::from_profile(PolitenessProfile::Conservative));
     let url = Url::parse("https://example.com/admin/page").expect("url");
     let error = fetch_url(&mut client, url).expect_err("denied");
-    assert!(matches!(error, CrawlError::InvalidInput(_)));
+    assert!(matches!(error, CrawlError::Diagnostic(_)));
+    assert_eq!(error.code(), Some("pandark.robots.denied"));
 }
 
 #[test]
@@ -79,7 +80,8 @@ fn loads_robots_txt_before_fetching_page() {
     fetch_url(&mut client, allowed.clone()).expect("allowed page");
     let denied = Url::parse("https://example.com/secret/page").expect("url");
     let error = fetch_url(&mut client, denied).expect_err("denied by robots.txt");
-    assert!(matches!(error, CrawlError::InvalidInput(_)));
+    assert!(matches!(error, CrawlError::Diagnostic(_)));
+    assert_eq!(error.code(), Some("pandark.robots.denied"));
     assert!(client.robots().has_site_rules(&allowed));
 }
 
@@ -93,7 +95,8 @@ fn missing_robots_txt_uses_fallback_paths() {
     let mut client = FetchClient::new(transport, RobotsPolicy::from_profile(PolitenessProfile::Conservative));
     let url = Url::parse("https://example.com/private/data").expect("url");
     let error = fetch_url(&mut client, url).expect_err("fallback deny");
-    assert!(matches!(error, CrawlError::InvalidInput(_)));
+    assert!(matches!(error, CrawlError::Diagnostic(_)));
+    assert_eq!(error.code(), Some("pandark.robots.denied"));
 }
 
 #[test]
