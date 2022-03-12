@@ -16,6 +16,7 @@ crate-type = ["rlib"]
 [dependencies]
 blake3 = { workspace = true }
 acorn-codec = { workspace = true }
+boost-diagnostic = { workspace = true }
 notedown-ir = { workspace = true }
 notedown-formats = { workspace = true }
 pandark-types = { workspace = true }

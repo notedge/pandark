@@ -3,9 +3,10 @@ use std::{
 };
 
 use acorn_codec::{CodecLimits, compression::gzip::Gzip};
+use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
 use oak_xml::ast::XmlValue;
 use pandark_fetch::{FetchClient, FetchRequest, Transport};
-use pandark_types::{CrawlError, CrawlEvent, DiscoverySource, FrontierItem, Result};
+use pandark_types::{CrawlError, CrawlEvent, DiscoverySource, FrontierItem, Result, diagnostics as pd};
 
 use crate::crawl::CrawlState;
 
@@ -25,8 +26,28 @@ pub fn locations(body: &[u8]) -> Result<(bool, Vec<String>)> {
     if body.len() > 1024 * 1024 {
         return Err(CrawlError::InvalidInput("sitemap exceeds one MiB XML budget".into()));
     }
-    let text = std::str::from_utf8(body).map_err(|error| CrawlError::InvalidInput(error.to_string()))?;
-    let document = oak_xml::parse(text).map_err(|error| CrawlError::InvalidInput(error.to_string()))?;
+    let text = std::str::from_utf8(body).map_err(|error| {
+        let diagnostic = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::EXTRACT_PARSE_FAILED),
+            DiagnosticSeverity::Error,
+            pd::origin_extract(),
+            Message::new("pandark.diagnostic.sitemapUtf8")
+                .with_arg("error", MessageArg::Text(error.to_string()))
+                .with_fallback(format!("sitemap UTF-8 decode failed: {error}")),
+        );
+        CrawlError::from(diagnostic)
+    })?;
+    let document = oak_xml::parse(text).map_err(|error| {
+        let diagnostic = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::EXTRACT_PARSE_FAILED),
+            DiagnosticSeverity::Error,
+            pd::origin_extract(),
+            Message::new("pandark.diagnostic.sitemapXmlParse")
+                .with_arg("error", MessageArg::Text(error.to_string()))
+                .with_fallback(format!("sitemap XML parse failed: {error}")),
+        );
+        CrawlError::from(diagnostic)
+    })?;
     let root = match &document {
         XmlValue::Element(root) => Some(root),
         XmlValue::Fragment(values) => values.iter().find_map(XmlValue::as_element),
@@ -79,14 +100,35 @@ pub fn sitemap_body(artifact: &pandark_types::FetchArtifact) -> Result<Vec<u8>> 
     let decoded = match encoding.as_deref() {
         None | Some("") | Some("identity") => body.to_vec(),
         Some("gzip") | Some("x-gzip") => {
-            let facts = Gzip::decode(body, sitemap_limits())
-                .map_err(|error| CrawlError::InvalidInput(format!("sitemap gzip decode failed: {error}")))?;
+            let facts = Gzip::decode(body, sitemap_limits()).map_err(|error| {
+                let diagnostic = boost_diagnostic::Diagnostic::new(
+                    pd::code(pd::FETCH_DECODE_FAILED),
+                    DiagnosticSeverity::Error,
+                    pd::origin_fetch(),
+                    Message::new("pandark.diagnostic.sitemapGzipDecode")
+                        .with_arg("error", MessageArg::Text(error.to_string()))
+                        .with_fallback(format!("sitemap gzip decode failed: {error}")),
+                );
+                CrawlError::from(diagnostic)
+            })?;
             facts.value
         }
         Some(other) => return Err(CrawlError::InvalidInput(format!("unsupported sitemap content encoding `{other}`"))),
     };
     if decoded.len() > SITEMAP_BUDGET_BYTES as usize {
-        return Err(CrawlError::InvalidInput("sitemap exceeds one MiB decoded XML budget".into()));
+        let diagnostic = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::FETCH_BODY_BUDGET),
+            DiagnosticSeverity::Error,
+            pd::origin_fetch(),
+            Message::new("pandark.diagnostic.sitemapBodyBudget")
+                .with_arg("budget_bytes", MessageArg::U64(SITEMAP_BUDGET_BYTES))
+                .with_arg("actual_bytes", MessageArg::U64(decoded.len() as u64))
+                .with_fallback(format!(
+                    "sitemap decoded body {} exceeds one MiB budget",
+                    decoded.len()
+                )),
+        );
+        return Err(CrawlError::from(diagnostic));
     }
     Ok(decoded)
 }
