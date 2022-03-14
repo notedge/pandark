@@ -1,6 +1,8 @@
+use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::diagnostics as pd;
 use crate::error::{CrawlError, Result};
 
 /// Politeness preset for crawl scheduling.
@@ -25,7 +27,18 @@ pub struct CrawlSeed {
 impl CrawlSeed {
     /// Parse a seed URL string.
     pub fn parse(url: &str) -> Result<Self> {
-        let parsed = Url::parse(url).map_err(|error| CrawlError::InvalidInput(error.to_string()))?;
+        let parsed = Url::parse(url).map_err(|error| {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::URL_INVALID),
+                DiagnosticSeverity::Error,
+                pd::origin_fetch(),
+                Message::new("pandark.diagnostic.seedUrl")
+                    .with_arg("input", MessageArg::Text(url.to_string()))
+                    .with_arg("error", MessageArg::Text(error.to_string()))
+                    .with_fallback(format!("invalid seed URL `{url}`: {error}")),
+            );
+            CrawlError::from(diag)
+        })?;
         Ok(Self { url: parsed })
     }
 }
@@ -77,7 +90,14 @@ impl CrawlRequest {
     pub fn from_seeds(urls: impl IntoIterator<Item = impl AsRef<str>>) -> Result<Self> {
         let seeds = urls.into_iter().map(|url| CrawlSeed::parse(url.as_ref())).collect::<Result<Vec<_>>>()?;
         if seeds.is_empty() {
-            return Err(CrawlError::InvalidInput("at least one seed is required".into()));
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::REQUEST_INVALID),
+                DiagnosticSeverity::Error,
+                pd::origin_fetch(),
+                Message::new("pandark.diagnostic.seedsEmpty")
+                    .with_fallback("at least one seed URL is required to build a CrawlRequest"),
+            );
+            return Err(CrawlError::from(diag));
         }
         Ok(Self { seeds, politeness: PolitenessProfile::Conservative, budget: CrawlBudget::default() })
     }
