@@ -12,6 +12,7 @@ publish = false
 
 [dependencies]
 blake3 = { workspace = true }
+boost-diagnostic = { workspace = true }
 pandark-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

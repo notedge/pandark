@@ -4,7 +4,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pandark_types::{BodyStorage, CrawlError, FetchArtifact, Result, TransportProvenance};
+use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
+use pandark_types::{BodyStorage, CrawlError, FetchArtifact, Result, TransportProvenance, diagnostics as pd};
 
 use super::ResponseCache;
 
@@ -51,7 +52,7 @@ impl DiskResponseCache {
         }
         let meta_bytes = fs::read(&meta_path).map_err(|error| map_io_error("read cache meta", &meta_path, error))?;
         let entry: DiskCacheEntry = serde_json::from_slice(&meta_bytes)
-            .map_err(|error| CrawlError::InvalidInput(format!("parse cache meta `{}`: {error}", meta_path.display())))?;
+            .map_err(|error| map_serde_read(&meta_path, error))?;
         let body_path = entry_dir.join("body.bin");
         let mut body = Vec::new();
         if body_path.is_file() {
@@ -67,8 +68,18 @@ impl DiskResponseCache {
     /// Store an artifact and return its cache key.
     pub fn put(&mut self, artifact: FetchArtifact) -> Result<String> {
         let cache_key = artifact.cache_key.clone();
-        let body =
-            artifact.body_bytes().ok_or_else(|| CrawlError::InvalidInput("disk cache requires inline body".into()))?.to_vec();
+        let body = artifact.body_bytes().ok_or_else(|| {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::CACHE_WRITE_FAILED),
+                DiagnosticSeverity::Error,
+                pd::origin_fetch(),
+                Message::new("pandark.diagnostic.cacheBodyReference")
+                    .with_arg("cache_key", MessageArg::Text(cache_key.clone()))
+                    .with_fallback("disk cache requires an inline body; reference bodies cannot be stored"),
+            );
+            CrawlError::from(diag)
+        })?
+        .to_vec();
         let body_bytes = body.len() as u64;
         self.evict_for_insert(body_bytes)?;
 
@@ -88,7 +99,7 @@ impl DiskResponseCache {
         };
         let entry = DiskCacheEntry { artifact: stored, etag, last_modified, body_bytes };
         let meta_json = serde_json::to_vec_pretty(&entry)
-            .map_err(|error| CrawlError::InvalidInput(format!("serialize cache meta: {error}")))?;
+            .map_err(|error| map_serde_write(error))?;
         write_atomically(&entry_dir.join("meta.json"), &meta_json)?;
         write_atomically(&entry_dir.join("body.bin"), &body)?;
         self.used_bytes += body_bytes;
@@ -117,7 +128,7 @@ impl DiskResponseCache {
         }
         let meta_bytes = fs::read(&meta_path).map_err(|error| map_io_error("read cache meta", &meta_path, error))?;
         let entry: DiskCacheEntry = serde_json::from_slice(&meta_bytes)
-            .map_err(|error| CrawlError::InvalidInput(format!("parse cache meta `{}`: {error}", meta_path.display())))?;
+            .map_err(|error| map_serde_read(&meta_path, error))?;
         Ok(match (entry.etag, entry.last_modified) {
             (Some(etag), Some(last_modified)) => Some((etag, last_modified)),
             _ => None,
@@ -130,10 +141,19 @@ impl DiskResponseCache {
 
     fn evict_for_insert(&mut self, incoming_bytes: u64) -> Result<()> {
         if incoming_bytes > self.max_bytes {
-            return Err(CrawlError::InvalidInput(format!(
-                "response body {incoming_bytes} bytes exceeds disk cache quota {}",
-                self.max_bytes
-            )));
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::CACHE_WRITE_FAILED),
+                DiagnosticSeverity::Error,
+                pd::origin_fetch(),
+                Message::new("pandark.diagnostic.cacheQuota")
+                    .with_arg("incoming_bytes", MessageArg::U64(incoming_bytes))
+                    .with_arg("max_bytes", MessageArg::U64(self.max_bytes))
+                    .with_fallback(format!(
+                        "response body {incoming_bytes} bytes exceeds disk cache quota {}",
+                        self.max_bytes
+                    )),
+            );
+            return Err(CrawlError::from(diag));
         }
         while self.used_bytes.saturating_add(incoming_bytes) > self.max_bytes {
             let Some(oldest) = oldest_entry_dir(&self.root.join("entries"))?
@@ -245,13 +265,26 @@ fn write_atomically(path: &Path, bytes: &[u8]) -> Result<()> {
     fs::rename(&temp, path).map_err(|error| map_io_error("commit cache file", path, error))
 }
 
+fn map_read_dir_entry(path: &Path, error: std::io::Error) -> CrawlError {
+    let diag = boost_diagnostic::Diagnostic::new(
+        pd::code(pd::CACHE_READ_FAILED),
+        DiagnosticSeverity::Warning,
+        pd::origin_fetch(),
+        Message::new("pandark.diagnostic.cacheEntryRead")
+            .with_arg("dir", MessageArg::Text(path.display().to_string()))
+            .with_arg("error", MessageArg::Text(error.to_string()))
+            .with_fallback(format!("cache dir iteration error in `{}`: {error}", path.display())),
+    );
+    CrawlError::from(diag)
+}
+
 fn measure_used_bytes(entries_root: &Path) -> Result<u64> {
     if !entries_root.is_dir() {
         return Ok(0);
     }
     let mut total = 0u64;
     for entry in fs::read_dir(entries_root).map_err(|error| map_io_error("read cache entries dir", entries_root, error))? {
-        let entry = entry.map_err(|error| CrawlError::InvalidInput(error.to_string()))?;
+        let entry = entry.map_err(|error| map_read_dir_entry(entries_root, error))?;
         if entry.path().is_dir() {
             total += entry_size(&entry.path())?;
         }
@@ -273,7 +306,7 @@ fn oldest_entry_dir(entries_root: &Path) -> Result<Option<PathBuf>> {
     }
     let mut oldest: Option<(std::time::SystemTime, PathBuf)> = None;
     for entry in fs::read_dir(entries_root).map_err(|error| map_io_error("read cache entries dir", entries_root, error))? {
-        let entry = entry.map_err(|error| CrawlError::InvalidInput(error.to_string()))?;
+        let entry = entry.map_err(|error| map_read_dir_entry(entries_root, error))?;
         let path = entry.path();
         if !path.is_dir() {
             continue;
@@ -291,5 +324,40 @@ fn oldest_entry_dir(entries_root: &Path) -> Result<Option<PathBuf>> {
 }
 
 fn map_io_error(action: &str, path: &Path, error: std::io::Error) -> CrawlError {
-    CrawlError::InvalidInput(format!("{action} `{}`: {error}", path.display()))
+    let diag = boost_diagnostic::Diagnostic::new(
+        pd::code(pd::CACHE_READ_FAILED),
+        DiagnosticSeverity::Error,
+        pd::origin_fetch(),
+        Message::new("pandark.diagnostic.cacheIo")
+            .with_arg("action", MessageArg::Text(action.to_string()))
+            .with_arg("path", MessageArg::Text(path.display().to_string()))
+            .with_arg("error", MessageArg::Text(error.to_string()))
+            .with_fallback(format!("{action} `{}`: {error}", path.display())),
+    );
+    CrawlError::from(diag)
+}
+
+fn map_serde_read(path: &Path, error: serde_json::Error) -> CrawlError {
+    let diag = boost_diagnostic::Diagnostic::new(
+        pd::code(pd::CACHE_READ_FAILED),
+        DiagnosticSeverity::Error,
+        pd::origin_fetch(),
+        Message::new("pandark.diagnostic.cacheMetaParse")
+            .with_arg("path", MessageArg::Text(path.display().to_string()))
+            .with_arg("error", MessageArg::Text(error.to_string()))
+            .with_fallback(format!("parse cache meta `{}`: {error}", path.display())),
+    );
+    CrawlError::from(diag)
+}
+
+fn map_serde_write(error: serde_json::Error) -> CrawlError {
+    let diag = boost_diagnostic::Diagnostic::new(
+        pd::code(pd::CACHE_WRITE_FAILED),
+        DiagnosticSeverity::Error,
+        pd::origin_fetch(),
+        Message::new("pandark.diagnostic.cacheMetaSerialize")
+            .with_arg("error", MessageArg::Text(error.to_string()))
+            .with_fallback(format!("serialize cache meta: {error}")),
+    );
+    CrawlError::from(diag)
 }
