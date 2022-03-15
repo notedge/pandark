@@ -37,5 +37,6 @@ fn fetch_failure_maps_to_transport_error() {
     let transport = HttpTransport::new();
     let request = FetchRequest { url: Url::parse("file:///missing.html").expect("url"), headers: Default::default() };
     let error = transport.fetch(&request).expect_err("fetch should fail");
-    assert!(matches!(error, pandark_types::CrawlError::InvalidInput(_)));
+    assert!(matches!(error, pandark_types::CrawlError::Diagnostic(_)));
+    assert_eq!(error.code(), Some("pandark.fetch.transport-failed"));
 }

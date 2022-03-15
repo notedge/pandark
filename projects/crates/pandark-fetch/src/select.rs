@@ -1,4 +1,5 @@
-use pandark_types::{CrawlError, Result};
+use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
+use pandark_types::{CrawlError, Result, diagnostics as pd};
 use url::Url;
 
 use super::{FetchArtifact, FetchRequest, FileTransport, HttpTransport, Transport};
@@ -26,6 +27,17 @@ pub fn transport_for_url(url: &Url) -> Result<SeedTransport> {
     match url.scheme() {
         "file" => Ok(SeedTransport::File(FileTransport::new())),
         "http" | "https" => Ok(SeedTransport::Http(HttpTransport::new())),
-        other => Err(CrawlError::InvalidInput(format!("unsupported seed scheme `{other}` for `{}`", url))),
+        other => {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::URL_OUT_OF_POLICY),
+                DiagnosticSeverity::Error,
+                pd::origin_fetch(),
+                Message::new("pandark.diagnostic.seedScheme")
+                    .with_arg("scheme", MessageArg::Text(other.to_string()))
+                    .with_arg("url", MessageArg::Text(url.to_string()))
+                    .with_fallback(format!("unsupported seed scheme `{other}` for `{url}`")),
+            );
+            Err(CrawlError::from(diag))
+        }
     }
 }

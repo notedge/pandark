@@ -97,7 +97,15 @@ fn infer_content_type(url: &Url) -> Option<String> {
 pub fn map_transport_error(message: impl Into<String>) -> CrawlError {
     let message = message.into();
     log_transport_error(&message);
-    CrawlError::InvalidInput(message)
+    let diag = boost_diagnostic::Diagnostic::new(
+        pandark_types::diagnostics::code(pandark_types::diagnostics::FETCH_TRANSPORT_FAILED),
+        boost_diagnostic::DiagnosticSeverity::Error,
+        pandark_types::diagnostics::origin_fetch(),
+        boost_diagnostic::Message::new("pandark.diagnostic.transportFailed")
+            .with_arg("message", boost_diagnostic::MessageArg::Text(message.clone()))
+            .with_fallback(format!("transport failure: {message}")),
+    );
+    CrawlError::from(diag)
 }
 
 #[cfg(feature = "logger")]
