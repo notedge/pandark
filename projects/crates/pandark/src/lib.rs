@@ -62,7 +62,8 @@ pub use seed_input::resolve_crawl_seed_specs;
 pub use sitemap::{MAX_SITEMAP_LOCATIONS, locations, sitemap_body};
 pub use transaction::commit_page;
 
-use pandark_types::{CrawlError, CrawlReport, CrawlRequest, Result};
+use boost_diagnostic::{DiagnosticSeverity, Message};
+use pandark_types::{CrawlError, CrawlReport, CrawlRequest, Result, diagnostics as pd};
 
 /// Planned crawl work units without performing network I/O.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,7 +83,15 @@ pub fn plan_crawl(request: CrawlRequest) -> Result<CrawlPlan> {
 
 /// Initialize an empty report for the primary seed.
 pub fn initial_report(request: &CrawlRequest) -> Result<CrawlReport> {
-    let seed =
-        request.seeds.first().ok_or_else(|| CrawlError::InvalidInput("at least one seed is required".into()))?.url.clone();
+    let seed = request.seeds.first().ok_or_else(|| {
+        let diag = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::REQUEST_INVALID),
+            DiagnosticSeverity::Error,
+            pd::origin_crawl(),
+            Message::new("pandark.diagnostic.seedsEmpty")
+                .with_fallback("at least one seed is required".to_string()),
+        );
+        CrawlError::from(diag)
+    })?.url.clone();
     Ok(CrawlReport::empty(seed))
 }

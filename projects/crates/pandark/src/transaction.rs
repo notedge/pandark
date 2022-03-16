@@ -1,23 +1,49 @@
-use pandark_types::{CrawlError, ExtractStatus, PageTransaction, Result};
+use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
+use pandark_types::{CrawlError, ExtractStatus, PageTransaction, Result, diagnostics as pd};
 
 /// Validate and commit a page transaction.
 pub fn commit_page(transaction: PageTransaction) -> Result<String> {
     match transaction.extract.status {
         ExtractStatus::Failed | ExtractStatus::Unsupported => {
-            return Err(CrawlError::InvalidInput(format!(
-                "page `{}` cannot be committed with status `{}`",
-                transaction.page_identity,
-                status_label(transaction.extract.status)
-            )));
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::EXTRACT_PARSE_FAILED),
+                DiagnosticSeverity::Error,
+                pd::origin_extract(),
+                Message::new("pandark.diagnostic.pageCommitFailed")
+                    .with_arg("page", MessageArg::Text(transaction.page_identity.clone()))
+                    .with_arg("status", MessageArg::Text(status_label(transaction.extract.status).to_string()))
+                    .with_fallback(format!(
+                        "page `{}` cannot be committed with status `{}`",
+                        transaction.page_identity,
+                        status_label(transaction.extract.status)
+                    )),
+            );
+            return Err(CrawlError::from(diag));
         }
         ExtractStatus::Complete | ExtractStatus::Partial => {}
     }
 
-    let document =
-        transaction.extract.document.as_ref().ok_or_else(|| CrawlError::InvalidInput("missing document graph".into()))?;
+    let document = transaction.extract.document.as_ref().ok_or_else(|| {
+        let diag = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::EXTRACT_PARSE_FAILED),
+            DiagnosticSeverity::Error,
+            pd::origin_extract(),
+            Message::new("pandark.diagnostic.missingDocumentGraph")
+                .with_fallback("missing document graph".to_string()),
+        );
+        CrawlError::from(diag)
+    })?;
     let validation = document.validate();
     if !validation.is_valid() {
-        return Err(CrawlError::InvalidInput(format!("document validation failed for `{}`", transaction.page_identity)));
+        let diag = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::EXTRACT_PARSE_FAILED),
+            DiagnosticSeverity::Error,
+            pd::origin_extract(),
+            Message::new("pandark.diagnostic.documentValidationFailed")
+                .with_arg("page", MessageArg::Text(transaction.page_identity.clone()))
+                .with_fallback(format!("document validation failed for `{}`", transaction.page_identity)),
+        );
+        return Err(CrawlError::from(diag));
     }
 
     Ok(transaction.page_identity)

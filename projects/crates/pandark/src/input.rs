@@ -1,6 +1,7 @@
 use std::path::Path;
 
-use pandark_types::{BrowserSnapshot, CrawlError, FetchArtifact, Result};
+use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
+use pandark_types::{BrowserSnapshot, CrawlError, FetchArtifact, Result, diagnostics as pd};
 
 use crate::browser::{load_snapshot_json, path_looks_like_snapshot};
 use pandark_fetch::{FetchRequest, FileTransport, Transport};
@@ -31,7 +32,17 @@ pub fn parse_input_format(from: Option<&str>) -> Result<InputFormat> {
         "html" => Ok(InputFormat::Html),
         "snapshot" => Ok(InputFormat::Snapshot),
         "auto" => Ok(InputFormat::Auto),
-        other => Err(CrawlError::InvalidInput(format!("unsupported input format `{other}`"))),
+        other => {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::REQUEST_INVALID),
+                DiagnosticSeverity::Error,
+                pd::origin_crawl(),
+                Message::new("pandark.diagnostic.inputFormatUnsupported")
+                    .with_arg("format", MessageArg::Text(other.to_string()))
+                    .with_fallback(format!("unsupported input format `{other}`")),
+            );
+            Err(CrawlError::from(diag))
+        }
     }
 }
 
@@ -54,8 +65,17 @@ pub fn load_input(path: &str, format: InputFormat) -> Result<LoadedInput> {
     match resolved {
         InputFormat::Snapshot => Ok(LoadedInput::Snapshot(load_snapshot_json(file_path)?)),
         InputFormat::Html => {
-            let file_url = url::Url::from_file_path(file_path)
-                .map_err(|_| CrawlError::InvalidInput(format!("invalid input path `{path}`")))?;
+            let file_url = url::Url::from_file_path(file_path).map_err(|_| {
+                let diag = boost_diagnostic::Diagnostic::new(
+                    pd::code(pd::URL_INVALID),
+                    DiagnosticSeverity::Error,
+                    pd::origin_crawl(),
+                    Message::new("pandark.diagnostic.inputPathInvalid")
+                        .with_arg("path", MessageArg::Text(path.to_string()))
+                        .with_fallback(format!("invalid input path `{path}`")),
+                );
+                CrawlError::from(diag)
+            })?;
             let transport = FileTransport::new();
             let artifact = transport.fetch(&FetchRequest { url: file_url, headers: Default::default() })?;
             Ok(LoadedInput::Artifact(artifact))

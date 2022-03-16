@@ -3,7 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pandark_types::{CrawlError, Result};
+use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
+use pandark_types::{CrawlError, Result, diagnostics as pd};
 use url::Url;
 
 /// Resolve crawl seed CLI input into one or more URL strings.
@@ -15,7 +16,14 @@ use url::Url;
 pub fn resolve_crawl_seed_specs(input: &str) -> Result<Vec<String>> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
-        return Err(CrawlError::InvalidInput("crawl seed input is empty".into()));
+        let diag = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::REQUEST_INVALID),
+            DiagnosticSeverity::Error,
+            pd::origin_crawl(),
+            Message::new("pandark.diagnostic.seedEmpty")
+                .with_fallback("crawl seed input is empty"),
+        );
+        return Err(CrawlError::from(diag));
     }
     if looks_like_url(trimmed) {
         return Ok(vec![trimmed.to_string()]);
@@ -32,8 +40,18 @@ fn looks_like_url(value: &str) -> bool {
 }
 
 fn read_seed_file(path: &Path) -> Result<Vec<String>> {
-    let content = fs::read_to_string(path)
-        .map_err(|error| CrawlError::InvalidInput(format!("read seed file `{}`: {error}", path.display())))?;
+    let content = fs::read_to_string(path).map_err(|error| {
+        let diag = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::REQUEST_INVALID),
+            DiagnosticSeverity::Error,
+            pd::origin_crawl(),
+            Message::new("pandark.diagnostic.seedFileRead")
+                .with_arg("path", MessageArg::Text(path.display().to_string()))
+                .with_arg("error", MessageArg::Text(error.to_string()))
+                .with_fallback(format!("read seed file `{}`: {error}", path.display())),
+        );
+        CrawlError::from(diag)
+    })?;
     let mut seeds = Vec::new();
     for (index, line) in content.lines().enumerate() {
         let trimmed = line.trim();
@@ -42,16 +60,33 @@ fn read_seed_file(path: &Path) -> Result<Vec<String>> {
         }
         let seed = if looks_like_url(trimmed) {
             trimmed.to_string()
-        }
-        else {
+        } else {
             normalize_local_or_url_seed(trimmed).map_err(|error| {
-                CrawlError::InvalidInput(format!("seed file `{}` line {}: {error}", path.display(), index + 1))
+                let diag = boost_diagnostic::Diagnostic::new(
+                    pd::code(pd::REQUEST_INVALID),
+                    DiagnosticSeverity::Error,
+                    pd::origin_crawl(),
+                    Message::new("pandark.diagnostic.seedFileLine")
+                        .with_arg("path", MessageArg::Text(path.display().to_string()))
+                        .with_arg("line", MessageArg::U64((index + 1) as u64))
+                        .with_arg("error", MessageArg::Text(error.to_string()))
+                        .with_fallback(format!("seed file `{}` line {}: {error}", path.display(), index + 1)),
+                );
+                CrawlError::from(diag)
             })?
         };
         seeds.push(seed);
     }
     if seeds.is_empty() {
-        return Err(CrawlError::InvalidInput(format!("seed file `{}` contains no usable seeds", path.display())));
+        let diag = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::REQUEST_INVALID),
+            DiagnosticSeverity::Error,
+            pd::origin_crawl(),
+            Message::new("pandark.diagnostic.seedFileEmpty")
+                .with_arg("path", MessageArg::Text(path.display().to_string()))
+                .with_fallback(format!("seed file `{}` contains no usable seeds", path.display())),
+        );
+        return Err(CrawlError::from(diag));
     }
     Ok(seeds)
 }
@@ -61,7 +96,16 @@ fn normalize_local_or_url_seed(seed: &str) -> Result<String> {
         return Ok(seed.to_string());
     }
     let path = PathBuf::from(seed);
-    let url =
-        Url::from_file_path(path).map_err(|_| CrawlError::InvalidInput(format!("invalid crawl seed path or URL `{seed}`")))?;
+    let url = Url::from_file_path(path).map_err(|_| {
+        let diag = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::URL_INVALID),
+            DiagnosticSeverity::Error,
+            pd::origin_crawl(),
+            Message::new("pandark.diagnostic.seedPath")
+                .with_arg("seed", MessageArg::Text(seed.to_string()))
+                .with_fallback(format!("invalid crawl seed path or URL `{seed}`")),
+        );
+        CrawlError::from(diag)
+    })?;
     Ok(url.to_string())
 }

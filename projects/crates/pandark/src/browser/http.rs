@@ -1,5 +1,6 @@
+use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
 use boost_http::{HttpTransport, HttpTransportConfig, Method, Request, Transport};
-use pandark_types::{BrowserSnapshot, CrawlError, Result};
+use pandark_types::{BrowserSnapshot, CrawlError, Result, diagnostics as pd};
 use url::Url;
 
 /// Remote browser worker that returns `BrowserSnapshot` JSON over HTTP.
@@ -40,15 +41,40 @@ impl super::provider::BrowserProvider for HttpBrowserProvider {
             ..HttpTransportConfig::default()
         });
         let request = Request::new(Method::Get, request_url);
-        let response = transport
-            .send(&request)
-            .map_err(|error| CrawlError::InvalidInput(format!("browser worker request failed: {error}")))?;
+        let response = transport.send(&request).map_err(|error| {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::BROWSER_UNAVAILABLE),
+                DiagnosticSeverity::Error,
+                pd::origin_browser(),
+                Message::new("pandark.diagnostic.browserWorkerRequestFailed")
+                    .with_arg("error", MessageArg::Text(error.to_string()))
+                    .with_fallback(format!("browser worker request failed: {error}")),
+            );
+            CrawlError::from(diag)
+        })?;
         let status = response.status;
         if !(200..300).contains(&status) {
-            return Err(CrawlError::InvalidInput(format!("browser worker returned status {status}")));
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::FETCH_HTTP_STATUS),
+                DiagnosticSeverity::Error,
+                pd::origin_browser(),
+                Message::new("pandark.diagnostic.browserWorkerHttpStatus")
+                    .with_arg("status", MessageArg::I64(status as i64))
+                    .with_fallback(format!("browser worker returned status {status}")),
+            );
+            return Err(CrawlError::from(diag));
         }
-        let snapshot: BrowserSnapshot = serde_json::from_slice(&response.body)
-            .map_err(|error| CrawlError::InvalidInput(format!("browser worker JSON invalid: {error}")))?;
+        let snapshot: BrowserSnapshot = serde_json::from_slice(&response.body).map_err(|error| {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::BROWSER_SNAPSHOT_INVALID),
+                DiagnosticSeverity::Error,
+                pd::origin_browser(),
+                Message::new("pandark.diagnostic.browserWorkerJsonInvalid")
+                    .with_arg("error", MessageArg::Text(error.to_string()))
+                    .with_fallback(format!("browser worker JSON invalid: {error}")),
+            );
+            CrawlError::from(diag)
+        })?;
         Ok(snapshot)
     }
 }

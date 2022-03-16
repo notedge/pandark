@@ -1,11 +1,12 @@
 use std::collections::{BTreeMap, HashSet};
 
 use crate::browser::{BrowserProvider, snapshot_to_fetch_artifact};
+use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
 use pandark_fetch::{FetchClient, FetchRequest, RobotsPolicy, Transport, site_key_for_url};
 use pandark_types::{
     AdmissionDecision, BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlError, CrawlEvent,
     CrawlReport, CrawlRequest, ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact, FrontierItem, PageChallengeState,
-    Result, apply_challenge_policy,
+    Result, apply_challenge_policy, diagnostics as pd,
 };
 
 use crate::{
@@ -358,9 +359,18 @@ fn validate_resume_strategy(checkpoint: &CrawlCheckpoint, options: CrawlOptions<
     if let Some(expected) = &checkpoint.strategy_fingerprint {
         let actual = options.strategy_fingerprint.map(str::to_string).unwrap_or_else(|| default_strategy_fingerprint(options));
         if expected != &actual {
-            return Err(CrawlError::InvalidInput(format!(
-                "resume strategy mismatch: checkpoint `{expected}` does not match current `{actual}`"
-            )));
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::REQUEST_INVALID),
+                DiagnosticSeverity::Error,
+                pd::origin_crawl(),
+                Message::new("pandark.diagnostic.resumeStrategyMismatch")
+                    .with_arg("checkpoint", MessageArg::Text(expected.clone()))
+                    .with_arg("current", MessageArg::Text(actual.clone()))
+                    .with_fallback(format!(
+                        "resume strategy mismatch: checkpoint `{expected}` does not match current `{actual}`"
+                    )),
+            );
+            return Err(CrawlError::from(diag));
         }
     }
     Ok(())

@@ -4,9 +4,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
 use notedown_formats::export::markdown_project::{MarkdownProject, export_markdown_project};
 use notedown_ir::DocumentGraph;
-use pandark_types::{CrawlError, ExtractResult, Result};
+use pandark_types::{CrawlError, ExtractResult, Result, diagnostics as pd};
 
 /// Published Markdown project layout for a single extracted page.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -29,8 +30,16 @@ pub fn publish_extracted_page(
     label: &str,
     extract: &ExtractResult,
 ) -> Result<PublishedPageProject> {
-    let document =
-        extract.document.as_ref().ok_or_else(|| CrawlError::InvalidInput("missing document graph for page publish".into()))?;
+    let document = extract.document.as_ref().ok_or_else(|| {
+        let diag = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::EXTRACT_PARSE_FAILED),
+            DiagnosticSeverity::Error,
+            pd::origin_extract(),
+            Message::new("pandark.diagnostic.missingDocumentGraphPublish")
+                .with_fallback("missing document graph for page publish".to_string()),
+        );
+        CrawlError::from(diag)
+    })?;
     let project = export_markdown_project(document).map_err(map_format_error)?;
     let report_json = build_page_report_json(label, extract, document, &project);
     publish_markdown_project(output_dir.as_ref(), &project, &report_json)
@@ -89,10 +98,17 @@ fn publish_markdown_project(output_dir: &Path, project: &MarkdownProject, report
 
     let mut asset_paths = Vec::with_capacity(project.assets.len());
     for asset in &project.assets {
-        let file_name = asset
-            .relative_path
-            .strip_prefix("assets/")
-            .ok_or_else(|| CrawlError::InvalidInput(format!("asset path must start with assets/: {}", asset.relative_path)))?;
+        let file_name = asset.relative_path.strip_prefix("assets/").ok_or_else(|| {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::REQUEST_INVALID),
+                DiagnosticSeverity::Error,
+                pd::origin_extract(),
+                Message::new("pandark.diagnostic.assetPathInvalid")
+                    .with_arg("path", MessageArg::Text(asset.relative_path.clone()))
+                    .with_fallback(format!("asset path must start with assets/: {}", asset.relative_path)),
+            );
+            CrawlError::from(diag)
+        })?;
         let path = assets_dir.join(file_name);
         publish_bytes(&path, &asset.bytes)?;
         asset_paths.push(asset.relative_path.clone());
@@ -164,9 +180,26 @@ fn sync_parent(path: &Path) -> io::Result<()> {
 }
 
 fn map_format_error(error: notedown_formats::FormatError) -> CrawlError {
-    CrawlError::InvalidInput(error.to_string())
+    let diag = boost_diagnostic::Diagnostic::new(
+        pd::code(pd::EXTRACT_PARSE_FAILED),
+        DiagnosticSeverity::Error,
+        pd::origin_extract(),
+        Message::new("pandark.diagnostic.formatError")
+            .with_arg("error", MessageArg::Text(error.to_string()))
+            .with_fallback(format!("format error: {error}")),
+    );
+    CrawlError::from(diag)
 }
 
 fn map_io_error(error: io::Error) -> CrawlError {
-    CrawlError::InvalidInput(error.to_string())
+    let diag = boost_diagnostic::Diagnostic::new(
+        pd::code(pd::CACHE_WRITE_FAILED),
+        DiagnosticSeverity::Error,
+        pd::origin_store(),
+        Message::new("pandark.diagnostic.ioError")
+            .with_arg("error", MessageArg::Text(error.to_string()))
+            .with_arg("kind", MessageArg::Text(format!("{:?}", error.kind())))
+            .with_fallback(format!("I/O error: {error}")),
+    );
+    CrawlError::from(diag)
 }

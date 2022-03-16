@@ -1,4 +1,5 @@
-use pandark_types::{BrowserSnapshot, CrawlError, Result};
+use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
+use pandark_types::{BrowserSnapshot, CrawlError, Result, diagnostics as pd};
 use url::Url;
 
 use super::{
@@ -48,8 +49,18 @@ pub fn build_browser_stack(fixture_dirs: Option<&str>, http_endpoint: Option<&st
         }
     }
     if let Some(endpoint) = http_endpoint {
-        let url = Url::parse(endpoint)
-            .map_err(|error| CrawlError::InvalidInput(format!("invalid browser endpoint `{endpoint}`: {error}")))?;
+        let url = Url::parse(endpoint).map_err(|error| {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::URL_INVALID),
+                DiagnosticSeverity::Error,
+                pd::origin_browser(),
+                Message::new("pandark.diagnostic.browserEndpointInvalid")
+                    .with_arg("endpoint", MessageArg::Text(endpoint.to_string()))
+                    .with_arg("error", MessageArg::Text(error.to_string()))
+                    .with_fallback(format!("invalid browser endpoint `{endpoint}`: {error}")),
+            );
+            CrawlError::from(diag)
+        })?;
         stack = stack.with_http(HttpBrowserProvider::new(url));
     }
     Ok(stack)
@@ -67,6 +78,16 @@ impl BrowserProvider for BrowserProviderStack {
         if let Some(http) = &self.http {
             return http.capture_snapshot(url);
         }
-        Err(last_error.unwrap_or_else(|| CrawlError::InvalidInput(format!("no browser snapshot available for `{url}`"))))
+        Err(last_error.unwrap_or_else(|| {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::BROWSER_UNAVAILABLE),
+                DiagnosticSeverity::Error,
+                pd::origin_browser(),
+                Message::new("pandark.diagnostic.browserSnapshotUnavailable")
+                    .with_arg("url", MessageArg::Text(url.to_string()))
+                    .with_fallback(format!("no browser snapshot available for `{url}`")),
+            );
+            CrawlError::from(diag)
+        }))
     }
 }
