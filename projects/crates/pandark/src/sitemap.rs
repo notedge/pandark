@@ -24,7 +24,15 @@ pub const MAX_SITEMAP_LOCATIONS: usize = 10_000;
 /// Parse sitemap XML and return whether the root is an index plus location URLs.
 pub fn locations(body: &[u8]) -> Result<(bool, Vec<String>)> {
     if body.len() > 1024 * 1024 {
-        return Err(CrawlError::InvalidInput("sitemap exceeds one MiB XML budget".into()));
+        let diag = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::FETCH_BODY_BUDGET),
+            DiagnosticSeverity::Error,
+            pd::origin_fetch(),
+            Message::new("pandark.diagnostic.sitemapRawBudget")
+                .with_arg("bytes", MessageArg::U64(body.len() as u64))
+                .with_fallback("sitemap exceeds one MiB XML budget"),
+        );
+        return Err(CrawlError::from(diag));
     }
     let text = std::str::from_utf8(body).map_err(|error| {
         let diagnostic = boost_diagnostic::Diagnostic::new(
@@ -53,11 +61,30 @@ pub fn locations(body: &[u8]) -> Result<(bool, Vec<String>)> {
         XmlValue::Fragment(values) => values.iter().find_map(XmlValue::as_element),
         _ => None,
     }
-    .ok_or_else(|| CrawlError::InvalidInput("sitemap has no XML root".into()))?;
+    .ok_or_else(|| {
+        let diag = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::EXTRACT_PARSE_FAILED),
+            DiagnosticSeverity::Error,
+            pd::origin_extract(),
+            Message::new("pandark.diagnostic.sitemapNoRoot")
+                .with_fallback("sitemap has no XML root"),
+        );
+        CrawlError::from(diag)
+    })?;
     let (index, entry) = match root.name.rsplit(':').next() {
         Some("urlset") => (false, "url"),
         Some("sitemapindex") => (true, "sitemap"),
-        _ => return Err(CrawlError::InvalidInput("unsupported sitemap root".into())),
+        _ => {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::EXTRACT_UNSUPPORTED_MEDIA),
+                DiagnosticSeverity::Error,
+                pd::origin_extract(),
+                Message::new("pandark.diagnostic.sitemapRootTag")
+                    .with_arg("root", MessageArg::Text(root.name.clone()))
+                    .with_fallback(format!("unsupported sitemap root `<{}>`", root.name)),
+            );
+            return Err(CrawlError::from(diag));
+        }
     };
     let mut locations = Vec::new();
     for child in root.children.iter().filter_map(XmlValue::as_element) {
@@ -72,12 +99,30 @@ pub fn locations(body: &[u8]) -> Result<(bool, Vec<String>)> {
             for value in &location.children {
                 match value {
                     XmlValue::Text(value) | XmlValue::CData(value) => text.push_str(value),
-                    _ => return Err(CrawlError::InvalidInput("sitemap loc must contain text only".into())),
+                    _ => {
+                        let diag = boost_diagnostic::Diagnostic::new(
+                            pd::code(pd::EXTRACT_PARSE_FAILED),
+                            DiagnosticSeverity::Error,
+                            pd::origin_extract(),
+                            Message::new("pandark.diagnostic.sitemapLocType")
+                                .with_fallback("sitemap <loc> must contain text only"),
+                        );
+                        return Err(CrawlError::from(diag));
+                    }
                 }
             }
             locations.push(text.trim().to_string());
             if locations.len() > MAX_SITEMAP_LOCATIONS {
-                return Err(CrawlError::InvalidInput("sitemap location count exceeds budget".into()));
+                let diag = boost_diagnostic::Diagnostic::new(
+                    pd::code(pd::FETCH_BODY_BUDGET),
+                    DiagnosticSeverity::Error,
+                    pd::origin_fetch(),
+                    Message::new("pandark.diagnostic.sitemapLocBudget")
+                        .with_arg("max", MessageArg::U64(MAX_SITEMAP_LOCATIONS as u64))
+                        .with_arg("actual", MessageArg::U64(locations.len() as u64))
+                        .with_fallback("sitemap location count exceeds budget"),
+                );
+                return Err(CrawlError::from(diag));
             }
         }
     }
@@ -95,7 +140,16 @@ fn is_xml_content_type(artifact: &pandark_types::FetchArtifact) -> bool {
 
 /// Decode a fetched sitemap artifact body, honoring `content-encoding`.
 pub fn sitemap_body(artifact: &pandark_types::FetchArtifact) -> Result<Vec<u8>> {
-    let body = artifact.body_bytes().ok_or_else(|| CrawlError::InvalidInput("sitemap body unavailable".into()))?;
+    let body = artifact.body_bytes().ok_or_else(|| {
+        let diag = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::EXTRACT_PARSE_FAILED),
+            DiagnosticSeverity::Error,
+            pd::origin_extract(),
+            Message::new("pandark.diagnostic.sitemapBodyMissing")
+                .with_fallback("sitemap artifact has no inline body available"),
+        );
+        CrawlError::from(diag)
+    })?;
     let encoding = artifact.response_headers.get("content-encoding").map(|value| value.trim().to_ascii_lowercase());
     let decoded = match encoding.as_deref() {
         None | Some("") | Some("identity") => body.to_vec(),
@@ -113,7 +167,17 @@ pub fn sitemap_body(artifact: &pandark_types::FetchArtifact) -> Result<Vec<u8>> 
             })?;
             facts.value
         }
-        Some(other) => return Err(CrawlError::InvalidInput(format!("unsupported sitemap content encoding `{other}`"))),
+        Some(other) => {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::FETCH_DECODE_FAILED),
+                DiagnosticSeverity::Error,
+                pd::origin_fetch(),
+                Message::new("pandark.diagnostic.sitemapEncoding")
+                    .with_arg("encoding", MessageArg::Text(other.to_string()))
+                    .with_fallback(format!("unsupported sitemap content encoding `{other}`")),
+            );
+            return Err(CrawlError::from(diag));
+        }
     };
     if decoded.len() > SITEMAP_BUDGET_BYTES as usize {
         let diagnostic = boost_diagnostic::Diagnostic::new(
@@ -165,10 +229,30 @@ pub(crate) fn discover<T: Transport>(
                 cache_hit: artifact.transport_provenance == pandark_types::TransportProvenance::CacheHit,
             });
             if artifact.status != 200 || artifact.final_url.origin() != source.request_url.origin() {
-                return Err(CrawlError::InvalidInput("sitemap response status/origin rejected".into()));
+                let diag = boost_diagnostic::Diagnostic::new(
+                    pd::code(pd::FETCH_HTTP_STATUS),
+                    DiagnosticSeverity::Error,
+                    pd::origin_fetch(),
+                    Message::new("pandark.diagnostic.sitemapStatusOrigin")
+                        .with_arg("status", MessageArg::U64(artifact.status as u64))
+                        .with_arg("final_url", MessageArg::Text(artifact.final_url.to_string()))
+                        .with_arg("expected_origin", MessageArg::Text(source.request_url.origin().ascii_serialization()))
+                        .with_fallback("sitemap response status/origin rejected"),
+                );
+                return Err(CrawlError::from(diag));
             }
             if !is_xml_content_type(&artifact) {
-                return Err(CrawlError::InvalidInput("sitemap response content type is not XML".into()));
+                let diag = boost_diagnostic::Diagnostic::new(
+                    pd::code(pd::EXTRACT_UNSUPPORTED_MEDIA),
+                    DiagnosticSeverity::Error,
+                    pd::origin_extract(),
+                    Message::new("pandark.diagnostic.sitemapContentType")
+                        .with_arg("content_type", MessageArg::Text(
+                            artifact.content_type.clone().or_else(|| artifact.response_headers.get("content-type").cloned()).unwrap_or_default()
+                        ))
+                        .with_fallback("sitemap response content type is not XML"),
+                );
+                return Err(CrawlError::from(diag));
             }
             let body = sitemap_body(&artifact)?;
             locations(&body)
