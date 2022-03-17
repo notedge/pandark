@@ -1,17 +1,22 @@
 use pandark_types::{AdmissionDecision, CrawlRequest, CrawlSeed, FrontierItem, Result, canonicalize_request_url, site_key};
 
+/// Stable dotted reason codes for frontier rejection.
+pub const REJECT_UNSUPPORTED_SCHEME: &str = "pandark.reject.unsupported-scheme";
+pub const REJECT_DEPTH_EXCEEDED: &str = "pandark.reject.depth-exceeded";
+pub const REJECT_RETRY_EXHAUSTED: &str = "pandark.reject.retry-exhausted";
+
 /// Evaluate whether a frontier item may proceed to fetch.
 pub fn admit_frontier_item(item: &FrontierItem, request: &CrawlRequest) -> AdmissionDecision {
     if item.request_url.scheme() != "http" && item.request_url.scheme() != "https" && item.request_url.scheme() != "file" {
-        return AdmissionDecision::Rejected { reason: "unsupported-scheme".into() };
+        return AdmissionDecision::Rejected { reason: REJECT_UNSUPPORTED_SCHEME.into() };
     }
 
     if item.depth > request.budget.max_depth {
-        return AdmissionDecision::Rejected { reason: "depth-exceeded".into() };
+        return AdmissionDecision::Rejected { reason: REJECT_DEPTH_EXCEEDED.into() };
     }
 
     if item.attempts > 0 && item.attempts > 3 {
-        return AdmissionDecision::Rejected { reason: "retry-exhausted".into() };
+        return AdmissionDecision::Rejected { reason: REJECT_RETRY_EXHAUSTED.into() };
     }
 
     AdmissionDecision::Admitted

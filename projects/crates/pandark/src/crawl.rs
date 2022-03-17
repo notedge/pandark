@@ -177,6 +177,7 @@ fn run_crawl_loop<T: Transport>(
                 }
             }
             Err(error) => {
+                record_crawl_diagnostic(&mut state, &error);
                 let fetch_error = error.to_string();
                 match try_browser_fallback(&item, options) {
                     Some((snapshot, browser_engine)) => {
@@ -313,6 +314,9 @@ fn process_fetched_item(
             }
         }
         Err(error) => {
+            if let CrawlError::Diagnostic(d) = &error {
+                state.report.push_diagnostic(d.clone());
+            }
             state.report.failed += 1;
             state.report.events.push(CrawlEvent::Failed { url: item.request_url.clone(), reason: error.to_string() });
             return;
@@ -327,6 +331,14 @@ fn process_fetched_item(
 fn record_skipped(state: &mut CrawlState, item: &FrontierItem, reason: &str) {
     state.report.skipped += 1;
     state.report.events.push(CrawlEvent::Skipped { url: item.request_url.clone(), reason: reason.into() });
+}
+
+/// Push a run-level diagnostic into the report envelope when a page fails
+/// with a structured [`CrawlError::Diagnostic`].
+fn record_crawl_diagnostic(state: &mut CrawlState, error: &CrawlError) {
+    if let CrawlError::Diagnostic(d) = error {
+        state.report.push_diagnostic(d.clone());
+    }
 }
 
 fn record_paused(state: &mut CrawlState, item: &FrontierItem, challenge_state: PageChallengeState) {

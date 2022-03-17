@@ -1,3 +1,4 @@
+use boost_diagnostic::{DiagnosticEnvelope, DiagnosticSet};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -17,7 +18,7 @@ pub enum CrawlPageStatus {
     Skipped,
 }
 
-/// High-level crawl report aligned with `pandark.report/v1`.
+/// High-level crawl report aligned with `pandark.report/v2`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CrawlReport {
     /// Report schema identifier.
@@ -36,13 +37,28 @@ pub struct CrawlReport {
     pub committed: u32,
     /// Structured event log snapshot.
     pub events: EventLog,
+    /// Structured diagnostic envelope for run-level errors and warnings.
+    ///
+    /// Schema version: `boost-diagnostic DiagnosticEnvelope`. Every
+    /// `CrawlError::Diagnostic` emitted during the run is pushed here
+    /// so CLI/N-API consumers can surface stable codes and typed args.
+    #[serde(default = "default_diagnostic_envelope", skip_serializing_if = "is_envelope_empty")]
+    pub diagnostics: DiagnosticEnvelope,
+}
+
+fn is_envelope_empty(env: &DiagnosticEnvelope) -> bool {
+    env.diagnostics.is_empty()
+}
+
+fn default_diagnostic_envelope() -> DiagnosticEnvelope {
+    DiagnosticEnvelope::from_set(&DiagnosticSet::new())
 }
 
 impl CrawlReport {
     /// Empty report for a seed.
     pub fn empty(seed: Url) -> Self {
         Self {
-            schema_version: "pandark.report/v1".to_string(),
+            schema_version: "pandark.report/v2".to_string(),
             seed,
             extracted: 0,
             failed: 0,
@@ -50,6 +66,17 @@ impl CrawlReport {
             paused: 0,
             committed: 0,
             events: EventLog::new(),
+            diagnostics: DiagnosticEnvelope::from_set(&DiagnosticSet::new()),
         }
+    }
+
+    /// Collect a run-level diagnostic into the report envelope.
+    pub fn push_diagnostic(&mut self, diagnostic: boost_diagnostic::Diagnostic) {
+        let mut set = DiagnosticSet::new();
+        for d in &self.diagnostics.diagnostics {
+            set.push(d.clone());
+        }
+        set.push(diagnostic);
+        self.diagnostics = DiagnosticEnvelope::from_set(&set);
     }
 }
