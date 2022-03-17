@@ -1,19 +1,27 @@
 {
-    "name": "@notedge/pandark-win32-x64",
-    "version": "0.0.5",
-    "description": "Pandark Node-API binary for Windows x64",
-    "type": "module",
-    "license": "MPL-2.0",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/notedge/pandark.git",
-        "directory": "projects/packages/pandark-win32-x64"
-    },
-    "publishConfig": {
-        "access": "public"
-    },
-    "main": "./index.js",
-    "files": ["index.js", "lib", "readme.md"],
-    "os": ["win32"],
-    "cpu": ["x64"]
+  "cpu": [
+    "x64"
+  ],
+  "description": "Pandark Node-API binary for Windows x64",
+  "files": [
+    "index.js",
+    "lib",
+    "readme.md"
+  ],
+  "license": "MPL-2.0",
+  "main": "./index.js",
+  "name": "@notedge/pandark-win32-x64",
+  "os": [
+    "win32"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "directory": "projects/packages/pandark-win32-x64",
+    "type": "git",
+    "url": "https://github.com/notedge/pandark.git"
+  },
+  "type": "module",
+  "version": "0.0.6"
 }
