@@ -1,7 +1,5 @@
 schema_version = 1
 suite_id = "g-store-core"
-min_store_schema_version = 1
-max_store_schema_version = 1
 
 [[case]]
 id = "store.page_tx.half_commit"
@@ -44,10 +42,3 @@ gate = "G-STORE-4"
 file = "cases/store_doctor_quota_orphan.json"
 backends = ["yydb"]
 tags = ["doctor", "orphan"]
-
-[[case]]
-id = "store.migration.v1_to_v2"
-gate = "G-STORE-4"
-file = "cases/store_migration_v1_to_v2.json"
-backends = ["memory", "yydb"]
-tags = ["migration"]

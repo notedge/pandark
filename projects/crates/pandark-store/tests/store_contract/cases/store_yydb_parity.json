@@ -21,7 +21,6 @@
     { "op": "claim_next", "host_key": "example.com", "worker_id": "w-parity" }
   ],
   "assertions": [
-    { "kind": "page_phase", "page_id": "auto", "expected": "claimed" },
-    { "kind": "schema_version", "expected": "1" }
+    { "kind": "page_phase", "page_id": "auto", "expected": "claimed" }
   ]
 }
