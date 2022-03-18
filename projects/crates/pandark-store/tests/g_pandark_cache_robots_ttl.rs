@@ -24,7 +24,7 @@ fn assert_robots_ttl<S: Store>(make_store: impl FnOnce() -> S) {
 
 #[test]
 fn g_pandark_cache_robots_ttl_memory() {
-    assert_robots_ttl(|| MemoryStore::open(StoreConfig::memory(1)).expect("open"));
+    assert_robots_ttl(|| MemoryStore::open(StoreConfig::memory()).expect("open"));
 }
 
 #[cfg(feature = "yydb")]
@@ -50,6 +50,6 @@ mod yydb_helpers {
 #[test]
 fn g_pandark_cache_robots_ttl_yydb() {
     let path = yydb_helpers::temp_db_path("robots-ttl");
-    assert_robots_ttl(|| YydbStore::open(StoreConfig::yydb(&path, 1)).expect("open"));
+    assert_robots_ttl(|| YydbStore::open(StoreConfig::yydb(&path)).expect("open"));
     yydb_helpers::cleanup_db(&path);
 }

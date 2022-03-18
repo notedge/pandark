@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::{Result, StoreError},
     keyspace::{item_id_from_url, run_id_from_seed},
-    migrate::migrate_store_schema,
     types::{ClaimToken, PagePhase, PageTxHandle, RunHandle, RunSpec},
 };
 
@@ -48,7 +47,6 @@ struct RobotsCacheEntry {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SessionSnapshot {
-    schema_version: u32,
     runs: BTreeMap<String, RunState>,
     active_run_id: Option<String>,
     #[serde(default)]
@@ -60,7 +58,6 @@ struct SessionSnapshot {
 /// Shared store session state used by memory and YYDB backends.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct StoreSession {
-    schema_version: u32,
     runs: BTreeMap<String, RunState>,
     active_run_id: Option<String>,
     #[serde(default)]
@@ -73,15 +70,13 @@ pub(crate) struct StoreSession {
 }
 
 impl StoreSession {
-    pub(crate) fn new(schema_version: u32) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            schema_version,
             runs: BTreeMap::new(),
             active_run_id: None,
             response_cache: BTreeMap::new(),
             robots_cache: BTreeMap::new(),
             snapshot: SessionSnapshot {
-                schema_version,
                 runs: BTreeMap::new(),
                 active_run_id: None,
                 response_cache: BTreeMap::new(),
@@ -106,7 +101,6 @@ impl StoreSession {
 
     pub(crate) fn persist_snapshot(&mut self) {
         self.snapshot = SessionSnapshot {
-            schema_version: self.schema_version,
             runs: self.runs.clone(),
             active_run_id: self.active_run_id.clone(),
             response_cache: self.response_cache.clone(),
@@ -114,15 +108,7 @@ impl StoreSession {
         };
     }
 
-    pub(crate) fn schema_version(&self) -> u32 {
-        self.schema_version
-    }
-
     pub(crate) fn reopen(&mut self) -> Result<()> {
-        if self.schema_version == 0 {
-            self.schema_version = 2;
-        }
-        self.schema_version = self.snapshot.schema_version.max(self.schema_version);
         self.runs = self.snapshot.runs.clone();
         self.active_run_id = self.snapshot.active_run_id.clone();
         self.response_cache = self.snapshot.response_cache.clone();
@@ -157,7 +143,6 @@ impl StoreSession {
         self.active_run_id = Some(run_id.clone());
         self.last_claim = None;
         self.active_page_tx = None;
-        self.schema_version = migrate_store_schema(self.schema_version);
         self.persist_snapshot();
         Ok(RunHandle { run_id })
     }

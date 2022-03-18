@@ -15,9 +15,6 @@ pub trait Store {
     /// Close and reopen the backend, simulating process restart.
     fn reopen(&mut self) -> Result<()>;
 
-    /// Current store schema version.
-    fn schema_version(&self) -> u32;
-
     /// Start a crawl run.
     fn begin_run(&mut self, spec: RunSpec) -> Result<RunHandle>;
 

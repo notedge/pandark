@@ -11,8 +11,6 @@ pub enum StoreError {
     StoreConflict,
     /// Namespace quota exceeded.
     StoreQuotaExceeded,
-    /// Stored schema requires migration.
-    StoreMigrationRequired,
     /// Unrecoverable inconsistency.
     StoreCorrupt(String),
     /// Run or resource not found.
@@ -28,7 +26,6 @@ impl fmt::Display for StoreError {
             Self::StoreFencingMismatch => write!(f, "StoreFencingMismatch"),
             Self::StoreConflict => write!(f, "StoreConflict"),
             Self::StoreQuotaExceeded => write!(f, "StoreQuotaExceeded"),
-            Self::StoreMigrationRequired => write!(f, "StoreMigrationRequired"),
             Self::StoreCorrupt(message) => write!(f, "StoreCorrupt: {message}"),
             Self::StoreNotFound(message) => write!(f, "StoreNotFound: {message}"),
             Self::StoreInvalidState(message) => write!(f, "StoreInvalidState: {message}"),

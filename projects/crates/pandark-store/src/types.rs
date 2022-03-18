@@ -3,21 +3,19 @@ use serde::{Deserialize, Serialize};
 /// Store open parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoreConfig {
-    /// Expected store schema version.
-    pub schema_version: u32,
     /// File path for file-backed backends such as `YydbStore`.
     pub db_path: Option<std::path::PathBuf>,
 }
 
 impl StoreConfig {
     /// Memory-oriented defaults.
-    pub fn memory(schema_version: u32) -> Self {
-        Self { schema_version, db_path: None }
+    pub fn memory() -> Self {
+        Self { db_path: None }
     }
 
     /// YYDB file path for integration tests and production.
-    pub fn yydb(path: impl Into<std::path::PathBuf>, schema_version: u32) -> Self {
-        Self { schema_version, db_path: Some(path.into()) }
+    pub fn yydb(path: impl Into<std::path::PathBuf>) -> Self {
+        Self { db_path: Some(path.into()) }
     }
 }
 

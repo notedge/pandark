@@ -5,7 +5,6 @@
 mod error;
 pub mod keyspace;
 mod memory;
-pub mod migrate;
 #[cfg(feature = "yydb")]
 mod response_cache;
 mod session;

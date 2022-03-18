@@ -19,9 +19,14 @@ pub enum CrawlPageStatus {
 }
 
 /// High-level crawl report aligned with `pandark.report/v2`.
+///
+/// Every run-level [`boost_diagnostic::Diagnostic`] emitted during the crawl
+/// is carried in [`Self::diagnostics`] as a structured envelope so CLI /
+/// N-API consumers can surface stable codes and typed args without parsing
+/// free-form strings.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CrawlReport {
-    /// Report schema identifier.
+    /// Report schema identifier (`pandark.report/v2`).
     pub schema_version: String,
     /// Primary seed URL.
     pub seed: Url,
@@ -37,21 +42,8 @@ pub struct CrawlReport {
     pub committed: u32,
     /// Structured event log snapshot.
     pub events: EventLog,
-    /// Structured diagnostic envelope for run-level errors and warnings.
-    ///
-    /// Schema version: `boost-diagnostic DiagnosticEnvelope`. Every
-    /// `CrawlError::Diagnostic` emitted during the run is pushed here
-    /// so CLI/N-API consumers can surface stable codes and typed args.
-    #[serde(default = "default_diagnostic_envelope", skip_serializing_if = "is_envelope_empty")]
+    /// Run-level diagnostic envelope (never absent — empty set if clean).
     pub diagnostics: DiagnosticEnvelope,
-}
-
-fn is_envelope_empty(env: &DiagnosticEnvelope) -> bool {
-    env.diagnostics.is_empty()
-}
-
-fn default_diagnostic_envelope() -> DiagnosticEnvelope {
-    DiagnosticEnvelope::from_set(&DiagnosticSet::new())
 }
 
 impl CrawlReport {

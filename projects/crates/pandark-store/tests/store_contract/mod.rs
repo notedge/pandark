@@ -56,8 +56,6 @@ struct CaseStep {
     worker_id: Option<String>,
     #[serde(default)]
     fixture: Option<String>,
-    #[serde(default)]
-    store_schema_version: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -133,13 +131,12 @@ fn run_suite_filtered(backend: &str, filter: impl Fn(&ManifestCase) -> bool) {
 
 fn run_case_memory(gate: &str, case_id: &str, case_path: &Path) {
     let case_file = load_case(case_id, case_path);
-    let mut store = MemoryStore::open(StoreConfig::memory(1)).expect("open memory store");
+    let mut store = MemoryStore::open(StoreConfig::memory()).expect("open memory store");
     let mut last_error = None;
     let mut last_doctor_report = None;
     for step in &case_file.initial.steps {
         if step.op == "open" {
-            let schema_version = step.store_schema_version.unwrap_or(1);
-            store = MemoryStore::open(StoreConfig::memory(schema_version)).expect("open memory store");
+            store = MemoryStore::open(StoreConfig::memory()).expect("open memory store");
             continue;
         }
         last_error = execute_step(&mut store, step, &mut last_doctor_report).err();
@@ -151,10 +148,10 @@ fn run_case_memory(gate: &str, case_id: &str, case_path: &Path) {
 }
 
 #[cfg(feature = "yydb")]
-fn reopen_yydb_store(previous: YydbStore, db_path: &Path, schema_version: u32) -> YydbStore {
+fn reopen_yydb_store(previous: YydbStore, db_path: &Path) -> YydbStore {
     drop(previous);
     cleanup_db(db_path);
-    YydbStore::open(StoreConfig::yydb(db_path, schema_version)).expect("open yydb store")
+    YydbStore::open(StoreConfig::yydb(db_path)).expect("open yydb store")
 }
 
 #[cfg(feature = "yydb")]
@@ -162,15 +159,14 @@ fn run_case_yydb(gate: &str, case_id: &str, case_path: &Path) {
     let case_file = load_case(case_id, case_path);
     let db_path = temp_db_path(case_id);
     cleanup_db(&db_path);
-    let mut store = YydbStore::open(StoreConfig::yydb(&db_path, 1)).expect("open yydb store");
+    let mut store = YydbStore::open(StoreConfig::yydb(&db_path)).expect("open yydb store");
     let mut last_error = None;
     let mut last_doctor_report = None;
     for step in &case_file.initial.steps {
         if step.op == "open" {
-            let schema_version = step.store_schema_version.unwrap_or(1);
             // YYDB keeps an exclusive writer lock for a connection's lifetime, so the current
             // handle is released before the database files are cleaned and the store reopened.
-            store = reopen_yydb_store(store, &db_path, schema_version);
+            store = reopen_yydb_store(store, &db_path);
             continue;
         }
         last_error = execute_step(&mut store, step, &mut last_doctor_report).err();
@@ -269,11 +265,6 @@ fn evaluate_assertions<S: Store>(
                 let min = assertion.min.unwrap_or(0);
                 let max = assertion.max.unwrap_or(u64::MAX);
                 assert!(count >= min && count <= max, "gate {gate} case {case_id} event_count {count} not in [{min}, {max}]");
-            }
-            "schema_version" => {
-                let expected = assertion.expected.as_deref().expect("schema_version expected");
-                let actual = store.schema_version().to_string();
-                assert_eq!(actual, expected, "gate {gate} case {case_id} schema_version expected {expected}, got {actual}");
             }
             "error" => {
                 let code = assertion.code.as_deref().expect("error code");

@@ -1,10 +1,5 @@
 //! Centralized key encoding for store records.
 
-/// Key for the global store schema version record.
-pub fn schema_version() -> &'static str {
-    "store/schema_version"
-}
-
 /// Run metadata key.
 pub fn run_meta(run_id: &str) -> String {
     format!("run/{run_id}/meta")

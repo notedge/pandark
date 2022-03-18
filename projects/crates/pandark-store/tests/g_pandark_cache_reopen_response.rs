@@ -34,7 +34,7 @@ fn assert_reopen_response_cache<S: Store>(make_store: impl FnOnce() -> S, reopen
 
 #[test]
 fn g_pandark_cache_reopen_response_memory() {
-    assert_reopen_response_cache(|| MemoryStore::open(StoreConfig::memory(1)).expect("open"), |store| store.reopen());
+    assert_reopen_response_cache(|| MemoryStore::open(StoreConfig::memory()).expect("open"), |store| store.reopen());
 }
 
 #[cfg(feature = "yydb")]
@@ -60,6 +60,6 @@ mod yydb_helpers {
 #[test]
 fn g_pandark_cache_reopen_response_yydb() {
     let path = yydb_helpers::temp_db_path("cache-reopen");
-    assert_reopen_response_cache(|| YydbStore::open(StoreConfig::yydb(&path, 1)).expect("open"), |store| store.reopen());
+    assert_reopen_response_cache(|| YydbStore::open(StoreConfig::yydb(&path)).expect("open"), |store| store.reopen());
     yydb_helpers::cleanup_db(&path);
 }

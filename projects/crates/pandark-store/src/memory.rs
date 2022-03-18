@@ -16,15 +16,12 @@ pub struct MemoryStore {
 
 impl Store for MemoryStore {
     fn open(config: StoreConfig) -> Result<Self> {
-        Ok(Self { session: StoreSession::new(config.schema_version) })
+        let _ = config;
+        Ok(Self { session: StoreSession::new() })
     }
 
     fn reopen(&mut self) -> Result<()> {
         self.session.reopen()
-    }
-
-    fn schema_version(&self) -> u32 {
-        self.session.schema_version()
     }
 
     fn begin_run(&mut self, spec: RunSpec) -> Result<RunHandle> {

@@ -37,8 +37,7 @@ impl YydbStore {
     }
 
     fn persist(&mut self) -> Result<()> {
-        self.connection()?.put(SESSION_KEY, &self.session.to_bytes()?).map_err(map_yydb_error)?;
-        self.connection()?.put(keyspace::schema_version(), &self.session.schema_version().to_le_bytes()).map_err(map_yydb_error)
+        self.connection()?.put(SESSION_KEY, &self.session.to_bytes()?).map_err(map_yydb_error)
     }
 }
 
@@ -46,7 +45,7 @@ impl Store for YydbStore {
     fn open(config: StoreConfig) -> Result<Self> {
         let path = config.db_path.clone().ok_or_else(|| StoreError::StoreInvalidState("YydbStore requires db_path".into()))?;
         let conn = Connection::open(&path).map_err(map_yydb_error)?;
-        let session = Self::load_session(&conn)?.unwrap_or_else(|| StoreSession::new(config.schema_version));
+        let session = Self::load_session(&conn)?.unwrap_or_else(StoreSession::new);
         Ok(Self { path, conn: Some(conn), session })
     }
 
@@ -63,10 +62,6 @@ impl Store for YydbStore {
         self.session.reopen()?;
         self.persist()?;
         Ok(())
-    }
-
-    fn schema_version(&self) -> u32 {
-        self.session.schema_version()
     }
 
     fn begin_run(&mut self, spec: RunSpec) -> Result<RunHandle> {
