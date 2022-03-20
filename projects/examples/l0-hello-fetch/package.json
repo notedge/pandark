@@ -1,0 +1,18 @@
+{
+  "name": "l0-hello-fetch",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "L0 — 最简单的一条 seed 默认 crawl",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@notedge/pandark": "^0.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}

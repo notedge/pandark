@@ -1,0 +1,18 @@
+{
+  "name": "l5-provider-stack",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "L5 — 多层 Provider Stack: Fixture → Headless → HTTP 兜底的完整对抗链",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@notedge/pandark": "^0.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}

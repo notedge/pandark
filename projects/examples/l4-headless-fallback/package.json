@@ -1,0 +1,18 @@
+{
+  "name": "l4-headless-fallback",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "L4 — HTTP fetch 失败自动回退到 headless",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@notedge/pandark": "^0.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}

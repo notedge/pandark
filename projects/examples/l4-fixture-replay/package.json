@@ -1,0 +1,18 @@
+{
+  "name": "l4-fixture-replay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "L4 — 离线 fixture snapshot 回放（CI 友好）",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@notedge/pandark": "^0.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "l2-cache-resume",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "L2 — 持久化缓存 + 断点续爬",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@notedge/pandark": "^0.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}

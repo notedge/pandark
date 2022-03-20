@@ -1,0 +1,18 @@
+{
+  "name": "l4-challenge-policy",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "L4 — 挑战策略：Cloudflare / 登录墙 / 同意弹窗",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@notedge/pandark": "^0.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}

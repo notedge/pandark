@@ -1,0 +1,18 @@
+{
+  "name": "l1-polite-backoff",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "L1 — 反限流：指数退避 ±25% jitter",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@notedge/pandark": "^0.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}
