@@ -314,9 +314,8 @@ fn process_fetched_item(
             }
         }
         Err(error) => {
-            if let CrawlError::Diagnostic(d) = &error {
-                state.report.push_diagnostic(d.clone());
-            }
+            let CrawlError::Diagnostic(d) = &error;
+            state.report.push_diagnostic(d.clone());
             state.report.failed += 1;
             state.report.events.push(CrawlEvent::Failed { url: item.request_url.clone(), reason: error.to_string() });
             return;
@@ -336,9 +335,8 @@ fn record_skipped(state: &mut CrawlState, item: &FrontierItem, reason: &str) {
 /// Push a run-level diagnostic into the report envelope when a page fails
 /// with a structured [`CrawlError::Diagnostic`].
 fn record_crawl_diagnostic(state: &mut CrawlState, error: &CrawlError) {
-    if let CrawlError::Diagnostic(d) = error {
-        state.report.push_diagnostic(d.clone());
-    }
+    let CrawlError::Diagnostic(d) = error;
+    state.report.push_diagnostic(d.clone());
 }
 
 fn record_paused(state: &mut CrawlState, item: &FrontierItem, challenge_state: PageChallengeState) {

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use boost_diagnostic::{Diagnostic, DiagnosticCause, DiagnosticCode, DiagnosticOrigin, DiagnosticSeverity, Message};
+use boost_diagnostic::Diagnostic;
 
 /// Pandark orchestration error — structured diagnostic with stable code,
 /// typed args, cause chain, and origin.
@@ -46,17 +46,6 @@ impl From<Diagnostic> for CrawlError {
     fn from(value: Diagnostic) -> Self {
         Self::Diagnostic(value)
     }
-}
-
-/// Build a [`Diagnostic`] with origin, code, severity, message key + args,
-/// and optional fallback text. Convenience for production error construction.
-pub fn build_diagnostic(
-    origin: DiagnosticOrigin,
-    code: DiagnosticCode,
-    severity: DiagnosticSeverity,
-    message: Message,
-) -> Diagnostic {
-    Diagnostic::new(code, severity, origin, message)
 }
 
 /// Pandark result alias.

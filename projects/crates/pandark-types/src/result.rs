@@ -64,11 +64,6 @@ impl CrawlReport {
 
     /// Collect a run-level diagnostic into the report envelope.
     pub fn push_diagnostic(&mut self, diagnostic: boost_diagnostic::Diagnostic) {
-        let mut set = DiagnosticSet::new();
-        for d in &self.diagnostics.diagnostics {
-            set.push(d.clone());
-        }
-        set.push(diagnostic);
-        self.diagnostics = DiagnosticEnvelope::from_set(&set);
+        self.diagnostics.diagnostics.push(diagnostic);
     }
 }
