@@ -1,11 +1,14 @@
 use std::{collections::BTreeMap, time::Duration};
 
+use boost_diagnostic::{Diagnostic, DiagnosticSeverity, Message, MessageArg};
 use boost_http::{
-    Headers, HttpTransport as RequestHttpTransport, HttpTransportConfig, Method, Request, Transport as RequestTransport,
+    Headers, HttpTransport as RequestHttpTransport, HttpTransportConfig, Method, Request, RequestError,
+    Transport as RequestTransport,
 };
-use pandark_types::{BodyStorage, RedirectHop, Result, TransportProvenance};
+use pandark_types::{BodyStorage, CrawlError, RedirectHop, Result, TransportProvenance};
 
-use super::{FetchRequest, Transport, build_artifact, map_transport_error};
+use super::{FetchRequest, Transport, build_artifact};
+use pandark_types::diagnostics as pd;
 
 fn headers_to_map(headers: &Headers) -> BTreeMap<String, String> {
     headers.iter().map(|(name, value)| (name.to_string(), value.to_string())).collect()
@@ -39,11 +42,14 @@ impl Transport for HttpTransport {
     fn fetch(&self, request: &FetchRequest) -> Result<pandark_types::FetchArtifact> {
         let scheme = request.url.scheme();
         if scheme != "http" && scheme != "https" {
-            return Err(map_transport_error(format!("http transport cannot fetch `{}`", request.url)));
+            return Err(make_transport_diag(pd::FETCH_TRANSPORT_FAILED, &format!(
+                "http transport cannot fetch `{}`",
+                request.url
+            )));
         }
 
-        let max_redirects =
-            u32::try_from(self.max_redirects).map_err(|_| map_transport_error("redirect budget exceeds supported range"))?;
+        let max_redirects = u32::try_from(self.max_redirects)
+            .map_err(|_| make_transport_diag(pd::FETCH_TRANSPORT_FAILED, "redirect budget exceeds supported range"))?;
         let transport = RequestHttpTransport::with_config(HttpTransportConfig {
             max_body_bytes: self.max_body_bytes,
             max_redirects,
@@ -54,7 +60,7 @@ impl Transport for HttpTransport {
         for (name, value) in &request.headers {
             http_request.set_header(name, value);
         }
-        let response = transport.send(&http_request).map_err(|error| map_transport_error(error.to_string()))?;
+        let response = transport.send(&http_request).map_err(map_http_request_error)?;
         let headers = headers_to_map(&response.headers);
         let etag = headers.get("etag").cloned();
         let redirect_chain =
@@ -69,5 +75,90 @@ impl Transport for HttpTransport {
             TransportProvenance::Network,
             etag.as_deref(),
         ))
+    }
+}
+
+// ─── boost_http RequestError → CrawlError 分型 ──────────────────────────────
+
+/// Map a `boost_http::RequestError` into a structured [`CrawlError`] with the
+/// correct stable diagnostic code for timeout / TLS / redirect / body-budget /
+/// generic transport failures.
+fn map_http_request_error(error: RequestError) -> CrawlError {
+    match error {
+        RequestError::Unsupported(msg) => make_transport_diag(pd::FETCH_TRANSPORT_FAILED, &msg),
+        RequestError::Transport(msg) => classify_transport_msg(&msg),
+        RequestError::Body(io_err) => make_transport_diag(pd::FETCH_DECODE_FAILED, &format!("body read failed: {io_err}")),
+        RequestError::BodyTooLarge { limit } => make_transport_diag_u64(
+            pd::FETCH_BODY_BUDGET,
+            "response body exceeded configured budget",
+            limit as u64,
+        ),
+        RequestError::HeaderTooLarge { limit } => make_transport_diag_u64(
+            pd::FETCH_BODY_BUDGET,
+            "response headers exceeded configured budget",
+            limit as u64,
+        ),
+    }
+}
+
+/// Sub-classify a `RequestError::Transport` inner message into timeout /
+/// redirect-limit / TLS-failed / catch-all transport-failed.
+fn classify_transport_msg(msg: &str) -> CrawlError {
+    let lower = msg.to_ascii_lowercase();
+    if lower.contains("timeout") || lower.contains("deadline") {
+        make_transport_diag(pd::FETCH_TIMEOUT, msg)
+    }
+    else if lower.contains("redirect chain exceeded") || lower.contains("redirect loop exhausted") {
+        make_transport_diag(pd::FETCH_REDIRECT_LIMIT, msg)
+    }
+    else if lower.contains("tls") || lower.contains("certificate") || lower.contains("handshake") {
+        make_transport_diag(pd::FETCH_TLS_FAILED, msg)
+    }
+    else {
+        make_transport_diag(pd::FETCH_TRANSPORT_FAILED, msg)
+    }
+}
+
+/// Build a [`CrawlError`] with a string `message` arg, routed to the given
+/// stable `DiagnosticCode` under the `fetch` origin.
+fn make_transport_diag(code: &'static str, message: &str) -> CrawlError {
+    let key = diagnostic_key_for(code);
+    let diag = Diagnostic::new(
+        pd::code(code),
+        DiagnosticSeverity::Error,
+        pd::origin_fetch(),
+        Message::new(&format!("pandark.diagnostic.{key}"))
+            .with_arg("message", MessageArg::Text(message.to_string()))
+            .with_fallback(message.to_string()),
+    );
+    CrawlError::from(diag)
+}
+
+/// Build a [`CrawlError`] with a u64 numeric arg, routed to the given stable
+/// `DiagnosticCode` under the `fetch` origin.
+fn make_transport_diag_u64(code: &'static str, message: &str, value: u64) -> CrawlError {
+    let key = diagnostic_key_for(code);
+    let diag = Diagnostic::new(
+        pd::code(code),
+        DiagnosticSeverity::Error,
+        pd::origin_fetch(),
+        Message::new(&format!("pandark.diagnostic.{key}"))
+            .with_arg("limit", MessageArg::U64(value))
+            .with_fallback(format!("{message}: {value} bytes")),
+    );
+    CrawlError::from(diag)
+}
+
+/// Derive a short message key suffix from a stable diagnostic code.
+fn diagnostic_key_for(code: &'static str) -> &'static str {
+    // Map full code → short key for message ID.
+    match code {
+        pd::FETCH_TIMEOUT => "fetchTimeout",
+        pd::FETCH_TLS_FAILED => "fetchTlsFailed",
+        pd::FETCH_REDIRECT_LIMIT => "fetchRedirectLimit",
+        pd::FETCH_BODY_BUDGET => "fetchBodyBudget",
+        pd::FETCH_DECODE_FAILED => "fetchDecodeFailed",
+        pd::FETCH_TRANSPORT_FAILED => "fetchTransportFailed",
+        _ => "fetchError",
     }
 }
