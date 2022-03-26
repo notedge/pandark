@@ -89,25 +89,6 @@ function checkFetchDeps() {
   }
 }
 
-function checkWasmDeps() {
-  const manifest = readManifest("pandark-wasm");
-  for (const forbidden of [
-    "yydb",
-    "pandark-store",
-    "pandark",
-    "pandark-fetch",
-    "napi",
-    "ureq",
-  ]) {
-    if (declaresDependency(manifest, forbidden)) {
-      fail(`\`pandark-wasm\` must not depend on \`${forbidden}\``);
-    }
-  }
-  if (!declaresDependency(manifest, "wasm-bindgen")) {
-    fail("`pandark-wasm` must depend on `wasm-bindgen`");
-  }
-}
-
 function checkPandarkIsRlibOnly() {
   const manifest = readManifest("pandark");
   if (manifest.includes("cdylib")) {
@@ -157,7 +138,6 @@ function checkNoYydbImportsOutsideStore() {
 
 checkYydbOnlyInStore();
 checkFetchDeps();
-checkWasmDeps();
 checkPandarkIsRlibOnly();
 checkNoYydbImportsOutsideStore();
 
