@@ -42,7 +42,7 @@ impl InspectReport {
     /// Empty inspect report for a source URL.
     pub fn empty(source_url: Url, stage: InspectStage) -> Self {
         Self {
-            schema_version: "pandark.inspect/v1".into(),
+            schema_version: crate::diagnostics::SCHEMA_INSPECT.into(),
             source_url,
             stage,
             probe: ProbeResult { status: crate::extract::ProbeStatus::Unsupported, extractor: None },

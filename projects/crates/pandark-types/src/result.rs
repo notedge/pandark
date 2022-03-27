@@ -50,7 +50,7 @@ impl CrawlReport {
     /// Empty report for a seed.
     pub fn empty(seed: Url) -> Self {
         Self {
-            schema_version: "pandark.report/v2".to_string(),
+            schema_version: crate::diagnostics::SCHEMA_REPORT.to_string(),
             seed,
             extracted: 0,
             failed: 0,

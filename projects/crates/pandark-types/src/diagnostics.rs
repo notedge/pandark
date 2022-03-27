@@ -12,6 +12,15 @@ use boost_diagnostic::{DiagnosticCode, DiagnosticOrigin};
 /// Pandark namespace — the product origin for every diagnostic this crate emits.
 pub const NAMESPACE: &str = "pandark";
 
+// ─── report schema versions (pre-1.0 — bump only on breaking wire changes) ──
+
+/// Crawl / extract report schema (`pandark.report/v0`).
+pub const SCHEMA_REPORT: &str = "pandark.report/v0";
+/// Checkpoint resume schema (`pandark.checkpoint/v0`).
+pub const SCHEMA_CHECKPOINT: &str = "pandark.checkpoint/v0";
+/// Inspect / probe schema (`pandark.inspect/v0`).
+pub const SCHEMA_INSPECT: &str = "pandark.inspect/v0";
+
 // ─── component origins ──────────────────────────────────────────────────────
 
 /// Fetch transport and caching component origin.

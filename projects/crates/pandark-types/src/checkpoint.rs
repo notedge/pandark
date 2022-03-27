@@ -44,7 +44,7 @@ impl CrawlCheckpoint {
         attempt_identity: u32,
     ) -> Self {
         Self {
-            schema_version: "pandark.checkpoint/v1".into(),
+            schema_version: crate::diagnostics::SCHEMA_CHECKPOINT.into(),
             request,
             pending_frontier,
             requests_used,

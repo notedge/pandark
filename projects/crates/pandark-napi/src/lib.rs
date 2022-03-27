@@ -280,7 +280,7 @@ fn build_extract_response(result: pandark_types::ExtractResult) -> Result<Extrac
         ExtractStatus::Unsupported | ExtractStatus::Failed => 2,
     };
     let report_json = serde_json::json!({
-        "schema_version": "pandark.report/v1",
+        "schema_version": pandark_types::diagnostics::SCHEMA_REPORT,
         "operation": "extract",
         "status": status,
         "source_url": result.source_url.to_string(),
@@ -316,7 +316,7 @@ fn build_challenge_extract_response(
     blocked: ChallengeBlocked,
 ) -> Result<ExtractResponse> {
     let report_json = serde_json::json!({
-        "schema_version": "pandark.report/v1",
+        "schema_version": pandark_types::diagnostics::SCHEMA_REPORT,
         "operation": "extract",
         "status": "challenge_blocked",
         "source_url": snapshot.final_url.to_string(),
