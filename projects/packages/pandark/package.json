@@ -1,6 +1,6 @@
 {
     "name": "@notedge/pandark",
-    "version": "0.0.7",
+    "version": "0.0.8",
     "description": "Crawl and extract web pages into notedown-ir with Node-API bindings and a TypeScript CLI.",
     "type": "module",
     "license": "MPL-2.0",
