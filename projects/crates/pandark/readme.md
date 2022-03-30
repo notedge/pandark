@@ -15,7 +15,6 @@ CLI users should install `@notedge/pandark` instead of depending on this crate d
 | HTML → `notedown-ir`                 | `pandark-extract` |
 | Checkpoints and crawl storage        | `pandark-store`   |
 | Node-API surface                     | `pandark-napi`    |
-| Browser extract/plan only            | `pandark-wasm`    |
 
 Document semantics live in `notedown-ir::DocumentGraph`, not in this crate.
 

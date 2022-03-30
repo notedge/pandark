@@ -23,7 +23,3 @@ pnpm run build:napi
 ```
 
 Copies `index.*.node` into `projects/packages/pandark-<platform>/lib/` for npm packaging.
-
-## ⚠️ WASM boundary
-
-Crawl bindings exist here only. `pandark-wasm` deliberately does not export crawl orchestration.

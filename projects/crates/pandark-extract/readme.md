@@ -3,8 +3,7 @@
 Semantic extractors that turn `pandark-types::FetchArtifact` HTML (and related inputs) into `notedown-ir::DocumentGraph`
 output plus extraction diagnostics.
 
-Shared by the `pandark` facade, `pandark-napi`, and `pandark-wasm` so CLI, Node, and browser hosts see the same
-extraction behavior.
+Shared by the `pandark` facade and `pandark-napi` so CLI and Node hosts see the same extraction behavior.
 
 ## 🧪 Inputs and outputs
 
@@ -23,5 +22,3 @@ sites still gap.
 ## 🔌 Integration
 
 See the `pandark` facade and integration tests for how extractors are invoked in this release.
-
-WASM exports extract and inspect only; crawl is intentionally excluded from `pandark-wasm`.
