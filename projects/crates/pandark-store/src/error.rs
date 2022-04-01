@@ -88,6 +88,15 @@ impl fmt::Display for StoreError {
 
 impl std::error::Error for StoreError {}
 
+/// Convenient blanket conversion so core and frontend callers can
+/// seamlessly turn any store error into a structured diagnostic
+/// without having to know about `to_diagnostic`.
+impl From<StoreError> for Diagnostic {
+    fn from(value: StoreError) -> Self {
+        value.to_diagnostic()
+    }
+}
+
 /// Convenient result alias for store operations.
 pub type Result<T> = std::result::Result<T, StoreError>;
 
