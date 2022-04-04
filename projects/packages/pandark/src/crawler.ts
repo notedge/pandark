@@ -345,7 +345,11 @@ export class Crawler {
         }
 
         const runStatus: CrawlRun<Out>["status"] =
-            failed > 0 ? "partial" : diagnostics.some((d) => d.severity === "error") ? "partial" : "success";
+            success === 0 && failed > 0
+                ? "failed"
+                : failed > 0
+                ? "partial"
+                : "success";
 
         return {
             status: runStatus,
@@ -488,18 +492,29 @@ function normalizeDiagnostic(d: DiagnosticRecord, url: string): DiagnosticRecord
     };
 }
 
-/** Derive per-page outcome from the handler result + diagnostics. */
+/**
+ * Derive per-page outcome from the handler result + diagnostics.
+ *
+ * Trust order (diagnostics always win):
+ *   1. Error-severity diagnostics → failed, regardless of what `result.status` claims.
+ *   2. `result.status === "failed"` / `"error"` → failed.
+ *   3. Loss diagnostics OR `result.status === "success_with_loss"` → success_with_loss.
+ *   4. Otherwise → success.
+ *
+ * We deliberately do NOT let a raw `"success"` status override error
+ * diagnostics — that was the old bug where a caller could declare success
+ * while leaving error records that consumers would then miss.
+ */
 function derivePageStatus<Out>(result: ConverterLikeResult<Out> | undefined, diags: DiagnosticRecord[]): PageOutcome<Out>["status"] {
     if (!result) return "failed";
-    // Explicit status wins.
-    if (result.status === "success") return "success";
-    if (result.status === "success_with_loss") return "success_with_loss";
-    if (result.status === "failed" || result.status === "error") return "failed";
-
-    // Otherwise infer from diagnostics.
-    const hasError = diags.some((d) => d.severity === "error" && d.stage !== "scope");
-    const hasLoss = diags.some((d) => /loss|required|missing/i.test(d.code));
+    // Error diagnostics always win — no caller can override these.
+    const hasError = diags.some((d) => d.severity === "error");
     if (hasError) return "failed";
+    // Explicit failure status is respected (no contradiction).
+    if (result.status === "failed" || result.status === "error") return "failed";
+    // Known structural loss?
+    const hasLoss = diags.some((d) => /loss|required|missing|rule\.|not-validated/i.test(d.code))
+        || result.status === "success_with_loss";
     if (hasLoss) return "success_with_loss";
     return "success";
 }
