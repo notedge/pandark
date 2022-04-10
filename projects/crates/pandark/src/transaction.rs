@@ -28,8 +28,7 @@ pub fn commit_page(transaction: PageTransaction) -> Result<String> {
             pd::code(pd::EXTRACT_PARSE_FAILED),
             DiagnosticSeverity::Error,
             pd::origin_extract(),
-            Message::new("pandark.diagnostic.missingDocumentGraph")
-                .with_fallback("missing document graph".to_string()),
+            Message::new("pandark.diagnostic.missingDocumentGraph").with_fallback("missing document graph".to_string()),
         );
         CrawlError::from(diag)
     })?;

@@ -32,7 +32,8 @@ impl fmt::Display for CrawlError {
             Self::Diagnostic(d) => {
                 if let Some(fallback) = d.message().fallback() {
                     write!(f, "{}", fallback)
-                } else {
+                }
+                else {
                     write!(f, "{}/{}", d.origin().namespace(), d.code())
                 }
             }

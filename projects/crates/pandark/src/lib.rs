@@ -83,15 +83,19 @@ pub fn plan_crawl(request: CrawlRequest) -> Result<CrawlPlan> {
 
 /// Initialize an empty report for the primary seed.
 pub fn initial_report(request: &CrawlRequest) -> Result<CrawlReport> {
-    let seed = request.seeds.first().ok_or_else(|| {
-        let diag = boost_diagnostic::Diagnostic::new(
-            pd::code(pd::REQUEST_INVALID),
-            DiagnosticSeverity::Error,
-            pd::origin_crawl(),
-            Message::new("pandark.diagnostic.seedsEmpty")
-                .with_fallback("at least one seed is required".to_string()),
-        );
-        CrawlError::from(diag)
-    })?.url.clone();
+    let seed = request
+        .seeds
+        .first()
+        .ok_or_else(|| {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::REQUEST_INVALID),
+                DiagnosticSeverity::Error,
+                pd::origin_crawl(),
+                Message::new("pandark.diagnostic.seedsEmpty").with_fallback("at least one seed is required".to_string()),
+            );
+            CrawlError::from(diag)
+        })?
+        .url
+        .clone();
     Ok(CrawlReport::empty(seed))
 }

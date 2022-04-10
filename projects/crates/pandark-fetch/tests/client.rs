@@ -1,11 +1,13 @@
 //! Extracted from `src/client.rs`.
 
-use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
 
 use pandark_fetch::{FetchClient, MemoryEntry, MemoryTransport, RobotsPolicy, Transport, fetch_url, site_key_for_url};
-use pandark_types::{CrawlError, FetchArtifact, HttpStatus, PolitenessProfile, TransportProvenance, BodyStorage};
+use pandark_types::{BodyStorage, CrawlError, FetchArtifact, HttpStatus, PolitenessProfile, TransportProvenance};
 use url::Url;
 
 /// Test transport that plays back artifacts or errors in FIFO order.
@@ -140,12 +142,7 @@ fn retries_429_after_retry_after_header_until_success() {
             BTreeMap::from([("retry-after".into(), "1".into())]),
             b"rate-limited".as_slice(),
         )),
-        Ok(SeqTransport::artifact(
-            url.as_str(),
-            200,
-            Default::default(),
-            b"ok".as_slice(),
-        )),
+        Ok(SeqTransport::artifact(url.as_str(), 200, Default::default(), b"ok".as_slice())),
     ]);
     let mut client = FetchClient::new(transport.clone(), RobotsPolicy::from_profile(PolitenessProfile::Developer));
     let started = Instant::now();

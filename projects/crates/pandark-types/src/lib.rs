@@ -24,7 +24,10 @@ pub use crate::{
     },
     challenge::{ChallengeOutcome, apply_challenge_policy},
     checkpoint::CrawlCheckpoint,
-    diagnostics::{NAMESPACE as DIAGNOSTIC_NAMESPACE, code, origin_browser, origin_crawl, origin_extract, origin_fetch, origin_fetch_http, origin_frontier, origin_politeness, origin_robots, origin_store},
+    diagnostics::{
+        NAMESPACE as DIAGNOSTIC_NAMESPACE, code, origin_browser, origin_crawl, origin_extract, origin_fetch, origin_fetch_http,
+        origin_frontier, origin_politeness, origin_robots, origin_store,
+    },
     error::{CrawlError, Result},
     events::{CrawlEvent, EventLog, PageTransaction},
     extract::{

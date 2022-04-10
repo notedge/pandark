@@ -51,12 +51,7 @@ impl StoreError {
             message = message.with_arg("message", MessageArg::Text(raw.to_string()));
         }
         let fallback_owned = fallback.to_string();
-        Diagnostic::new(
-            pd::code(code),
-            DiagnosticSeverity::Error,
-            pd::origin_store(),
-            message.with_fallback(fallback_owned),
-        )
+        Diagnostic::new(pd::code(code), DiagnosticSeverity::Error, pd::origin_store(), message.with_fallback(fallback_owned))
     }
 }
 
@@ -116,14 +111,8 @@ mod tests {
         assert_eq!(extract_code(&StoreError::StoreFencingMismatch), pd::STORE_CONFLICT);
         assert_eq!(extract_code(&StoreError::StoreLeaseExpired), pd::STORE_CONFLICT);
         assert_eq!(extract_code(&StoreError::StoreQuotaExceeded), pd::STORE_CONFLICT);
-        assert_eq!(
-            extract_code(&StoreError::StoreCorrupt("CRC mismatch".into())),
-            pd::STORE_CORRUPT,
-        );
-        assert_eq!(
-            extract_code(&StoreError::StoreInvalidState("closed connection".into())),
-            pd::STORE_TRANSACTION_FAILED,
-        );
+        assert_eq!(extract_code(&StoreError::StoreCorrupt("CRC mismatch".into())), pd::STORE_CORRUPT,);
+        assert_eq!(extract_code(&StoreError::StoreInvalidState("closed connection".into())), pd::STORE_TRANSACTION_FAILED,);
     }
 
     #[test]

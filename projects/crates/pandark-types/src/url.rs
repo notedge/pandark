@@ -3,8 +3,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
 use url::Url;
 
-use crate::diagnostics as pd;
-use crate::error::{CrawlError, Result};
+use crate::{
+    diagnostics as pd,
+    error::{CrawlError, Result},
+};
 
 /// Canonicalize a request URL for frontier deduplication.
 ///
@@ -53,11 +55,7 @@ pub fn canonicalize_parsed_url(mut url: Url) -> Result<Url> {
             Message::new("pandark.diagnostic.urlTooLong")
                 .with_arg("max_bytes", MessageArg::U64(MAX_URL_LENGTH as u64))
                 .with_arg("actual_bytes", MessageArg::U64(url.as_str().len() as u64))
-                .with_fallback(format!(
-                    "URL exceeds maximum length {} bytes (got {})",
-                    MAX_URL_LENGTH,
-                    url.as_str().len()
-                )),
+                .with_fallback(format!("URL exceeds maximum length {} bytes (got {})", MAX_URL_LENGTH, url.as_str().len())),
         );
         return Err(CrawlError::from(diag));
     }
@@ -65,17 +63,20 @@ pub fn canonicalize_parsed_url(mut url: Url) -> Result<Url> {
     // Fragments never leave the client; strip to avoid frontier duplicate entries.
     url.set_fragment(None);
 
-    let host = url.host_str().ok_or_else(|| {
-        let diag = boost_diagnostic::Diagnostic::new(
-            pd::code(pd::URL_INVALID),
-            DiagnosticSeverity::Error,
-            pd::origin_fetch(),
-            Message::new("pandark.diagnostic.urlMissingHost")
-                .with_arg("url", MessageArg::Text(url.to_string()))
-                .with_fallback(format!("URL must include a host")),
-        );
-        CrawlError::from(diag)
-    })?.to_ascii_lowercase();
+    let host = url
+        .host_str()
+        .ok_or_else(|| {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::URL_INVALID),
+                DiagnosticSeverity::Error,
+                pd::origin_fetch(),
+                Message::new("pandark.diagnostic.urlMissingHost")
+                    .with_arg("url", MessageArg::Text(url.to_string()))
+                    .with_fallback(format!("URL must include a host")),
+            );
+            CrawlError::from(diag)
+        })?
+        .to_ascii_lowercase();
 
     url.set_host(Some(&host)).map_err(|error| {
         let diag = boost_diagnostic::Diagnostic::new(

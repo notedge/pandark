@@ -42,18 +42,17 @@ pub fn load_snapshot_json(path: impl AsRef<Path>) -> Result<BrowserSnapshot> {
 /// Write a browser snapshot as JSON to disk.
 pub fn save_snapshot_json(path: impl AsRef<Path>, snapshot: &BrowserSnapshot) -> Result<()> {
     let path = path.as_ref();
-    let json = serde_json::to_string_pretty(snapshot)
-        .map_err(|error| {
-            let diag = boost_diagnostic::Diagnostic::new(
-                pd::code(pd::BROWSER_SNAPSHOT_INVALID),
-                DiagnosticSeverity::Error,
-                pd::origin_browser(),
-                Message::new("pandark.diagnostic.snapshotSerialize")
-                    .with_arg("error", MessageArg::Text(error.to_string()))
-                    .with_fallback(format!("serialize snapshot JSON: {error}")),
-            );
-            CrawlError::from(diag)
-        })?;
+    let json = serde_json::to_string_pretty(snapshot).map_err(|error| {
+        let diag = boost_diagnostic::Diagnostic::new(
+            pd::code(pd::BROWSER_SNAPSHOT_INVALID),
+            DiagnosticSeverity::Error,
+            pd::origin_browser(),
+            Message::new("pandark.diagnostic.snapshotSerialize")
+                .with_arg("error", MessageArg::Text(error.to_string()))
+                .with_fallback(format!("serialize snapshot JSON: {error}")),
+        );
+        CrawlError::from(diag)
+    })?;
     fs::write(path, json).map_err(|error| map_snapshot_io("write", path, error))
 }
 
@@ -143,10 +142,7 @@ pub fn load_fixture_provider_from_dir(dir: impl AsRef<Path>) -> Result<FixtureBr
             pd::origin_browser(),
             Message::new("pandark.diagnostic.browserFixturesDirEmpty")
                 .with_arg("dir", MessageArg::Text(dir.display().to_string()))
-                .with_fallback(format!(
-                    "browser fixtures dir `{}` contains no snapshot JSON files",
-                    dir.display()
-                )),
+                .with_fallback(format!("browser fixtures dir `{}` contains no snapshot JSON files", dir.display())),
         );
         return Err(CrawlError::from(diag));
     }

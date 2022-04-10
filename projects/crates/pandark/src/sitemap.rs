@@ -1,6 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashSet},
-};
+use std::collections::{BTreeMap, HashSet};
 
 use acorn_codec::{CodecLimits, compression::gzip::Gzip};
 use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
@@ -66,8 +64,7 @@ pub fn locations(body: &[u8]) -> Result<(bool, Vec<String>)> {
             pd::code(pd::EXTRACT_PARSE_FAILED),
             DiagnosticSeverity::Error,
             pd::origin_extract(),
-            Message::new("pandark.diagnostic.sitemapNoRoot")
-                .with_fallback("sitemap has no XML root"),
+            Message::new("pandark.diagnostic.sitemapNoRoot").with_fallback("sitemap has no XML root"),
         );
         CrawlError::from(diag)
     })?;
@@ -187,10 +184,7 @@ pub fn sitemap_body(artifact: &pandark_types::FetchArtifact) -> Result<Vec<u8>> 
             Message::new("pandark.diagnostic.sitemapBodyBudget")
                 .with_arg("budget_bytes", MessageArg::U64(SITEMAP_BUDGET_BYTES))
                 .with_arg("actual_bytes", MessageArg::U64(decoded.len() as u64))
-                .with_fallback(format!(
-                    "sitemap decoded body {} exceeds one MiB budget",
-                    decoded.len()
-                )),
+                .with_fallback(format!("sitemap decoded body {} exceeds one MiB budget", decoded.len())),
         );
         return Err(CrawlError::from(diagnostic));
     }
@@ -247,9 +241,16 @@ pub(crate) fn discover<T: Transport>(
                     DiagnosticSeverity::Error,
                     pd::origin_extract(),
                     Message::new("pandark.diagnostic.sitemapContentType")
-                        .with_arg("content_type", MessageArg::Text(
-                            artifact.content_type.clone().or_else(|| artifact.response_headers.get("content-type").cloned()).unwrap_or_default()
-                        ))
+                        .with_arg(
+                            "content_type",
+                            MessageArg::Text(
+                                artifact
+                                    .content_type
+                                    .clone()
+                                    .or_else(|| artifact.response_headers.get("content-type").cloned())
+                                    .unwrap_or_default(),
+                            ),
+                        )
                         .with_fallback("sitemap response content type is not XML"),
                 );
                 return Err(CrawlError::from(diag));

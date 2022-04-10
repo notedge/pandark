@@ -79,9 +79,7 @@ fn compute_retry_delay(artifact: &FetchArtifact, attempt: usize) -> Option<Durat
 /// source so we don't need a dedicated RNG dependency.
 fn apply_jitter(base: u64) -> u64 {
     // Sample a uniform f64 in [0, 1) from the OS entropy source.
-    let frac = Random::new(Secure::system())
-        .unit_f64()
-        .unwrap_or_else(|_| 0.5);
+    let frac = Random::new(Secure::system()).unit_f64().unwrap_or_else(|_| 0.5);
     // Map to [-1, 1], scale by JITTER_FRACTION, apply symmetric ±jitter.
     let offset = (frac - 0.5) * 2.0 * JITTER_FRACTION;
     let jittered = base as f64 * (1.0 + offset);

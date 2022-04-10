@@ -42,10 +42,10 @@ impl Transport for HttpTransport {
     fn fetch(&self, request: &FetchRequest) -> Result<pandark_types::FetchArtifact> {
         let scheme = request.url.scheme();
         if scheme != "http" && scheme != "https" {
-            return Err(make_transport_diag(pd::FETCH_TRANSPORT_FAILED, &format!(
-                "http transport cannot fetch `{}`",
-                request.url
-            )));
+            return Err(make_transport_diag(
+                pd::FETCH_TRANSPORT_FAILED,
+                &format!("http transport cannot fetch `{}`", request.url),
+            ));
         }
 
         let max_redirects = u32::try_from(self.max_redirects)
@@ -88,16 +88,12 @@ fn map_http_request_error(error: RequestError) -> CrawlError {
         RequestError::Unsupported(msg) => make_transport_diag(pd::FETCH_TRANSPORT_FAILED, &msg),
         RequestError::Transport(msg) => classify_transport_msg(&msg),
         RequestError::Body(io_err) => make_transport_diag(pd::FETCH_DECODE_FAILED, &format!("body read failed: {io_err}")),
-        RequestError::BodyTooLarge { limit } => make_transport_diag_u64(
-            pd::FETCH_BODY_BUDGET,
-            "response body exceeded configured budget",
-            limit as u64,
-        ),
-        RequestError::HeaderTooLarge { limit } => make_transport_diag_u64(
-            pd::FETCH_BODY_BUDGET,
-            "response headers exceeded configured budget",
-            limit as u64,
-        ),
+        RequestError::BodyTooLarge { limit } => {
+            make_transport_diag_u64(pd::FETCH_BODY_BUDGET, "response body exceeded configured budget", limit as u64)
+        }
+        RequestError::HeaderTooLarge { limit } => {
+            make_transport_diag_u64(pd::FETCH_BODY_BUDGET, "response headers exceeded configured budget", limit as u64)
+        }
     }
 }
 
@@ -235,10 +231,7 @@ mod tests {
     #[test]
     fn body_io_error_maps_to_decode_failed() {
         let io_err = std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "premature close");
-        assert_eq!(
-            extract_code(&map_http_request_error(RequestError::Body(io_err))),
-            pd::FETCH_DECODE_FAILED,
-        );
+        assert_eq!(extract_code(&map_http_request_error(RequestError::Body(io_err))), pd::FETCH_DECODE_FAILED,);
     }
 
     #[test]

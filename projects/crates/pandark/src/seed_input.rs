@@ -20,8 +20,7 @@ pub fn resolve_crawl_seed_specs(input: &str) -> Result<Vec<String>> {
             pd::code(pd::REQUEST_INVALID),
             DiagnosticSeverity::Error,
             pd::origin_crawl(),
-            Message::new("pandark.diagnostic.seedEmpty")
-                .with_fallback("crawl seed input is empty"),
+            Message::new("pandark.diagnostic.seedEmpty").with_fallback("crawl seed input is empty"),
         );
         return Err(CrawlError::from(diag));
     }
@@ -60,7 +59,8 @@ fn read_seed_file(path: &Path) -> Result<Vec<String>> {
         }
         let seed = if looks_like_url(trimmed) {
             trimmed.to_string()
-        } else {
+        }
+        else {
             normalize_local_or_url_seed(trimmed).map_err(|error| {
                 let diag = boost_diagnostic::Diagnostic::new(
                     pd::code(pd::REQUEST_INVALID),

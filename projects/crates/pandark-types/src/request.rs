@@ -2,8 +2,10 @@ use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::diagnostics as pd;
-use crate::error::{CrawlError, Result};
+use crate::{
+    diagnostics as pd,
+    error::{CrawlError, Result},
+};
 
 /// Politeness preset for crawl scheduling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

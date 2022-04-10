@@ -50,7 +50,8 @@ impl YydbResponseCache {
     /// Read an artifact and mark it as a cache hit.
     pub fn get(&self, cache_key: &str) -> Result<Option<FetchArtifact>> {
         let key = keyspace::response_cache(cache_key);
-        let Some(bytes) = self.connection.get(&key).map_err(map_yydb)? else {
+        let Some(bytes) = self.connection.get(&key).map_err(map_yydb)?
+        else {
             return Ok(None);
         };
         let mut artifact: FetchArtifact = serde_json::from_slice(&bytes).map_err(|error| {

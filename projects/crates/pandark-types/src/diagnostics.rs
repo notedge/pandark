@@ -194,19 +194,41 @@ mod tests {
     #[test]
     fn codes_are_pandark_prefixed_and_dotted() {
         let all: &[&str] = &[
-            REQUEST_INVALID, URL_INVALID, URL_OUT_OF_POLICY,
-            FETCH_TRANSPORT_FAILED, FETCH_TIMEOUT, FETCH_REDIRECT_LIMIT,
-            FETCH_HTTP_STATUS, FETCH_TLS_FAILED, FETCH_BODY_BUDGET, FETCH_DECODE_FAILED,
-            ROBOTS_DENIED, ROBOTS_UNAVAILABLE, ROBOTS_PARSE_FAILED,
-            POLITENESS_RATE_LIMITED, POLITENESS_CRAWL_DELAY,
-            FRONTIER_EMPTY, FRONTIER_CLAIM_EXPIRED,
-            RUN_CANCELLED, RUN_BUDGET_EXCEEDED, RUN_PARTIAL,
-            EXTRACT_UNSUPPORTED_MEDIA, EXTRACT_PARSE_FAILED, EXTRACT_SEMANTIC_PARTIAL,
+            REQUEST_INVALID,
+            URL_INVALID,
+            URL_OUT_OF_POLICY,
+            FETCH_TRANSPORT_FAILED,
+            FETCH_TIMEOUT,
+            FETCH_REDIRECT_LIMIT,
+            FETCH_HTTP_STATUS,
+            FETCH_TLS_FAILED,
+            FETCH_BODY_BUDGET,
+            FETCH_DECODE_FAILED,
+            ROBOTS_DENIED,
+            ROBOTS_UNAVAILABLE,
+            ROBOTS_PARSE_FAILED,
+            POLITENESS_RATE_LIMITED,
+            POLITENESS_CRAWL_DELAY,
+            FRONTIER_EMPTY,
+            FRONTIER_CLAIM_EXPIRED,
+            RUN_CANCELLED,
+            RUN_BUDGET_EXCEEDED,
+            RUN_PARTIAL,
+            EXTRACT_UNSUPPORTED_MEDIA,
+            EXTRACT_PARSE_FAILED,
+            EXTRACT_SEMANTIC_PARTIAL,
             EXTRACT_ASSET_UNRESOLVED,
-            BROWSER_UNAVAILABLE, BROWSER_CHALLENGE, BROWSER_SESSION_EXPIRED,
-            CACHE_READ_FAILED, CACHE_WRITE_FAILED, CACHE_REVALIDATION_FAILED,
-            STORE_UNAVAILABLE, STORE_CONFLICT, STORE_CORRUPT,
-            STORE_TRANSACTION_FAILED, STORE_RECOVERY_FAILED,
+            BROWSER_UNAVAILABLE,
+            BROWSER_CHALLENGE,
+            BROWSER_SESSION_EXPIRED,
+            CACHE_READ_FAILED,
+            CACHE_WRITE_FAILED,
+            CACHE_REVALIDATION_FAILED,
+            STORE_UNAVAILABLE,
+            STORE_CONFLICT,
+            STORE_CORRUPT,
+            STORE_TRANSACTION_FAILED,
+            STORE_RECOVERY_FAILED,
         ];
         for item in all {
             assert!(item.starts_with("pandark."), "code must be pandark-namespaced: {item}");
@@ -217,9 +239,7 @@ mod tests {
     #[test]
     fn message_with_fallback_preserves_key_and_args() {
         use boost_diagnostic::MessageArg;
-        let msg = Message::new("pandark.fetch.http-status")
-            .with_arg("status", MessageArg::I64(429))
-            .with_fallback("got a 429");
+        let msg = Message::new("pandark.fetch.http-status").with_arg("status", MessageArg::I64(429)).with_fallback("got a 429");
         assert_eq!(msg.key(), "pandark.fetch.http-status");
         assert_eq!(msg.args().len(), 1);
         assert_eq!(msg.fallback(), Some("got a 429"));

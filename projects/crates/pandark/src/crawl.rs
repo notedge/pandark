@@ -13,8 +13,7 @@ use crate::{
     admission::{admit_frontier_item, seed_frontier},
     extract::{Extractor, run_extract},
     frontier::{FrontierQueue, frontier_from_links},
-    initial_report,
-    sitemap,
+    initial_report, sitemap,
     transaction::commit_page,
 };
 use pandark_types::PageTransaction;

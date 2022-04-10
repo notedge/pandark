@@ -33,19 +33,16 @@ impl FixtureBrowserProvider {
 
 impl BrowserProvider for FixtureBrowserProvider {
     fn capture_snapshot(&self, url: &Url) -> Result<BrowserSnapshot> {
-        self.snapshots
-            .get(url.as_str())
-            .cloned()
-            .ok_or_else(|| {
-                let diag = boost_diagnostic::Diagnostic::new(
-                    pd::code(pd::BROWSER_UNAVAILABLE),
-                    DiagnosticSeverity::Error,
-                    pd::origin_browser(),
-                    Message::new("pandark.diagnostic.fixtureSnapshotMissing")
-                        .with_arg("url", MessageArg::Text(url.to_string()))
-                        .with_fallback(format!("no fixture snapshot for `{url}`")),
-                );
-                CrawlError::from(diag)
-            })
+        self.snapshots.get(url.as_str()).cloned().ok_or_else(|| {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::BROWSER_UNAVAILABLE),
+                DiagnosticSeverity::Error,
+                pd::origin_browser(),
+                Message::new("pandark.diagnostic.fixtureSnapshotMissing")
+                    .with_arg("url", MessageArg::Text(url.to_string()))
+                    .with_fallback(format!("no fixture snapshot for `{url}`")),
+            );
+            CrawlError::from(diag)
+        })
     }
 }

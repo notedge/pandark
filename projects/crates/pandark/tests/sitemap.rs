@@ -1,7 +1,6 @@
 //! Extracted from `src/sitemap.rs`.
 
-use acorn_codec::compression::deflate::DeflateLevel;
-use acorn_codec::compression::gzip::Gzip;
+use acorn_codec::compression::{deflate::DeflateLevel, gzip::Gzip};
 use pandark_fetch::build_artifact;
 use pandark_types::{BodyStorage, TransportProvenance};
 use url::Url;

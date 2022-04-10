@@ -51,8 +51,7 @@ impl DiskResponseCache {
             return Ok(None);
         }
         let meta_bytes = fs::read(&meta_path).map_err(|error| map_io_error("read cache meta", &meta_path, error))?;
-        let entry: DiskCacheEntry = serde_json::from_slice(&meta_bytes)
-            .map_err(|error| map_serde_read(&meta_path, error))?;
+        let entry: DiskCacheEntry = serde_json::from_slice(&meta_bytes).map_err(|error| map_serde_read(&meta_path, error))?;
         let body_path = entry_dir.join("body.bin");
         let mut body = Vec::new();
         if body_path.is_file() {
@@ -68,18 +67,20 @@ impl DiskResponseCache {
     /// Store an artifact and return its cache key.
     pub fn put(&mut self, artifact: FetchArtifact) -> Result<String> {
         let cache_key = artifact.cache_key.clone();
-        let body = artifact.body_bytes().ok_or_else(|| {
-            let diag = boost_diagnostic::Diagnostic::new(
-                pd::code(pd::CACHE_WRITE_FAILED),
-                DiagnosticSeverity::Error,
-                pd::origin_fetch(),
-                Message::new("pandark.diagnostic.cacheBodyReference")
-                    .with_arg("cache_key", MessageArg::Text(cache_key.clone()))
-                    .with_fallback("disk cache requires an inline body; reference bodies cannot be stored"),
-            );
-            CrawlError::from(diag)
-        })?
-        .to_vec();
+        let body = artifact
+            .body_bytes()
+            .ok_or_else(|| {
+                let diag = boost_diagnostic::Diagnostic::new(
+                    pd::code(pd::CACHE_WRITE_FAILED),
+                    DiagnosticSeverity::Error,
+                    pd::origin_fetch(),
+                    Message::new("pandark.diagnostic.cacheBodyReference")
+                        .with_arg("cache_key", MessageArg::Text(cache_key.clone()))
+                        .with_fallback("disk cache requires an inline body; reference bodies cannot be stored"),
+                );
+                CrawlError::from(diag)
+            })?
+            .to_vec();
         let body_bytes = body.len() as u64;
         self.evict_for_insert(body_bytes)?;
 
@@ -98,8 +99,7 @@ impl DiskResponseCache {
             ..artifact
         };
         let entry = DiskCacheEntry { artifact: stored, etag, last_modified, body_bytes };
-        let meta_json = serde_json::to_vec_pretty(&entry)
-            .map_err(|error| map_serde_write(error))?;
+        let meta_json = serde_json::to_vec_pretty(&entry).map_err(|error| map_serde_write(error))?;
         write_atomically(&entry_dir.join("meta.json"), &meta_json)?;
         write_atomically(&entry_dir.join("body.bin"), &body)?;
         self.used_bytes += body_bytes;
@@ -127,8 +127,7 @@ impl DiskResponseCache {
             return Ok(None);
         }
         let meta_bytes = fs::read(&meta_path).map_err(|error| map_io_error("read cache meta", &meta_path, error))?;
-        let entry: DiskCacheEntry = serde_json::from_slice(&meta_bytes)
-            .map_err(|error| map_serde_read(&meta_path, error))?;
+        let entry: DiskCacheEntry = serde_json::from_slice(&meta_bytes).map_err(|error| map_serde_read(&meta_path, error))?;
         Ok(match (entry.etag, entry.last_modified) {
             (Some(etag), Some(last_modified)) => Some((etag, last_modified)),
             _ => None,
@@ -148,10 +147,7 @@ impl DiskResponseCache {
                 Message::new("pandark.diagnostic.cacheQuota")
                     .with_arg("incoming_bytes", MessageArg::U64(incoming_bytes))
                     .with_arg("max_bytes", MessageArg::U64(self.max_bytes))
-                    .with_fallback(format!(
-                        "response body {incoming_bytes} bytes exceeds disk cache quota {}",
-                        self.max_bytes
-                    )),
+                    .with_fallback(format!("response body {incoming_bytes} bytes exceeds disk cache quota {}", self.max_bytes)),
             );
             return Err(CrawlError::from(diag));
         }
