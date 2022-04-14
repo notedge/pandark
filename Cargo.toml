@@ -10,7 +10,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.0.10"
+version = "0.0.11"
 authors = ["Aster <192607617@qq.com>"]
 license = "MPL-2.0"
 edition = "2024"
@@ -26,8 +26,8 @@ oak-xml = { git = "https://github.com/yggdrasil-language/oak.rs.git", rev = "5ad
 # Compression codec (production path; replaces flate2).
 acorn-codec = { git = "https://github.com/yggdrasil-language/acorn.rs.git", rev = "fbed2df1626ec3800cb2e54b7b9c730bf8a2f996", default-features = false, features = ["compression"] }
 # Overlaid by local path `.cargo/config.toml` (git ignored).
-notedown-ir = { git = "https://github.com/notedge/notedown.git", branch = "dev" }
-notedown-formats = { git = "https://github.com/notedge/notedown.git", branch = "dev", default-features = false, features = ["markdown", "html"] }
+notedown-ir = { git = "https://github.com/notedge/notedown.git", rev = "0b6241dbd5713890d0adb171ef4a57638719d3da" }
+notedown-formats = { git = "https://github.com/notedge/notedown.git", rev = "0b6241dbd5713890d0adb171ef4a57638719d3da", default-features = false, features = ["markdown", "html"] }
 # Overlaid by local path `.cargo/config.toml` (git ignored).
 yydb = { git = "https://github.com/yy-database/yydb.rs", rev = "f7eaf8ecfdb1cbaf6089a4b560caffa0c2acabeb" }
 # Local dependencies
@@ -49,6 +49,24 @@ blake3 = "1.8.7"
 [profile.release]
 lto = true
 opt-level = "s"
+
+# Patch transitive git deps that use branch="dev" and have drifted upstream.
+# yydb → vos-language?branch=dev (HEAD removed oak-vos)
+# vos-language → dejavu-engine?branch=dev
+# Forked to notedge org and pinned to known-good revs.
+[patch."https://github.com/voml/vos-language.git"]
+vos = { git = "https://github.com/notedge/vos-language.git", rev = "39cb1a36a9e1e08b237362257b8db6e47e036fe6" }
+vos-format = { git = "https://github.com/notedge/vos-language.git", rev = "39cb1a36a9e1e08b237362257b8db6e47e036fe6" }
+vos-generator = { git = "https://github.com/notedge/vos-language.git", rev = "39cb1a36a9e1e08b237362257b8db6e47e036fe6" }
+vos-types = { git = "https://github.com/notedge/vos-language.git", rev = "39cb1a36a9e1e08b237362257b8db6e47e036fe6" }
+
+[patch."https://github.com/doki-land/dejavu-engine.git"]
+dejavu = { git = "https://github.com/notedge/dejavu-language.git", rev = "c14ad3f786feb30676d809999199a3c867a90cbf" }
+dejavu-engine = { git = "https://github.com/notedge/dejavu-language.git", rev = "c14ad3f786feb30676d809999199a3c867a90cbf" }
+dejavu-ir = { git = "https://github.com/notedge/dejavu-language.git", rev = "c14ad3f786feb30676d809999199a3c867a90cbf" }
+dejavu-language = { git = "https://github.com/notedge/dejavu-language.git", rev = "c14ad3f786feb30676d809999199a3c867a90cbf" }
+dejavu-runtime = { git = "https://github.com/notedge/dejavu-language.git", rev = "c14ad3f786feb30676d809999199a3c867a90cbf" }
+dejavu-types = { git = "https://github.com/notedge/dejavu-language.git", rev = "c14ad3f786feb30676d809999199a3c867a90cbf" }
 
 [workspace.metadata.release]
 push = false
