@@ -18,3 +18,4 @@ distribution
 coverage
 size-plugin.json
 package-lock.json
+yarn-error.log
