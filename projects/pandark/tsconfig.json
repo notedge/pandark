@@ -6,7 +6,11 @@
         "declaration": false,
         "moduleResolution": "node",
         "esModuleInterop": true,
-        "noPropertyAccessFromIndexSignature": false
+
+        "noPropertyAccessFromIndexSignature": false,
+        "noUnusedLocals": false,
+        "noUnusedParameters": false,
+
     },
     "ts-node": {
         "compilerOptions": {

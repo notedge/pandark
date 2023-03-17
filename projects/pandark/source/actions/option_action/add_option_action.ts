@@ -1,31 +1,28 @@
-import {browser} from 'webextension-polyfill-ts'
+import { browser } from 'webextension-polyfill-ts'
 
-import {addUl} from '../../lib/functions'
+// import {addUl} from '../../lib/functions'
 
-const updateOptionUl = () => {
-    const oldUl = document.querySelector('#option-list')
-    if (oldUl) {
-        document.body.removeChild(oldUl)
-    }
-    const newOption = document.querySelector('#option-value') as HTMLInputElement
-    if (newOption.value) {
-        browser.storage.local
-            .get('listItems')
-            .then((response) => {
-                const listItems = [...response.listItems, newOption.value]
-                addUl(listItems)
-                browser.storage.local.set({listItems}).catch((error: Error) => {
-                    alert(error.message)
-                })
-                newOption.value = ''
-            })
-            .catch((error: Error) => {
-                alert(error.message)
-            })
+async function get_url() {
+    const tabs= await browser.tabs.query({currentWindow: true, active: true});
+    console.log(tabs[0]);
+
+    console.log(window.location.href)
+    // await copyPageUrl()
+
+
+}
+
+async function copyPageUrl() {
+    try {
+        await navigator.clipboard.writeText(location.href);
+        console.log('Page URL copied to clipboard');
+    } catch (err) {
+        console.error('Failed to copy: ', err);
     }
 }
 
-const addOptionBtn = document.querySelector('#add-option') as HTMLButtonElement
-addOptionBtn.addEventListener('click', updateOptionUl)
 
-updateOptionUl()
+const addOptionBtn = document.querySelector('#convert') as HTMLButtonElement
+console.log(addOptionBtn);
+
+addOptionBtn.addEventListener('click', get_url)
