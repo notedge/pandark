@@ -17,6 +17,6 @@
         "@vmz/ui": "0.2.7"
     },
     "devDependencies": {
-        "@vmz/vmz": "0.2.7"
+        "@vmz/vmz": "0.3.2"
     }
 }
