@@ -13,7 +13,7 @@
     },
     "dependencies": {
         "@notedge/pandark": "workspace:*",
-        "@vmz/core": "0.2.7",
+        "@vmz/core": "0.3.2",
         "@vmz/ui": "0.2.7"
     },
     "devDependencies": {
