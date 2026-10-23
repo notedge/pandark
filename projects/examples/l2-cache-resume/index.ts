@@ -11,7 +11,7 @@
 //   pnpm start https://example.com .cache .checkpoints
 
 import { createPandark } from "@notedge/pandark";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
 const seed = process.argv[2] ?? "https://example.com";
 const cacheDir = process.argv[3] ?? ".cache";
@@ -29,7 +29,7 @@ let checkpointJson: string | undefined;
 if (existsSync(checkpointFile)) {
   // ==== RESUME PATH ====
   console.log(`📂 resuming from checkpoint at ${checkpointDir}`);
-  const saved = readFileSync(checkpointFile);
+  const saved = readFileSync(checkpointFile, "utf8");
   const result = pd.resume(saved, { cacheDir });
   report = JSON.parse(result.reportJson);
   checkpointJson = result.checkpointJson ?? undefined;
@@ -53,21 +53,7 @@ console.log(`💾 cache at ${cacheDir}  (re-run uses it, warm start)`);
 if (checkpointJson) {
   writeFileSync(checkpointFile, checkpointJson);
   console.log(`📂 checkpoint saved to ${checkpointFile}`);
-} else {
-  // run finished cleanly — checkpoint 不存在或为空
-  try {
-    existsSync(checkpointFile) && rmSync(checkpointFile);
-    console.log(`✅ run complete, checkpoint cleared`);
-  } catch {}
-}
-
-// ---- helpers ----
-function readFileSync(p: string) {
-  // node:fs is ESM but readFileSync lives on default import
-  const node = await import("node:fs");
-  return (node as any).readFileSync(p, "utf8");
-}
-function rmSync(p: string) {
-  const node = await import("node:fs");
-  return (node as any).rmSync(p);
+} else if (existsSync(checkpointFile)) {
+  rmSync(checkpointFile);
+  console.log(`✅ run complete, checkpoint cleared`);
 }

@@ -22,5 +22,5 @@ jobs:
         run: pnpm install
       - name: Validate npm package manifests
         run: pnpm check:npm
-      - name: Typecheck packages
+      - name: Typecheck workspace packages and examples
         run: pnpm typecheck

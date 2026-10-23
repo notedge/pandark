@@ -5,7 +5,7 @@
         "build": "cargo build --release",
         "build:napi": "node scripts/build-napi.mjs",
         "test": "cargo test --release && pnpm --filter @notedge/pandark test:e2e",
-        "typecheck": "pnpm --filter @notedge/pandark typecheck",
+        "typecheck": "pnpm -r --if-present run typecheck",
         "check:npm": "node scripts/check-npm-packages.mjs",
         "homepage:dev": "pnpm --filter @notedge/homepage dev",
         "homepage:build": "pnpm --filter @notedge/homepage build",
