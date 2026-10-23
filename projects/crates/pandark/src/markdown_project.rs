@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
+use boost_diagnostic::{DiagnosticCause, DiagnosticSeverity, Message, MessageArg};
 use notedown_formats::export::markdown_project::{MarkdownProject, export_markdown_project};
 use notedown_ir::DocumentGraph;
 use pandark_types::{CrawlError, ExtractResult, Result, diagnostics as pd};
@@ -220,21 +220,30 @@ fn sync_parent(path: &Path) -> io::Result<()> {
 }
 
 fn map_format_error(error: notedown_formats::FormatError) -> CrawlError {
-    // Preserve the authoritative `notedown.format.*` wire code from the
-    // formats-layer Diagnostic, so Pandark consumers can key on stable
-    // Notedown codes (e.g. for retry policy or localization) instead of
-    // Pandark-only strings.  We add a Pandark-origin wrapper for context.
-    let primary = notedown_formats::from_format_error(&error);
+    // Mirror the pandark-extract convention: use the authoritative
+    // `notedown.format.*` Diagnostic from `from_format_error` as the primary
+    // wire code (so consumers key on stable Notedown codes), and add a
+    // Pandark-origin wrapper with its own context code alongside.
+    let notedown_diag = notedown_formats::from_format_error(&error);
     let wrapper = boost_diagnostic::Diagnostic::new(
         pd::code(pd::EXTRACT_PARSE_FAILED),
         DiagnosticSeverity::Error,
         pd::origin_extract(),
         Message::new("pandark.diagnostic.formatError")
             .with_arg("error", MessageArg::Text(error.to_string()))
-            .with_arg("notedown_code", MessageArg::Text(primary.code().as_str().to_string()))
-            .with_fallback(format!("format error ({}): {}", primary.code().as_str(), error)),
+            .with_arg("notedown_code", MessageArg::Text(notedown_diag.code().as_str().to_string()))
+            .with_fallback(format!(
+                "format error ({}) at Pandark publish layer: {}",
+                notedown_diag.code().as_str(),
+                error
+            )),
     );
-    CrawlError::from(wrapper)
+    // Wrap the Notedown diagnostic as cause inside the Pandark wrapper so
+    // consumers can walk both the Pandark layer and the original Notedown
+    // layer code.
+    let cause = DiagnosticCause::new(notedown_diag.code().clone(), notedown_diag.message().clone());
+    let combined = wrapper.with_cause(cause);
+    CrawlError::from(combined)
 }
 
 fn map_io_error(error: io::Error) -> CrawlError {
