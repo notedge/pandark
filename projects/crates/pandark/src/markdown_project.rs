@@ -79,16 +79,22 @@ fn build_page_report_json(label: &str, extract: &ExtractResult, graph: &Document
 }
 
 fn publish_markdown_project(output_dir: &Path, project: &MarkdownProject, report_json: &str) -> Result<PublishedPageProject> {
-    fs::create_dir_all(output_dir).map_err(map_io_error)?;
-    let assets_dir = output_dir.join("assets");
+    // Stage into a sibling temp dir first so any mid-flow failure (bad
+    // asset path, disk full, …) does not leave `output_dir` half-published.
+    let staging_dir = staging_project_dir_path(output_dir);
+    if staging_dir.exists() {
+        fs::remove_dir_all(&staging_dir).map_err(map_io_error)?;
+    }
+    fs::create_dir_all(&staging_dir).map_err(map_io_error)?;
+    let assets_dir = staging_dir.join("assets");
     fs::create_dir_all(&assets_dir).map_err(map_io_error)?;
 
-    let index_path = output_dir.join("index.md");
+    let index_path = staging_dir.join("index.md");
     publish_text(&index_path, &project.index_markdown)?;
 
     let mut chapter_paths = Vec::with_capacity(project.chapters.len());
     for chapter in &project.chapters {
-        let chapter_path = output_dir.join(&chapter.relative_path);
+        let chapter_path = staging_dir.join(&chapter.relative_path);
         if let Some(parent) = chapter_path.parent() {
             fs::create_dir_all(parent).map_err(map_io_error)?;
         }
@@ -114,10 +120,44 @@ fn publish_markdown_project(output_dir: &Path, project: &MarkdownProject, report
         asset_paths.push(asset.relative_path.clone());
     }
 
-    let report_path = output_dir.join("panduck.report.json");
+    let report_path = staging_dir.join("panduck.report.json");
     publish_text(&report_path, report_json)?;
 
-    Ok(PublishedPageProject { output_dir: output_dir.to_path_buf(), index_path, chapter_paths, asset_paths, report_path })
+    // Whole-directory atomic swap.
+    let result = replace_project_dir(&staging_dir, output_dir);
+    let _ = fs::remove_dir_all(&staging_dir);
+    result?;
+
+    Ok(PublishedPageProject {
+        output_dir: output_dir.to_path_buf(),
+        index_path: output_dir.join("index.md"),
+        chapter_paths,
+        asset_paths,
+        report_path: output_dir.join("panduck.report.json"),
+    })
+}
+
+fn staging_project_dir_path(output_dir: &Path) -> PathBuf {
+    let file_name = output_dir.file_name().and_then(|n| n.to_str()).unwrap_or("output");
+    let parent = output_dir.parent().unwrap_or_else(|| Path::new("."));
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    parent.join(format!(".{}.{}.{}.staging", file_name, std::process::id(), nanos))
+}
+
+fn replace_project_dir(staging_dir: &Path, output_dir: &Path) -> Result<()> {
+    match fs::rename(staging_dir, output_dir) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            if output_dir.exists() {
+                fs::remove_dir_all(output_dir).map_err(map_io_error)?;
+            }
+            fs::rename(staging_dir, output_dir).map_err(map_io_error)?;
+            Ok(())
+        }
+    }
 }
 
 fn publish_text(path: &Path, content: &str) -> Result<()> {
@@ -180,15 +220,21 @@ fn sync_parent(path: &Path) -> io::Result<()> {
 }
 
 fn map_format_error(error: notedown_formats::FormatError) -> CrawlError {
-    let diag = boost_diagnostic::Diagnostic::new(
+    // Preserve the authoritative `notedown.format.*` wire code from the
+    // formats-layer Diagnostic, so Pandark consumers can key on stable
+    // Notedown codes (e.g. for retry policy or localization) instead of
+    // Pandark-only strings.  We add a Pandark-origin wrapper for context.
+    let primary = notedown_formats::from_format_error(&error);
+    let wrapper = boost_diagnostic::Diagnostic::new(
         pd::code(pd::EXTRACT_PARSE_FAILED),
         DiagnosticSeverity::Error,
         pd::origin_extract(),
         Message::new("pandark.diagnostic.formatError")
             .with_arg("error", MessageArg::Text(error.to_string()))
-            .with_fallback(format!("format error: {error}")),
+            .with_arg("notedown_code", MessageArg::Text(primary.code().as_str().to_string()))
+            .with_fallback(format!("format error ({}): {}", primary.code().as_str(), error)),
     );
-    CrawlError::from(diag)
+    CrawlError::from(wrapper)
 }
 
 fn map_io_error(error: io::Error) -> CrawlError {
