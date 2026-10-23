@@ -1,6 +1,6 @@
 {
     "name": "@notedge/pandark-darwin-arm64",
-    "version": "0.0.11",
+    "version": "0.0.12",
     "description": "Pandark Node-API binary for macOS arm64",
     "type": "module",
     "license": "MPL-2.0",
