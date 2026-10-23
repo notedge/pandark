@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["projects/crates/*", "projects/examples"]
+members = ["projects/crates/*"]
 default-members = [
     "projects/crates/pandark",
     "projects/crates/pandark-types",

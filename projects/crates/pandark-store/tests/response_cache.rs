@@ -1,5 +1,7 @@
 //! Extracted from `src/response_cache.rs`.
 
+#![cfg(feature = "yydb")]
+
 use pandark_types::{BodyStorage, FetchArtifact, TransportProvenance};
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
