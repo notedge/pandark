@@ -118,10 +118,10 @@ fn resolve_block_targets(block: &mut Block, base_url: &url::Url) {
                 resolve_inline_targets(&mut item.content, base_url);
             }
         }
-        Block::Table { rows } => {
+        Block::Table { rows, caption: _ } => {
             for row in rows {
                 for cell in &mut row.cells {
-                    resolve_inline_targets(cell, base_url);
+                    resolve_inline_targets(&mut cell.content, base_url);
                 }
             }
         }
