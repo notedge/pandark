@@ -9,6 +9,8 @@ use pandark::{
     initial_report, inspect_artifact, inspect_snapshot, load_input, parse_input_format, plan_crawl as build_plan,
     resolve_crawl_seed_specs, resume_crawl_from_checkpoint, run_crawl_with_options, run_extract, run_extract_from_snapshot,
 };
+use notedown_formats::export::markdown::export_markdown;
+use notedown_formats::import::html::import_html_bytes_with_links;
 use pandark_fetch::{FetchClient, FetchRequest, RobotsPolicy, transport_for_url};
 use pandark_types::{
     BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlReport, CrawlRequest, ExtractBudget,
@@ -53,6 +55,14 @@ pub struct FetchResponse {
 pub struct InspectResponse {
     pub exit_code: u32,
     pub report_json: String,
+}
+
+/// One-shot HTML → Markdown result from Notedown IR.
+#[napi(object)]
+pub struct MarkdownResult {
+    pub markdown: String,
+    pub diagnostic_namespace: String,
+    pub diagnostic_codes: Vec<String>,
 }
 
 /// Returns the Pandark N-API binding version.
@@ -227,6 +237,19 @@ pub fn resume_crawl_file(
         committed_pages: output.committed_pages,
         checkpoint_json,
     })
+}
+
+/// One-shot HTML bytes → Markdown string via Notedown IR.
+#[napi]
+pub fn extract_to_markdown(html_bytes: Vec<u8>, source_url: Option<String>) -> Result<MarkdownResult> {
+    let label = source_url.unwrap_or_else(|| "inline-html".to_string());
+    let import = import_html_bytes_with_links(&label, &html_bytes)
+        .map_err(|err| Error::from_reason(format!("notedown-formats HTML import failed: {err}")))?;
+    let graph = import.document;
+    let markdown = export_markdown(&graph)
+        .map_err(|err| Error::from_reason(format!("notedown-formats markdown export failed: {err}")))?;
+    let diagnostic_codes = graph.coverage.loss.iter().map(|loss| loss.code.clone()).collect();
+    Ok(MarkdownResult { markdown, diagnostic_namespace: "notedown.formats.html".into(), diagnostic_codes })
 }
 
 fn crawl_exit_code(report: &CrawlReport, awaiting_resume: bool) -> u32 {
