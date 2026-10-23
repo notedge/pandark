@@ -44,6 +44,14 @@ type NativeBinding = {
         exitCode: number;
         reportJson: string;
     };
+    extractToMarkdown: (
+        htmlBytes: Uint8Array,
+        sourceUrl?: string,
+    ) => {
+        markdown: string;
+        diagnosticNamespace: string;
+        diagnosticCodes: string[];
+    };
 };
 
 const PLATFORM_PACKAGES: Record<string, string> = {
@@ -93,5 +101,6 @@ export function loadPandarkNode(): PandarkBindings {
         inspectFile: (inputPath, stage) => binding.inspectFile(inputPath, stage),
         inspectInput: (inputPath, stage, from, challengePolicy) =>
             binding.inspectInput(inputPath, stage, from, challengePolicy),
+        extractToMarkdown: (htmlBytes, sourceUrl) => binding.extractToMarkdown(htmlBytes, sourceUrl),
     };
 }

@@ -24,7 +24,7 @@
  */
 
 import { loadPandarkNode } from "./node/load.js";
-import type { PandarkBindings } from "./types.js";
+import type { PandarkBindings, MarkdownResult } from "./types.js";
 import { createPageView } from "./page-view.js";
 import { runExtraction } from "./extraction-result.js";
 import type { ExtractionProfile } from "./extraction-profile.js";
@@ -299,6 +299,44 @@ export class Crawler {
             contentType: artifact.contentType,
         });
         return runExtraction(view, profile);
+    }
+
+    /**
+     * One-shot convenience: fetch → Notedown IR → Markdown.
+     *
+     * This does NOT go through Panduck. The internal chain is:
+     *
+     *   fetchSeed → HTML bytes
+     *   → notedown_formats::import::html
+     *   → DocumentGraph (notedown-ir)
+     *   → notedown_formats::export::markdown
+     *   → Markdown string
+     *
+     * Pass through a page `profile` to pre-filter scope/fields on the TS
+     * side before handing off to Rust. Without a profile the Rust side
+     * performs full-page HTML → Markdown.
+     */
+    async toMarkdown(
+        url: string,
+        options?: { profile?: ExtractionProfile; sourceUrl?: string },
+    ): Promise<MarkdownResult> {
+        const artifact = await this.fetch(url);
+        const sourceUrl = options?.sourceUrl ?? artifact.finalUrl;
+
+        if (options?.profile) {
+            // Profile path: TS-side scope filter first, then hand filtered HTML to Rust.
+            const view = createPageView(artifact.bodyText, artifact.finalUrl, {
+                status: artifact.status,
+                contentType: artifact.contentType,
+            });
+            const extracted = runExtraction(view, options.profile);
+            // runExtraction produces bodyHtml (the scoped candidate) — convert that.
+            const scopedBytes = new TextEncoder().encode(extracted.bodyHtml ?? artifact.bodyText);
+            return this.binding.extractToMarkdown(scopedBytes, sourceUrl);
+        }
+
+        // No profile: full HTML → Markdown in one Rust call.
+        return this.binding.extractToMarkdown(artifact.bodyBytes, sourceUrl);
     }
 
     /**

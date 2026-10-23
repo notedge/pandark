@@ -1,3 +1,9 @@
+export type MarkdownResult = {
+    markdown: string;
+    diagnosticNamespace: string;
+    diagnosticCodes: string[];
+};
+
 export type PandarkBindings = {
     pandarkVersion: () => string;
     planCrawl: (
@@ -76,4 +82,9 @@ export type PandarkBindings = {
         exitCode: number;
         reportJson: string;
     };
+    /** One-shot: HTML bytes → Markdown string via Notedown IR. */
+    extractToMarkdown: (
+        htmlBytes: Uint8Array,
+        sourceUrl?: string,
+    ) => MarkdownResult;
 };
