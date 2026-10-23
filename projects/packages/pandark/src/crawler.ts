@@ -8,9 +8,19 @@
  * and maps the result back.
  *
  * `Crawler.fetch()` wraps Rust `fetchSeed` for single-page artifact retrieval.
- * `Crawler.crawl()` uses `fetchSeed` + user-supplied `handlePage` callback
- * for single-page fetch + convert. Multi-page scheduling through Rust
- * `crawlFile` is the future expansion path.
+ * `Crawler.crawl()` has two execution paths:
+ *
+ *   - **Single-page** (no limits or trivial limits): Rust `fetchSeed` +
+ *     user-supplied `handlePage` callback. Only the seed page is visited.
+ *
+ *   - **Multi-page** (`limits.maxRequests > 1` or `limits.maxDepth > 0`):
+ *     Rust `crawlFile` owns frontier scheduling, link discovery, scope gates
+ *     and budget enforcement. TS receives a `CrawlReport` JSON and assembles
+ *     a `CrawlRun` from it. **Note:** in this path `handlePage` is NOT
+ *     invoked — Rust performs fetch + extract natively; TS sees summary
+ *     counters, per-page URL-level outcomes, and the run-level diagnostic
+ *     envelope. Per-page artifact delivery to `handlePage` is a future
+ *     expansion once N-API surfaces artifacts alongside the report.
  */
 
 import { loadPandarkNode } from "./node/load.js";
@@ -167,19 +177,22 @@ export class Crawler {
     }
 
     /**
-     * Run a crawl rooted at `seed`. **Rust-owned fetch, TS-owned callback.**
+     * Run a crawl rooted at `seed`. Two paths — see module doc for details.
      *
-     * This implementation fetches the seed page through Rust `fetchSeed`,
-     * delivers it to `handlePage`, and returns a real `CrawlRun`. Frontier
-     * scheduling, link discovery, scope gates, and multi-page budget all
-     * remain on the Rust side via `crawlFile` — when those are ready this
-     * method will delegate to it. For now we do single-page fetch + convert.
+     * Multi-page is selected when the caller sets `limits.maxRequests > 1`
+     * or `limits.maxDepth > 0`. Rust `crawlFile` owns the whole run; TS
+     * assembles the `CrawlRun` from the returned `CrawlReport`. `handlePage`
+     * is **not** invoked on the multi-page path (Rust extracts natively).
+     *
+     * Single-page is the default and invokes `handlePage` as before.
      */
     async crawl<Out>(seed: string, options: CrawlOptions<Out>): Promise<CrawlRun<Out>> {
-        // Extract scope/limits — currently passed through; Rust-side enforcement
-        // is the source of truth, but single-page fetch cannot respect them yet.
-        const _scope = options.scope;
-        const _limits = options.limits;
+        const limits = options.limits;
+        const multiPage = (limits?.maxRequests ?? 0) > 1 || (limits?.maxDepth ?? 0) > 0;
+
+        if (multiPage) {
+            return this.runMultiPage(seed, limits);
+        }
 
         let artifact: FetchArtifact;
         try {
@@ -237,6 +250,41 @@ export class Crawler {
         };
 
         return assembleRun(artifact.finalUrl, outcome, diags);
+    }
+
+    /**
+     * Multi-page path — delegate entirely to Rust `crawlFile`.
+     *
+     * Rust owns fetch, extract, frontier scheduling, scope gates, and
+     * budget enforcement. TS assembles a `CrawlRun` from the returned
+     * `CrawlReport` JSON. Per-page artifact delivery is not yet wired, so
+     * `handlePage` is not invoked and outcome `output` is always undefined.
+     */
+    private runMultiPage<Out>(seed: string, limits: CrawlLimits | undefined): CrawlRun<Out> {
+        try {
+            const response = this.binding.crawlFile(
+                seed,
+                limits?.maxDepth,
+                limits?.maxRequests,
+            );
+            return assembleRunFromCrawlFile<Out>(response);
+        }
+        catch (err) {
+            const diag: DiagnosticRecord = {
+                code: "pandark.crawl.crawlfile-failed",
+                fallback: `Rust crawlFile failed: ${describeError(err)}`,
+                severity: "error",
+                origin: { namespace: "pandark", component: "crawler" },
+                stage: "fetch",
+                url: seed,
+            };
+            const outcome: PageOutcome<Out> = {
+                url: seed,
+                status: "failed",
+                diagnostics: [diag],
+            };
+            return assembleRun(seed, outcome, [diag]);
+        }
     }
 }
 
@@ -397,4 +445,217 @@ function assembleRun<Out>(
         diagnostics: runDiags,
         summary,
     };
+}
+
+// ---------------------------------------------------------------------------
+// Multi-page (crawlFile) path — Rust CrawlReport → TS CrawlRun
+// ---------------------------------------------------------------------------
+
+/** Shape of Rust `boost_diagnostic::Diagnostic` as serialized inside the report envelope. */
+type RawRustDiagnostic = {
+    code?: string;
+    severity?: string;
+    fallback?: string;
+    message_key?: string;
+    messageKey?: string;
+    origin?: { namespace?: string; component?: string };
+    args?: Record<string, unknown>;
+    url?: string;
+    stage?: string;
+    target?: string;
+};
+
+/** Shape of Rust `DiagnosticEnvelope`. */
+type RawDiagnosticEnvelope = { diagnostics: RawRustDiagnostic[] };
+
+/** Rust-side admission decision — tagged by shape. */
+type RawAdmissionDecision = "admitted" | { reason: string };
+
+/** Union of Rust `CrawlEvent` variants as serialized (tagged by `kind`). */
+type RawCrawlEvent =
+    | { kind: "discovered"; url: string; depth: number }
+    | { kind: "admitted"; url: string; decision: RawAdmissionDecision }
+    | { kind: "fetched"; url: string; status: number; cache_hit: boolean }
+    | { kind: "browser_fallback"; url: string; fetch_error: string; browser_engine: string }
+    | { kind: "extracted"; url: string; status: string; extractor: string }
+    | { kind: "committed"; page_identity: string }
+    | { kind: "skipped"; url: string; reason: string }
+    | { kind: "failed"; url: string; reason: string }
+    | { kind: "paused_for_operator"; url: string; challenge_state: unknown };
+
+/** Shape of Rust `CrawlReport` JSON (schema_version = "pandark.report/v0"). */
+type RawCrawlReport = {
+    schema_version: string;
+    seed: string;
+    extracted: number;
+    failed: number;
+    skipped: number;
+    paused: number;
+    committed: number;
+    events: { events: RawCrawlEvent[] };
+    diagnostics: RawDiagnosticEnvelope;
+};
+
+/**
+ * Assemble a `CrawlRun` from the Rust `crawlFile` response.
+ *
+ * Rust owns all fetch + extract work; TS just reshapes the report. Per-page
+ * `output` is always undefined because no `handlePage` callback runs on
+ * this path — Rust extracts natively.
+ */
+function assembleRunFromCrawlFile<Out>(response: {
+    exitCode: number;
+    reportJson: string;
+    committedPages: string[];
+    checkpointJson?: string;
+}): CrawlRun<Out> {
+    const report: RawCrawlReport = JSON.parse(response.reportJson);
+    const events = report.events.events;
+
+    // --- outcomes ---
+    const outcomes = new Map<string, PageOutcome<Out>>();
+
+    // Committed pages → success
+    for (const url of response.committedPages) {
+        outcomes.set(url, { url, status: "success", diagnostics: [] });
+    }
+
+    // Events tell us about skipped / failed pages that never committed.
+    for (const event of events) {
+        if (event.kind === "failed") {
+            if (!outcomes.has(event.url)) {
+                outcomes.set(event.url, {
+                    url: event.url,
+                    status: "failed",
+                    diagnostics: [{
+                        code: "pandark.crawl.page-failed",
+                        fallback: event.reason,
+                        severity: "error",
+                        origin: { namespace: "pandark", component: "crawler" },
+                        stage: "fetch",
+                        url: event.url,
+                    }],
+                });
+            }
+        }
+        else if (event.kind === "skipped") {
+            if (!outcomes.has(event.url)) {
+                outcomes.set(event.url, {
+                    url: event.url,
+                    status: "skipped",
+                    diagnostics: [],
+                });
+            }
+        }
+        else if (event.kind === "paused_for_operator") {
+            if (!outcomes.has(event.url)) {
+                outcomes.set(event.url, {
+                    url: event.url,
+                    status: "skipped",
+                    diagnostics: [],
+                });
+            }
+        }
+    }
+
+    // --- run-level diagnostics ---
+    const runDiags: DiagnosticRecord[] = (report.diagnostics?.diagnostics ?? []).map(normalizeRustDiagnostic);
+
+    // --- summary counters derived from events ---
+    const fetched = events.filter((e) => e.kind === "fetched").length;
+    const enqueued = events.filter((e) => e.kind === "discovered").length;
+
+    const admissionRejections = events.filter(
+        (e): e is Extract<RawCrawlEvent, { kind: "admitted" }> =>
+            e.kind === "admitted" && typeof (e.decision as unknown) === "object",
+    );
+    const depthRejected = admissionRejections.filter(
+        (e) => (e.decision as { reason?: string })?.reason === "pandark.reject.depth-exceeded",
+    ).length;
+    // Rust does not yet have a scope gate — all other admission rejections
+    // (unsupported scheme, retry exhausted) bucket into scopeRejected.
+    const scopeRejected = admissionRejections.length - depthRejected;
+
+    // --- run + budget status ---
+    const { status, budgetStatus } = deriveMultiRunStatus(report, response);
+
+    return {
+        status,
+        budgetStatus,
+        remainingFrontier: 0,
+        outcomes,
+        diagnostics: runDiags,
+        summary: {
+            fetched,
+            enqueued,
+            scopeRejected,
+            depthRejected,
+            success: report.extracted,
+            skipped: report.skipped,
+            failed: report.failed,
+        },
+    };
+}
+
+/**
+ * Normalize a Rust `boost_diagnostic::Diagnostic` into the TS
+ * `DiagnosticRecord` shape that downstream consumers expect.
+ */
+function normalizeRustDiagnostic(raw: RawRustDiagnostic): DiagnosticRecord {
+    return {
+        code: raw.code ?? "pandark.unknown",
+        fallback: raw.fallback,
+        messageKey: raw.message_key ?? raw.messageKey,
+        args: raw.args,
+        origin: raw.origin?.namespace
+            ? { namespace: raw.origin.namespace, component: raw.origin.component ?? "" }
+            : undefined,
+        severity: (raw.severity as DiagnosticRecord["severity"]) ?? "error",
+        url: raw.url,
+        stage: raw.stage as DiagnosticRecord["stage"],
+        target: raw.target,
+    };
+}
+
+/**
+ * Derive run-level + budget-level status for a multi-page run.
+ *
+ * Run status (mirrors single-page semantics):
+ *   - any page "failed" → "failed"
+ *   - all skipped → "success" (nothing committed, but run itself was valid)
+ *   - otherwise → "success"
+ *
+ * Budget status:
+ *   - checkpoint present → "cancelled" (paused awaiting operator)
+ *   - report has RUN_BUDGET_EXCEEDED diagnostic → "exhausted"
+ *   - otherwise → "completed"
+ */
+function deriveMultiRunStatus<Out>(
+    report: RawCrawlReport,
+    response: { exitCode: number; checkpointJson?: string },
+): {
+    status: CrawlRun<Out>["status"];
+    budgetStatus: CrawlRun<Out>["budgetStatus"];
+} {
+    const hasFailed = report.failed > 0;
+    const hasSuccess = report.extracted > 0;
+
+    const status: CrawlRun<Out>["status"] = hasFailed
+        ? "failed"
+        : hasSuccess
+            ? "success"
+            : "success"; // all-skipped or empty run → still "success"
+
+    let budgetStatus: CrawlRun<Out>["budgetStatus"] = "completed";
+    if (response.checkpointJson) {
+        budgetStatus = "cancelled";
+    }
+    else {
+        const budgetExceeded = (report.diagnostics?.diagnostics ?? []).some(
+            (d) => (d.code ?? "") === "pandark.run.budget-exceeded",
+        );
+        if (budgetExceeded) budgetStatus = "exhausted";
+    }
+
+    return { status, budgetStatus };
 }
