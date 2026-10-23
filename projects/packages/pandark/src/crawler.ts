@@ -25,6 +25,10 @@
 
 import { loadPandarkNode } from "./node/load.js";
 import type { PandarkBindings } from "./types.js";
+import { createPageView } from "./page-view.js";
+import { runExtraction } from "./extraction-result.js";
+import type { ExtractionProfile } from "./extraction-profile.js";
+import type { ExtractionResult } from "./extraction-result.js";
 
 // ---------------------------------------------------------------------------
 // Public types (v0 only — no compat fields)
@@ -250,6 +254,51 @@ export class Crawler {
         };
 
         return assembleRun(artifact.finalUrl, outcome, diags);
+    }
+
+    /**
+     * 拉取一个 URL，用 ExtractionProfile 抽取受控结果。
+     *
+     * 等价于 fetch(url) → createPageView(body) → runExtraction(view, profile)，
+     * 但把所有 fetch/parse/extract 的诊断合并进返回的 ExtractionResult.diagnostics。
+     *
+     * 这是作者友好的入口 — 替代之前用户不得不手写 CSS selector 链的做法。
+     */
+    async extractWithProfile(
+        url: string,
+        profile: ExtractionProfile,
+    ): Promise<ExtractionResult> {
+        let artifact: FetchArtifact;
+        try {
+            const response = this.binding.fetchSeed(url);
+            const raw = JSON.parse(response.artifactJson) as RawArtifact;
+            artifact = normalizeArtifact(raw);
+        }
+        catch (err) {
+            // 拉取失败 — 返回一个只有 scopeStatus = no-match 的结果，
+            // 里面灌满 fetch 相关诊断
+            const fetchDiag: DiagnosticRecord = {
+                code: "pandark.extraction.fetch-failed",
+                fallback: `Failed to fetch page for extraction: ${describeError(err)}`,
+                severity: "error",
+                origin: { namespace: "pandark", component: "crawler" },
+                stage: "fetch",
+                url,
+            };
+            return {
+                scopeStatus: "no-match",
+                fields: {},
+                assets: [],
+                links: [],
+                diagnostics: [fetchDiag],
+            };
+        }
+
+        const view = createPageView(artifact.bodyText, artifact.finalUrl, {
+            status: artifact.status,
+            contentType: artifact.contentType,
+        });
+        return runExtraction(view, profile);
     }
 
     /**
