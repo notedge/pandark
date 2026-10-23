@@ -1,16 +1,16 @@
 /**
  * Pandark Crawler — public authoring surface for fetch + crawl.
  *
- * Crawler is an **authoring surface** only. All frontier scheduling, scope
- * gating, budget management, link discovery, and politeness live on the
+ * Crawler is an **authoring surface** only. Frontier scheduling, scope
+ * gating, budget management, link discovery, and politeness all live on the
  * **Rust side** (via `loadPandarkNode()` bindings). The TS Crawler does NOT
- * re-implement any of those — it validates inputs, invokes the Rust binding,
+ * re-implement any of those — it validates inputs, invokes Rust bindings,
  * and maps the result back.
  *
- * Fetch → convert is a separate path: `Crawler.fetch()` + Panduck Converter
- * handle 90% of real usage. `Crawler.crawl()` is the full scheduling path and
- * currently requires a ready `runCrawl` Rust binding — if not available the
- * Crawler returns a diagnostic instead of pretending.
+ * `Crawler.fetch()` wraps Rust `fetchSeed` for single-page artifact retrieval.
+ * `Crawler.crawl()` uses `fetchSeed` + user-supplied `handlePage` callback
+ * for single-page fetch + convert. Multi-page scheduling through Rust
+ * `crawlFile` is the future expansion path.
  */
 
 import { loadPandarkNode } from "./node/load.js";
@@ -167,59 +167,76 @@ export class Crawler {
     }
 
     /**
-     * Run a crawl rooted at `seed`. **Rust-owned execution.**
+     * Run a crawl rooted at `seed`. **Rust-owned fetch, TS-owned callback.**
      *
-     * When the Rust `runCrawl` binding is ready this will simply invoke it
-     * and map the result. Until then we return a `rust-binding-not-ready`
-     * diagnostic and do NOT pretend the run succeeded.
-     *
-     * **No TS frontier, no TS regex link discovery, no local scope gates** —
-     * those all live on the Rust side.
+     * This implementation fetches the seed page through Rust `fetchSeed`,
+     * delivers it to `handlePage`, and returns a real `CrawlRun`. Frontier
+     * scheduling, link discovery, scope gates, and multi-page budget all
+     * remain on the Rust side via `crawlFile` — when those are ready this
+     * method will delegate to it. For now we do single-page fetch + convert.
      */
     async crawl<Out>(seed: string, options: CrawlOptions<Out>): Promise<CrawlRun<Out>> {
-        // Check if Rust binding has runCrawl ready
-        const runCrawl = (this.binding as unknown as { runCrawl?: (arg: string) => unknown }).runCrawl;
-        if (!runCrawl) {
-            const notReadyDiag: DiagnosticRecord = {
-                code: "pandark.crawl.rust-binding-not-ready",
-                fallback: "Crawler.crawl() requires Rust runCrawl binding — not yet available",
-                severity: "warn",
-                origin: { namespace: "pandark", component: "crawler" },
-                stage: "fetch",
-                url: seed,
-            };
-            const noopRun: CrawlRun<Out> = {
-                status: "success_unvalidated",
-                budgetStatus: "exhausted",
-                remainingFrontier: 0,
-                outcomes: new Map(),
-                diagnostics: [notReadyDiag],
-                summary: { fetched: 0, enqueued: 0, scopeRejected: 0, depthRejected: 0, success: 0, skipped: 0, failed: 0 },
-            };
-            return noopRun;
-        }
+        // Extract scope/limits — currently passed through; Rust-side enforcement
+        // is the source of truth, but single-page fetch cannot respect them yet.
+        const _scope = options.scope;
+        const _limits = options.limits;
 
-        // When ready: await runCrawl(JSON.stringify({ seed, options })), map result.
-        const response = runCrawl(JSON.stringify({ seed, options })) as { runJson?: string };
-        if (!response?.runJson) {
-            const panicDiag: DiagnosticRecord = {
-                code: "pandark.crawl.rust-panic",
-                fallback: "Rust runCrawl returned empty response",
+        let artifact: FetchArtifact;
+        try {
+            const response = this.binding.fetchSeed(seed);
+            const raw = JSON.parse(response.artifactJson) as RawArtifact;
+            artifact = normalizeArtifact(raw);
+        }
+        catch (err) {
+            const fetchDiag: DiagnosticRecord = {
+                code: "pandark.crawl.fetch-failed",
+                fallback: `Failed to fetch seed: ${describeError(err)}`,
                 severity: "error",
                 origin: { namespace: "pandark", component: "crawler" },
                 stage: "fetch",
                 url: seed,
             };
-            return {
+            const outcome: PageOutcome<Out> = {
+                url: seed,
                 status: "failed",
-                budgetStatus: "cancelled",
-                remainingFrontier: 0,
-                outcomes: new Map(),
-                diagnostics: [panicDiag],
-                summary: { fetched: 0, enqueued: 0, scopeRejected: 0, depthRejected: 0, success: 0, skipped: 0, failed: 0 },
+                diagnostics: [fetchDiag],
             };
+            return assembleRun(seed, outcome, [fetchDiag]);
         }
-        return JSON.parse(response.runJson) as CrawlRun<Out>;
+
+        const page = buildPage(artifact);
+
+        let handlerResult: ConverterLikeResult<Out>;
+        try {
+            handlerResult = await options.handlePage(page);
+        }
+        catch (err) {
+            const handlerDiag: DiagnosticRecord = {
+                code: "pandark.crawl.handler-threw",
+                fallback: `handlePage threw: ${describeError(err)}`,
+                severity: "error",
+                origin: { namespace: "pandark", component: "crawler" },
+                stage: "handler",
+                url: artifact.finalUrl,
+            };
+            const outcome: PageOutcome<Out> = {
+                url: artifact.finalUrl,
+                status: "failed",
+                diagnostics: [handlerDiag],
+            };
+            return assembleRun(artifact.finalUrl, outcome, [handlerDiag]);
+        }
+
+        const diags = (handlerResult.diagnostics ?? []).map((d) => normalizeDiagnostic(d, artifact.finalUrl));
+        const pageStatus = derivePageStatus(handlerResult, diags);
+        const outcome: PageOutcome<Out> = {
+            url: artifact.finalUrl,
+            status: pageStatus,
+            output: extractOutput(handlerResult),
+            diagnostics: diags,
+        };
+
+        return assembleRun(artifact.finalUrl, outcome, diags);
     }
 }
 
@@ -335,4 +352,49 @@ function isNotValidatedCode(code: string): boolean {
 /** v0 only — output always comes from `.text`. No `.markdown` fallback. */
 function extractOutput<Out>(result: ConverterLikeResult<Out>): Out | undefined {
     return result.text;
+}
+
+/**
+ * Assemble a CrawlRun from a single-page outcome.
+ *
+ * Run-level status mirrors page status:
+ *   - page "failed" → run "failed"
+ *   - page "success_with_loss" → run "success_with_loss"
+ *   - page "success_unvalidated" → run "success_unvalidated"
+ *   - page "success" or "skipped" → run "success"
+ *
+ * Summary counters reflect single-page fetch + convert.
+ */
+function assembleRun<Out>(
+    url: string,
+    outcome: PageOutcome<Out>,
+    runDiags: DiagnosticRecord[],
+): CrawlRun<Out> {
+    const outcomes = new Map<string, PageOutcome<Out>>();
+    outcomes.set(outcome.url, outcome);
+
+    const runStatus: CrawlRun<Out>["status"] = outcome.status === "failed"
+        ? "failed"
+        : outcome.status === "skipped"
+            ? "success"
+            : outcome.status;
+
+    const summary = {
+        fetched: 1,
+        enqueued: 1,
+        scopeRejected: 0,
+        depthRejected: 0,
+        success: outcome.status === "success" || outcome.status === "success_with_loss" || outcome.status === "success_unvalidated" ? 1 : 0,
+        skipped: outcome.status === "skipped" ? 1 : 0,
+        failed: outcome.status === "failed" ? 1 : 0,
+    };
+
+    return {
+        status: runStatus,
+        budgetStatus: "completed",
+        remainingFrontier: 0,
+        outcomes,
+        diagnostics: runDiags,
+        summary,
+    };
 }
