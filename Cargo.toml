@@ -22,12 +22,12 @@ boost-log = { git = "https://github.com/oovm/rust-boost", rev = "9aa52745d6eae2d
 boost-http = { git = "https://github.com/oovm/rust-boost", rev = "9aa52745d6eae2d7748c76e4e3e6555e1f6e4b86" }
 boost-random = { git = "https://github.com/oovm/rust-boost", rev = "9aa52745d6eae2d7748c76e4e3e6555e1f6e4b86", default-features = false, features = ["system"] }
 # Overlaid by local path `.cargo/config.toml` (git ignored).
-oak-xml = { git = "https://github.com/yggdrasil-language/oak.rs.git", rev = "5ad929047783b8750191b3d8dc25a94bd88681e4", default-features = false }
+oak-xml = { git = "https://github.com/yggdrasil-language/oak.rs.git", rev = "351b173259156f5bf0652daf6aa797378758a971", default-features = false }
 # Compression codec (production path; replaces flate2).
 acorn-codec = { git = "https://github.com/yggdrasil-language/acorn.rs.git", rev = "fbed2df1626ec3800cb2e54b7b9c730bf8a2f996", default-features = false, features = ["compression"] }
 # Overlaid by local path `.cargo/config.toml` (git ignored).
-notedown-ir = { git = "https://github.com/notedge/notedown.git", rev = "0b6241dbd5713890d0adb171ef4a57638719d3da" }
-notedown-formats = { git = "https://github.com/notedge/notedown.git", rev = "0b6241dbd5713890d0adb171ef4a57638719d3da", default-features = false, features = ["markdown", "html"] }
+notedown-ir = { git = "https://github.com/notedge/notedown.git", rev = "deea4bb" }
+notedown-formats = { git = "https://github.com/notedge/notedown.git", rev = "deea4bb", default-features = false, features = ["markdown", "html"] }
 # Overlaid by local path `.cargo/config.toml` (git ignored).
 yydb = { git = "https://github.com/yy-database/yydb.rs", rev = "f7eaf8ecfdb1cbaf6089a4b560caffa0c2acabeb" }
 # Local dependencies
