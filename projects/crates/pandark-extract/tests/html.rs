@@ -69,3 +69,25 @@ fn html_links_resolve_against_page_base_and_keep_crawl_relations() {
     );
     assert!(links.iter().all(|link| !link.target.contains("#top")), "{links:?}");
 }
+
+#[test]
+fn import_failure_preserves_notedown_format_code_in_loss() {
+    // Use invalid UTF-8 bytes so notedown-formats HTML import hits the
+    // `from_utf8` guard and returns `FormatError::parse("html", ...)`.
+    let mut artifact = artifact("https://example.com/broken.html", "<html></html>");
+    // Override with non-UTF-8 bytes — invalid UTF-8 triggers FormatError::parse.
+    artifact.body = pandark_types::BodyStorage::inline(vec![0xFF, 0xFE, 0x80]);
+    let result = HtmlExtractor
+        .extract(ExtractInput { artifact: &artifact, budget: ExtractBudget::default() }, &ExtractContext::default());
+
+    assert_eq!(result.status, ExtractStatus::Failed);
+    // The primary loss must carry a `notedown.format.*` code from the
+    // formats-layer Diagnostic, not a free-form Pandark-only string.
+    let primary_code = result.losses.first().map(|l| l.code.as_str()).unwrap_or("");
+    assert!(
+        primary_code.starts_with("notedown.format."),
+        "expected notedown.format.* code, got {primary_code:?}"
+    );
+    // Pandark-side context loss must still be present.
+    assert!(result.losses.iter().any(|l| l.code == "pandark.extract.html_import_failed"));
+}

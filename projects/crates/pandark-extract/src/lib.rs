@@ -2,7 +2,7 @@
 
 #![deny(missing_docs)]
 
-use notedown_formats::import::html::{HtmlImport, HtmlLink, HtmlLinkRole, import_html_with_links};
+use notedown_formats::import::html::{HtmlImport, HtmlLink, HtmlLinkRole, import_html_bytes_with_links};
 use pandark_types::{
     ExtractBudget, ExtractContext, ExtractInput, ExtractResult, ExtractStatus, FetchArtifact, LinkCandidate, LinkRelation,
     ProbeResult, ProbeStatus,
@@ -58,9 +58,11 @@ pub fn run_extract(
     }
 }
 
-/// Import an HTML page through `notedown-formats`.
-pub(crate) fn import_html_page(page_url: &url::Url, html: &str) -> Option<HtmlImport> {
-    import_html_with_links(&page_url.to_string(), html).ok()
+/// Import an HTML page through `notedown-formats`, receiving raw bytes so
+/// invalid UTF-8 trips the `FormatError::parse` path and produces a stable
+/// `notedown.format.parse-failed` diagnostic rather than a lossy round-trip.
+pub(crate) fn import_html_page(page_url: &url::Url, bytes: &[u8]) -> Result<HtmlImport, notedown_formats::FormatError> {
+    import_html_bytes_with_links(&page_url.to_string(), bytes)
 }
 
 /// Build link and asset candidates from a Notedown HTML import.

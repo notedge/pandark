@@ -21,8 +21,7 @@ pub fn inspect_artifact(
 
     if matches!(stage, InspectStage::Links | InspectStage::ExtractPlan) {
         if let Some(bytes) = artifact.body_bytes() {
-            let html = String::from_utf8_lossy(bytes);
-            if let Some(import) = import_html_page(&artifact.final_url, &html) {
+            if let Ok(import) = import_html_page(&artifact.final_url, bytes) {
                 report.discovered_links =
                     link_candidates_from_import(&artifact.final_url, import.base_href.as_deref(), &import.links);
             }

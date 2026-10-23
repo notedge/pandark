@@ -1,3 +1,4 @@
+use notedown_formats::from_format_error;
 use notedown_ir::{Block, DocumentGraph, DocumentId, Inline, LossMarker, SemanticStatus};
 use pandark_types::{
     ExtractBudget, ExtractContext, ExtractInput, ExtractResult, ExtractStatus, FetchArtifact, ProbeResult, ProbeStatus,
@@ -29,21 +30,41 @@ impl Extractor for HtmlExtractor {
     fn extract(&self, input: ExtractInput<'_>, ctx: &ExtractContext) -> ExtractResult {
         let artifact = input.artifact;
         let label = artifact.final_url.to_string();
-        let html = String::from_utf8_lossy(artifact.body_bytes().unwrap_or(&[]));
-        let Some(import) = import_html_page(&artifact.final_url, &html)
-        else {
-            return ExtractResult {
-                status: ExtractStatus::Failed,
-                source_url: artifact.final_url.clone(),
-                document: None,
-                discovered_links: Vec::new(),
-                losses: vec![LossMarker {
-                    code: "pandark.extract.html_import_failed".into(),
-                    message: format!("`notedown-formats` could not import HTML from {label}"),
-                    status: SemanticStatus::Partial,
-                }],
-                extractor: "html".into(),
-            };
+        let bytes = artifact.body_bytes().unwrap_or(&[]);
+        let import = match import_html_page(&artifact.final_url, bytes) {
+            Ok(import) => import,
+            Err(format_error) => {
+                // Preserve the `notedown.format.*` code and typed args so
+                // downstream consumers don't see a free-form Pandark-specific
+                // string that would make localization and retry logic hard.
+                let diagnostic = from_format_error(&format_error);
+                let fallback = diagnostic.message().fallback().map(|s| s.to_string()).unwrap_or_else(|| {
+                    format!("`notedown-formats` could not import HTML from {label}")
+                });
+                return ExtractResult {
+                    status: ExtractStatus::Failed,
+                    source_url: artifact.final_url.clone(),
+                    document: None,
+                    discovered_links: Vec::new(),
+                    losses: vec![
+                        // Primary: the authoritative Notedown code preserved
+                        // from the formats-layer diagnostic.
+                        LossMarker {
+                            code: diagnostic.code().as_str().to_string(),
+                            message: fallback,
+                            status: SemanticStatus::Partial,
+                        },
+                        // Secondary: Pandark-side context that the failure
+                        // originated at HTML extraction time.
+                        LossMarker {
+                            code: "pandark.extract.html_import_failed".into(),
+                            message: format!("HTML extraction stage: {}", diagnostic.code().as_str()),
+                            status: SemanticStatus::Partial,
+                        },
+                    ],
+                    extractor: "html".into(),
+                };
+            }
         };
 
         let discovered_links = link_candidates_from_import(&artifact.final_url, import.base_href.as_deref(), &import.links);
