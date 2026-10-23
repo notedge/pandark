@@ -26,8 +26,8 @@ oak-xml = { git = "https://github.com/yggdrasil-language/oak.rs.git", rev = "351
 # Compression codec (production path; replaces flate2).
 acorn-codec = { git = "https://github.com/yggdrasil-language/acorn.rs.git", rev = "fbed2df1626ec3800cb2e54b7b9c730bf8a2f996", default-features = false, features = ["compression"] }
 # Overlaid by local path `.cargo/config.toml` (git ignored).
-notedown-ir = { git = "https://github.com/notedge/notedown.git", rev = "deea4bb" }
-notedown-formats = { git = "https://github.com/notedge/notedown.git", rev = "deea4bb", default-features = false, features = ["markdown", "html"] }
+notedown-ir = { git = "https://github.com/notedge/notedown.git", rev = "0fa9e1f" }
+notedown-formats = { git = "https://github.com/notedge/notedown.git", rev = "0fa9e1f", default-features = false, features = ["markdown", "html"] }
 # Overlaid by local path `.cargo/config.toml` (git ignored).
 yydb = { git = "https://github.com/yy-database/yydb.rs", rev = "f7eaf8ecfdb1cbaf6089a4b560caffa0c2acabeb" }
 # Local dependencies
