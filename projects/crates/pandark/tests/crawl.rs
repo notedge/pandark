@@ -8,8 +8,8 @@ use pandark::{
 };
 use pandark_fetch::{MemoryEntry, MemoryTransport};
 use pandark_types::{
-    BrowserFallbackPolicy, BrowserSnapshot, ChallengePolicy, CrawlEvent, CrawlRequest, ExtractBudget, ExtractContext,
-    ExtractStatus, PageChallengeState,
+    BrowserFallbackPolicy, BrowserSnapshot, ChallengePolicy, CrawlBudgetStatus, CrawlEvent, CrawlRequest, CrawlScope,
+    ExtractBudget, ExtractContext, ExtractStatus, PageChallengeState, diagnostics as pd,
 };
 use url::Url;
 
@@ -99,6 +99,84 @@ fn crawls_linked_html_pages_offline() {
     let output = run_crawl(request, transport, &extractors).expect("crawl");
     assert_eq!(output.report.committed, 2);
     assert_eq!(output.committed_pages.len(), 2);
+}
+
+#[test]
+fn scope_gate_rejects_hosts_outside_the_allow_list() {
+    let mut transport = MemoryTransport::new();
+    transport.insert(
+        "https://example.com/",
+        MemoryEntry {
+            status: 200,
+            headers: BTreeMap::from([("content-type".into(), "text/html".into())]),
+            body: br#"<html><head><title>Home</title></head><body><a href="/in-scope">in</a></body></html>"#.to_vec(),
+        },
+    );
+    transport.insert(
+        "https://example.com/in-scope",
+        MemoryEntry {
+            status: 200,
+            headers: BTreeMap::from([("content-type".into(), "text/html".into())]),
+            body: br#"<html><head><title>In</title></head><body>in scope</body></html>"#.to_vec(),
+        },
+    );
+
+    let mut request = CrawlRequest::from_seeds(["https://example.com/", "https://other.test/"]).expect("seeds");
+    request.budget.max_depth = 1;
+    request.scope = Some(CrawlScope { allowed_hosts: vec!["example.com".into()], allowed_domains: Vec::new() });
+    let html = HtmlExtractor;
+    let extractors: [&dyn Extractor; 1] = [&html];
+    let output = run_crawl(request, transport, &extractors).expect("crawl");
+
+    assert_eq!(output.report.committed, 2);
+    assert!(output.report.events.events().iter().any(|event| matches!(
+        event,
+        CrawlEvent::Admitted { url, decision }
+            if url.as_str() == "https://other.test/"
+                && serde_json::to_string(decision).is_ok_and(|json| json.contains("pandark.reject.out-of-scope"))
+    )));
+    assert!(!output.committed_pages.iter().any(|page| page.contains("other.test")));
+}
+
+#[test]
+fn scope_gate_rejects_the_seed_outside_the_allow_list() {
+    let transport = MemoryTransport::new();
+    let mut request = CrawlRequest::from_seed("https://example.com/").expect("seed");
+    request.scope = Some(CrawlScope { allowed_hosts: Vec::new(), allowed_domains: vec!["other.test".into()] });
+    let html = HtmlExtractor;
+    let extractors: [&dyn Extractor; 1] = [&html];
+    let output = run_crawl(request, transport, &extractors).expect("crawl");
+
+    assert_eq!(output.report.committed, 0);
+    assert_eq!(output.report.skipped, 1);
+}
+
+#[test]
+fn budget_exhaustion_records_status_and_remaining_frontier() {
+    let mut transport = MemoryTransport::new();
+    transport.insert(
+        "https://example.com/",
+        MemoryEntry {
+            status: 200,
+            headers: BTreeMap::from([("content-type".into(), "text/html".into())]),
+            body: br#"<html><head><title>Home</title></head><body><a href="/a">a</a><a href="/b">b</a></body></html>"#.to_vec(),
+        },
+    );
+
+    let mut request = CrawlRequest::from_seed("https://example.com/").expect("seed");
+    request.budget.max_depth = 1;
+    request.budget.max_requests = 1;
+    let html = HtmlExtractor;
+    let extractors: [&dyn Extractor; 1] = [&html];
+    let output = run_crawl(request, transport, &extractors).expect("crawl");
+
+    assert_eq!(output.report.committed, 1);
+    assert_eq!(output.report.budget_status, CrawlBudgetStatus::Exhausted);
+    assert_eq!(output.report.remaining_frontier, 2);
+    assert!(output.report.diagnostics.diagnostics.iter().any(|diagnostic| {
+        diagnostic.code().as_str() == pd::CRAWL_BUDGET_EXHAUSTED
+            && diagnostic.severity() == boost_diagnostic::DiagnosticSeverity::Warning
+    }));
 }
 
 #[test]

@@ -4,9 +4,9 @@ use crate::browser::{BrowserProvider, snapshot_to_fetch_artifact};
 use boost_diagnostic::{DiagnosticSeverity, Message, MessageArg};
 use pandark_fetch::{FetchClient, FetchRequest, RobotsPolicy, Transport, site_key_for_url};
 use pandark_types::{
-    AdmissionDecision, BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlError, CrawlEvent,
-    CrawlReport, CrawlRequest, ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact, FrontierItem, PageChallengeState,
-    Result, apply_challenge_policy, diagnostics as pd,
+    AdmissionDecision, BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlBudgetStatus, CrawlCheckpoint,
+    CrawlError, CrawlEvent, CrawlReport, CrawlRequest, ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact,
+    FrontierItem, PageChallengeState, Result, apply_challenge_policy, diagnostics as pd,
 };
 
 use crate::{
@@ -134,6 +134,8 @@ fn run_crawl_loop<T: Transport>(
     options: CrawlOptions<'_>,
 ) -> Result<CrawlOutput> {
     let request = state.request.clone();
+    state.report.budget_status = CrawlBudgetStatus::Completed;
+    state.report.remaining_frontier = 0;
     let mut client = FetchClient::new(transport, RobotsPolicy::from_profile(request.politeness));
     if let Some(cache_dir) = options.cache_dir {
         client = client.with_disk_cache_dir(cache_dir)?;
@@ -145,8 +147,9 @@ fn run_crawl_loop<T: Transport>(
 
     while let Some(item) = state.queue.pop() {
         if state.requests_used >= request.budget.max_requests {
-            record_skipped(&mut state, &item, "request-budget-exhausted");
-            continue;
+            state.queue.requeue(item);
+            record_budget_exhausted(&mut state);
+            break;
         }
 
         let decision = admit_frontier_item(&item, &request);
@@ -230,6 +233,10 @@ fn run_crawl_loop<T: Transport>(
         );
     }
 
+    if state.last_paused_item.is_some() {
+        state.report.budget_status = CrawlBudgetStatus::Cancelled;
+        state.report.remaining_frontier = state.queue.len() as u32;
+    }
     let checkpoint = if state.last_paused_item.is_some() { Some(build_checkpoint(&state, options)) } else { None };
 
     Ok(CrawlOutput { report: state.report, committed_pages, artifacts, checkpoint })
@@ -329,6 +336,22 @@ fn process_fetched_item(
 fn record_skipped(state: &mut CrawlState, item: &FrontierItem, reason: &str) {
     state.report.skipped += 1;
     state.report.events.push(CrawlEvent::Skipped { url: item.request_url.clone(), reason: reason.into() });
+}
+
+/// Mark the run budget-exhausted and keep the pending frontier visible.
+fn record_budget_exhausted(state: &mut CrawlState) {
+    let remaining = state.queue.len() as u32;
+    state.report.budget_status = CrawlBudgetStatus::Exhausted;
+    state.report.remaining_frontier = remaining;
+    let diagnostic = boost_diagnostic::Diagnostic::new(
+        pd::code(pd::CRAWL_BUDGET_EXHAUSTED),
+        DiagnosticSeverity::Warning,
+        pd::origin_crawl(),
+        Message::new("pandark.diagnostic.crawlBudgetExhausted")
+            .with_arg("remainingFrontier", MessageArg::U64(remaining as u64))
+            .with_fallback(format!("crawl request budget exhausted with {remaining} frontier item(s) remaining")),
+    );
+    state.report.push_diagnostic(diagnostic);
 }
 
 /// Push a run-level diagnostic into the report envelope when a page fails

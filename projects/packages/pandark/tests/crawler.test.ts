@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawn, type ChildProcess } from "node:child_process";
 import test from "node:test";
 
 import { Crawler } from "../src/crawler.js";
@@ -105,3 +106,137 @@ test("Crawler.crawl() derives success_with_loss from handler warnings", async ()
     const [, outcome] = run.outcomes.entries().next().value as [string, unknown];
     assert.equal((outcome as { status: string }).status, "success_with_loss");
 });
+
+test("Crawler.crawl() forwards scope to the Rust frontier and crawls allowed pages", async () => {
+    const site = await startFixtureSite();
+    try {
+        const crawler = new Crawler();
+        const run = await crawler.crawl(site.origin, {
+            scope: { allowedHosts: ["127.0.0.1"] },
+            limits: { maxDepth: 1, maxRequests: 10 },
+            handlePage: async () => ({ text: "unused" }),
+        });
+
+        assert.equal(run.status, "success", "scoped crawl should succeed");
+        assert.equal(run.budgetStatus, "completed");
+        assert.equal(run.remainingFrontier, 0);
+        assert.equal(run.summary.scopeRejected, 0, "allowed host must not be rejected");
+        assert.equal(run.summary.success, 3, "seed and both linked pages should commit");
+        assert.equal(run.outcomes.size, 3);
+    }
+    finally {
+        await site.close();
+    }
+});
+
+test("Crawler.crawl() reports scope rejection from the Rust scope gate", async () => {
+    const site = await startFixtureSite();
+    try {
+        const crawler = new Crawler();
+        const run = await crawler.crawl(site.origin, {
+            scope: { allowedHosts: ["example.invalid"] },
+            handlePage: async () => ({ text: "unused" }),
+        });
+
+        assert.equal(run.summary.scopeRejected, 1, "seed host is outside the allow-list");
+        assert.equal(run.summary.fetched, 0, "out-of-scope seed must not be fetched");
+        const [outcome] = run.outcomes.values();
+        assert.equal(outcome.status, "skipped");
+        assert.ok(
+            outcome.diagnostics.some((diagnostic) => diagnostic.code === "pandark.scope.rejected"),
+            "scope rejection should surface as a diagnostic",
+        );
+    }
+    finally {
+        await site.close();
+    }
+});
+
+test("Crawler.crawl() surfaces budget exhaustion instead of success", async () => {
+    const site = await startFixtureSite();
+    try {
+        const crawler = new Crawler();
+        const run = await crawler.crawl(site.origin, {
+            scope: { allowedHosts: ["127.0.0.1"] },
+            limits: { maxDepth: 1, maxRequests: 1 },
+            handlePage: async () => ({ text: "unused" }),
+        });
+
+        assert.equal(run.budgetStatus, "exhausted");
+        assert.equal(run.status, "success_unvalidated", "budget exhaustion must not masquerade as success");
+        assert.ok(run.remainingFrontier >= 2, `both queued links should remain: ${run.remainingFrontier}`);
+        assert.equal(run.summary.success, 1, "only the seed was extracted");
+        assert.ok(
+            run.diagnostics.some((diagnostic) => diagnostic.code === "pandark.crawl.budget-exhausted"),
+            "budget exhaustion diagnostic must be present",
+        );
+    }
+    finally {
+        await site.close();
+    }
+});
+
+/**
+ * Fixture site served from a child process.
+ *
+ * The Rust crawl binding is synchronous and blocks the Node event loop, so an
+ * in-process HTTP server cannot answer the crawl. The child keeps its own
+ * event loop alive while the binding runs.
+ */
+async function startFixtureSite(): Promise<{ process: ChildProcess; origin: string; close: () => Promise<void> }> {
+    const pages: Record<string, string> = {
+        "/": "<html><head><title>Home</title></head><body><a href=\"/a\">a</a><a href=\"/b\">b</a></body></html>",
+        "/a": "<html><head><title>A</title></head><body>page a</body></html>",
+        "/b": "<html><head><title>B</title></head><body>page b</body></html>",
+    };
+    const script = `
+        const http = require("node:http");
+        const pages = JSON.parse(process.env.PANDARK_FIXTURE_PAGES);
+        const server = http.createServer((request, response) => {
+            const path = (request.url || "/").split("?")[0];
+            const body = pages[path];
+            if (body === undefined) {
+                response.writeHead(404, { "content-type": "text/plain" });
+                response.end("not found");
+                return;
+            }
+            response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+            response.end(body);
+        });
+        server.listen(0, "127.0.0.1", () => {
+            process.stdout.write(String(server.address().port) + "\\n");
+        });
+    `;
+    const child = spawn(process.execPath, ["-e", script], {
+        env: { ...process.env, PANDARK_FIXTURE_PAGES: JSON.stringify(pages) },
+        stdio: ["ignore", "pipe", "pipe"],
+    });
+    const port = await new Promise<number>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("fixture server did not start")), 10_000);
+        let buffered = "";
+        child.stdout?.on("data", (chunk: Buffer) => {
+            buffered += chunk.toString();
+            const line = buffered.split("\n")[0];
+            if (line) {
+                clearTimeout(timer);
+                resolve(Number.parseInt(line, 10));
+            }
+        });
+        child.once("error", (error) => {
+            clearTimeout(timer);
+            reject(error);
+        });
+        child.once("exit", (code) => {
+            clearTimeout(timer);
+            reject(new Error(`fixture server exited early with code ${code}`));
+        });
+    });
+    return {
+        process: child,
+        origin: `http://127.0.0.1:${port}`,
+        close: () => new Promise<void>((resolve) => {
+            child.once("exit", () => resolve());
+            child.kill();
+        }),
+    };
+}

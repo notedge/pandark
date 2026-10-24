@@ -45,6 +45,50 @@ impl CrawlSeed {
     }
 }
 
+/// Host/domain allow-list for a crawl run.
+///
+/// An empty scope allows every host. Entries are matched case-insensitively:
+/// `allowed_hosts` must match the URL host exactly, while `allowed_domains`
+/// also admits subdomains (`.example.com` matches `docs.example.com`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CrawlScope {
+    /// Exact host allow-list.
+    #[serde(default)]
+    pub allowed_hosts: Vec<String>,
+    /// Domain allow-list, including subdomains.
+    #[serde(default)]
+    pub allowed_domains: Vec<String>,
+}
+
+impl CrawlScope {
+    /// Whether the scope restricts nothing.
+    pub fn is_empty(&self) -> bool {
+        self.allowed_hosts.is_empty() && self.allowed_domains.is_empty()
+    }
+
+    /// Whether a URL host is admitted by this scope.
+    pub fn allows(&self, url: &Url) -> bool {
+        if self.is_empty() {
+            return true;
+        }
+        let Some(host) = url.host_str()
+        else {
+            return false;
+        };
+        let host = normalize_scope_entry(host);
+        let host_match = self.allowed_hosts.iter().any(|entry| normalize_scope_entry(entry) == host);
+        let domain_match = self.allowed_domains.iter().any(|entry| {
+            let domain = normalize_scope_entry(entry);
+            !domain.is_empty() && (host == domain || host.ends_with(&format!(".{domain}")))
+        });
+        host_match || domain_match
+    }
+}
+
+fn normalize_scope_entry(entry: &str) -> String {
+    entry.trim().trim_end_matches('.').to_ascii_lowercase()
+}
+
 /// Hard limits for a crawl run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CrawlBudget {
@@ -80,6 +124,8 @@ pub struct CrawlRequest {
     pub politeness: PolitenessProfile,
     /// Hard crawl limits.
     pub budget: CrawlBudget,
+    /// Host/domain allow-list; `None` admits every discovered host.
+    pub scope: Option<CrawlScope>,
 }
 
 impl CrawlRequest {
@@ -101,6 +147,6 @@ impl CrawlRequest {
             );
             return Err(CrawlError::from(diag));
         }
-        Ok(Self { seeds, politeness: PolitenessProfile::Conservative, budget: CrawlBudget::default() })
+        Ok(Self { seeds, politeness: PolitenessProfile::Conservative, budget: CrawlBudget::default(), scope: None })
     }
 }

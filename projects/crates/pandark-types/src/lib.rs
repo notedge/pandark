@@ -35,8 +35,8 @@ pub use crate::{
     },
     frontier::{AdmissionDecision, DiscoverySource, FrontierItem, LinkCandidate, LinkRelation},
     inspect::{InspectReport, InspectStage},
-    request::{BrowserFallbackPolicy, CrawlBudget, CrawlRequest, CrawlSeed, PolitenessProfile},
-    result::{CrawlPageStatus, CrawlReport},
+    request::{BrowserFallbackPolicy, CrawlBudget, CrawlRequest, CrawlScope, CrawlSeed, PolitenessProfile},
+    result::{CrawlBudgetStatus, CrawlPageStatus, CrawlReport},
     url::{MAX_URL_LENGTH, canonicalize_parsed_url, canonicalize_request_url, now_epoch, site_key},
 };
 

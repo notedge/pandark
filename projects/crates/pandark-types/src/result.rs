@@ -18,6 +18,19 @@ pub enum CrawlPageStatus {
     Skipped,
 }
 
+/// How a crawl run ended with respect to its request budget.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CrawlBudgetStatus {
+    /// Frontier drained within budget.
+    #[default]
+    Completed,
+    /// Request budget ran out with frontier items still pending.
+    Exhausted,
+    /// Run paused for operator action before finishing.
+    Cancelled,
+}
+
 /// High-level crawl report aligned with `pandark.report/v2`.
 ///
 /// Every run-level [`boost_diagnostic::Diagnostic`] emitted during the crawl
@@ -40,6 +53,10 @@ pub struct CrawlReport {
     pub paused: u32,
     /// Pages committed to persistent storage.
     pub committed: u32,
+    /// How the run ended with respect to its request budget.
+    pub budget_status: CrawlBudgetStatus,
+    /// Frontier items still pending when the budget was exhausted.
+    pub remaining_frontier: u32,
     /// Structured event log snapshot.
     pub events: EventLog,
     /// Run-level diagnostic envelope (never absent — empty set if clean).
@@ -57,6 +74,8 @@ impl CrawlReport {
             skipped: 0,
             paused: 0,
             committed: 0,
+            budget_status: CrawlBudgetStatus::Completed,
+            remaining_frontier: 0,
             events: EventLog::new(),
             diagnostics: DiagnosticEnvelope::from_set(&DiagnosticSet::new()),
         }

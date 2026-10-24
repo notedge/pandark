@@ -4,6 +4,16 @@ export type MarkdownResult = {
     diagnosticCodes: string[];
 };
 
+/** One fetched page returned by the Rust crawl runtime. */
+export type CrawlPageArtifact = {
+    requestedUrl: string;
+    finalUrl: string;
+    status: number;
+    contentType?: string;
+    headersJson: string;
+    body: Uint8Array;
+};
+
 export type PandarkBindings = {
     pandarkVersion: () => string;
     planCrawl: (
@@ -43,11 +53,15 @@ export type PandarkBindings = {
         challengePolicy?: string,
         browserEndpoint?: string,
         cacheDir?: string,
+        scopeHosts?: string[],
+        scopeDomains?: string[],
+        politeness?: string,
     ) => {
         exitCode: number;
         reportJson: string;
         committedPages: string[];
         checkpointJson?: string;
+        pages: CrawlPageArtifact[];
     };
     resumeCrawlFile: (
         checkpointJson: string,
@@ -61,6 +75,7 @@ export type PandarkBindings = {
         reportJson: string;
         committedPages: string[];
         checkpointJson?: string;
+        pages: CrawlPageArtifact[];
     };
     fetchSeed: (seed: string) => {
         exitCode: number;

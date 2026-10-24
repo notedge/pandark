@@ -127,6 +127,8 @@ pub const FRONTIER_CLAIM_EXPIRED: &str = "pandark.frontier.claim-expired";
 pub const RUN_CANCELLED: &str = "pandark.run.cancelled";
 /// Orchestration budget exhausted (max pages, max time, ...).
 pub const RUN_BUDGET_EXCEEDED: &str = "pandark.run.budget-exceeded";
+/// Crawl request budget exhausted with frontier items still pending.
+pub const CRAWL_BUDGET_EXHAUSTED: &str = "pandark.crawl.budget-exhausted";
 /// Run finished with partial coverage (non-fatal).
 pub const RUN_PARTIAL: &str = "pandark.run.partial";
 
@@ -213,6 +215,7 @@ mod tests {
             FRONTIER_CLAIM_EXPIRED,
             RUN_CANCELLED,
             RUN_BUDGET_EXCEEDED,
+            CRAWL_BUDGET_EXHAUSTED,
             RUN_PARTIAL,
             EXTRACT_UNSUPPORTED_MEDIA,
             EXTRACT_PARSE_FAILED,

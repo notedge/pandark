@@ -2,6 +2,8 @@ use pandark_types::{AdmissionDecision, CrawlRequest, CrawlSeed, FrontierItem, Re
 
 /// Stable dotted reason codes for frontier rejection.
 pub const REJECT_UNSUPPORTED_SCHEME: &str = "pandark.reject.unsupported-scheme";
+/// URL host is outside the run scope allow-list.
+pub const REJECT_OUT_OF_SCOPE: &str = "pandark.reject.out-of-scope";
 pub const REJECT_DEPTH_EXCEEDED: &str = "pandark.reject.depth-exceeded";
 pub const REJECT_RETRY_EXHAUSTED: &str = "pandark.reject.retry-exhausted";
 
@@ -9,6 +11,10 @@ pub const REJECT_RETRY_EXHAUSTED: &str = "pandark.reject.retry-exhausted";
 pub fn admit_frontier_item(item: &FrontierItem, request: &CrawlRequest) -> AdmissionDecision {
     if item.request_url.scheme() != "http" && item.request_url.scheme() != "https" && item.request_url.scheme() != "file" {
         return AdmissionDecision::Rejected { reason: REJECT_UNSUPPORTED_SCHEME.into() };
+    }
+
+    if request.scope.as_ref().is_some_and(|scope| !scope.allows(&item.request_url)) {
+        return AdmissionDecision::Rejected { reason: REJECT_OUT_OF_SCOPE.into() };
     }
 
     if item.depth > request.budget.max_depth {

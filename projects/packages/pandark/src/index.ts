@@ -4,7 +4,6 @@ export type { PandarkClient, PandarkCrawlOptions } from "./client.js";
 export { Crawler } from "./crawler.js";
 export type {
     CrawlerOptions,
-    FetchOptions,
     CrawlOptions,
     CrawlScope,
     CrawlLimits,

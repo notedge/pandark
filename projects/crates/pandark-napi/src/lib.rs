@@ -4,17 +4,16 @@ use std::path::PathBuf;
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
+use notedown_formats::{export::markdown::export_markdown, import::html::import_html_bytes_with_links};
 use pandark::{
-    BrowserProvider, ChallengeBlocked, CrawlOptions, Extractor, HtmlExtractor, LoadedInput, build_browser_stack,
+    BrowserProvider, ChallengeBlocked, CrawlOptions, CrawlOutput, Extractor, HtmlExtractor, LoadedInput, build_browser_stack,
     initial_report, inspect_artifact, inspect_snapshot, load_input, parse_input_format, plan_crawl as build_plan,
     resolve_crawl_seed_specs, resume_crawl_from_checkpoint, run_crawl_with_options, run_extract, run_extract_from_snapshot,
 };
-use notedown_formats::export::markdown::export_markdown;
-use notedown_formats::import::html::import_html_bytes_with_links;
 use pandark_fetch::{FetchClient, FetchRequest, RobotsPolicy, transport_for_url};
 use pandark_types::{
-    BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlReport, CrawlRequest, ExtractBudget,
-    ExtractContext, ExtractStatus, InspectStage, PolitenessProfile,
+    BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlReport, CrawlRequest, CrawlScope,
+    ExtractBudget, ExtractContext, ExtractStatus, InspectStage, PolitenessProfile,
 };
 use url::Url;
 
@@ -34,6 +33,23 @@ pub struct ExtractResponse {
     pub report_json: String,
 }
 
+/// One fetched page returned alongside a crawl report.
+#[napi(object)]
+pub struct CrawlPageArtifact {
+    /// Request URL before redirects (also the crawl page identity).
+    pub requested_url: String,
+    /// Final URL after redirects.
+    pub final_url: String,
+    /// Final HTTP status.
+    pub status: u32,
+    /// Parsed media type when known.
+    pub content_type: Option<String>,
+    /// Response headers serialized as a JSON object.
+    pub headers_json: String,
+    /// Inline response body bytes.
+    pub body: Buffer,
+}
+
 /// N-API local crawl response.
 #[napi(object)]
 pub struct CrawlResponse {
@@ -41,6 +57,8 @@ pub struct CrawlResponse {
     pub report_json: String,
     pub committed_pages: Vec<String>,
     pub checkpoint_json: Option<String>,
+    /// Every page fetched during the run, in crawl order.
+    pub pages: Vec<CrawlPageArtifact>,
 }
 
 /// N-API fetch response.
@@ -161,6 +179,7 @@ pub fn fetch_seed(seed: String) -> Result<FetchResponse> {
 
 /// Crawl linked HTML pages through the transport implied by the seed URL.
 #[napi]
+#[allow(clippy::too_many_arguments)]
 pub fn crawl_file(
     seed: String,
     max_depth: Option<u32>,
@@ -170,9 +189,13 @@ pub fn crawl_file(
     challenge_policy: Option<String>,
     browser_endpoint: Option<String>,
     cache_dir: Option<String>,
+    scope_hosts: Option<Vec<String>>,
+    scope_domains: Option<Vec<String>>,
+    politeness: Option<String>,
 ) -> Result<CrawlResponse> {
     let cache_path = cache_dir.map(PathBuf::from);
-    let request = parse_request(&seed, max_depth, max_requests)?;
+    let mut request = parse_request(&seed, max_depth, max_requests)?;
+    apply_request_options(&mut request, scope_hosts, scope_domains, politeness.as_deref())?;
     let seed_url = request.seeds.first().ok_or_else(|| Error::from_reason("at least one seed is required"))?;
     let transport = transport_for_url(&seed_url.url).map_err(map_crawl_error)?;
     let html = HtmlExtractor;
@@ -189,15 +212,7 @@ pub fn crawl_file(
     };
 
     let output = run_crawl_with_options(request, transport, &extractors, options).map_err(map_crawl_error)?;
-    let exit_code = crawl_exit_code(&output.report, output.checkpoint.is_some());
-    let checkpoint_json =
-        output.checkpoint.as_ref().map(|checkpoint| serde_json::to_string(checkpoint)).transpose().map_err(map_serde_error)?;
-    Ok(CrawlResponse {
-        exit_code,
-        report_json: serde_json::to_string(&output.report).map_err(map_serde_error)?,
-        committed_pages: output.committed_pages,
-        checkpoint_json,
-    })
+    build_crawl_response(output)
 }
 
 /// Resume a crawl from a serialized checkpoint file.
@@ -228,15 +243,52 @@ pub fn resume_crawl_file(
     };
 
     let output = resume_crawl_from_checkpoint(checkpoint, transport, &extractors, options).map_err(map_crawl_error)?;
+    build_crawl_response(output)
+}
+
+fn build_crawl_response(output: CrawlOutput) -> Result<CrawlResponse> {
     let exit_code = crawl_exit_code(&output.report, output.checkpoint.is_some());
     let checkpoint_json =
         output.checkpoint.as_ref().map(|checkpoint| serde_json::to_string(checkpoint)).transpose().map_err(map_serde_error)?;
+    let pages = output
+        .artifacts
+        .iter()
+        .map(|artifact| {
+            Ok(CrawlPageArtifact {
+                requested_url: artifact.request_url.to_string(),
+                final_url: artifact.final_url.to_string(),
+                status: u32::from(artifact.status),
+                content_type: artifact.content_type.clone(),
+                headers_json: serde_json::to_string(&artifact.response_headers).map_err(map_serde_error)?,
+                body: Buffer::from(artifact.body_bytes().unwrap_or_default().to_vec()),
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
     Ok(CrawlResponse {
         exit_code,
         report_json: serde_json::to_string(&output.report).map_err(map_serde_error)?,
         committed_pages: output.committed_pages,
         checkpoint_json,
+        pages,
     })
+}
+
+/// Apply the TS authoring options that the crawl request carries.
+fn apply_request_options(
+    request: &mut CrawlRequest,
+    scope_hosts: Option<Vec<String>>,
+    scope_domains: Option<Vec<String>>,
+    politeness: Option<&str>,
+) -> Result<()> {
+    if let Some(politeness) = politeness {
+        request.politeness = parse_politeness(politeness)?;
+    }
+    let scope =
+        CrawlScope { allowed_hosts: scope_hosts.unwrap_or_default(), allowed_domains: scope_domains.unwrap_or_default() };
+    if !scope.is_empty() {
+        request.scope = Some(scope);
+    }
+    Ok(())
 }
 
 /// One-shot HTML bytes → Markdown string via Notedown IR.
@@ -331,6 +383,15 @@ fn parse_browser_fallback(policy: Option<&str>) -> Result<BrowserFallbackPolicy>
         "never" => Ok(BrowserFallbackPolicy::Never),
         "on_fetch_failure" | "on-fetch-failure" => Ok(BrowserFallbackPolicy::OnFetchFailure),
         other => Err(Error::from_reason(format!("unsupported browser fallback `{other}`"))),
+    }
+}
+
+fn parse_politeness(profile: &str) -> Result<PolitenessProfile> {
+    match profile {
+        "conservative" => Ok(PolitenessProfile::Conservative),
+        "balanced" => Ok(PolitenessProfile::Balanced),
+        "aggressive" | "developer" => Ok(PolitenessProfile::Developer),
+        other => Err(Error::from_reason(format!("unsupported politeness profile `{other}`"))),
     }
 }
 

@@ -20,17 +20,33 @@ type NativeBinding = {
         documentJson?: string;
         reportJson: string;
     };
-    crawlFile: (seed: string, maxDepth?: number, maxRequests?: number, browserFixturesDir?: string, browserFallback?: string, challengePolicy?: string, browserEndpoint?: string, cacheDir?: string) => {
+    crawlFile: (seed: string, maxDepth?: number, maxRequests?: number, browserFixturesDir?: string, browserFallback?: string, challengePolicy?: string, browserEndpoint?: string, cacheDir?: string, scopeHosts?: string[], scopeDomains?: string[], politeness?: string) => {
         exitCode: number;
         reportJson: string;
         committedPages: string[];
         checkpointJson?: string;
+        pages: Array<{
+            requestedUrl: string;
+            finalUrl: string;
+            status: number;
+            contentType?: string;
+            headersJson: string;
+            body: Uint8Array;
+        }>;
     };
     resumeCrawlFile: (checkpointJson: string, browserFixturesDir?: string, browserFallback?: string, challengePolicy?: string, browserEndpoint?: string, cacheDir?: string) => {
         exitCode: number;
         reportJson: string;
         committedPages: string[];
         checkpointJson?: string;
+        pages: Array<{
+            requestedUrl: string;
+            finalUrl: string;
+            status: number;
+            contentType?: string;
+            headersJson: string;
+            body: Uint8Array;
+        }>;
     };
     fetchSeed: (seed: string) => {
         exitCode: number;
@@ -77,7 +93,7 @@ export function loadPandarkNode(): PandarkBindings {
         extractFile: (inputPath, sourceUrl) => binding.extractFile(inputPath, sourceUrl),
         extractInput: (inputPath, from, sourceUrl, challengePolicy) =>
             binding.extractInput(inputPath, from, sourceUrl, challengePolicy),
-        crawlFile: (seed, maxDepth, maxRequests, browserFixturesDir, browserFallback, challengePolicy, browserEndpoint, cacheDir) =>
+        crawlFile: (seed, maxDepth, maxRequests, browserFixturesDir, browserFallback, challengePolicy, browserEndpoint, cacheDir, scopeHosts, scopeDomains, politeness) =>
             binding.crawlFile(
                 seed,
                 maxDepth,
@@ -87,6 +103,9 @@ export function loadPandarkNode(): PandarkBindings {
                 challengePolicy,
                 browserEndpoint,
                 cacheDir,
+                scopeHosts,
+                scopeDomains,
+                politeness,
             ),
         resumeCrawlFile: (checkpointJson, browserFixturesDir, browserFallback, challengePolicy, browserEndpoint, cacheDir) =>
             binding.resumeCrawlFile(

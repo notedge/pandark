@@ -13,14 +13,15 @@
  *   - **Single-page** (no limits or trivial limits): Rust `fetchSeed` +
  *     user-supplied `handlePage` callback. Only the seed page is visited.
  *
- *   - **Multi-page** (`limits.maxRequests > 1` or `limits.maxDepth > 0`):
- *     Rust `crawlFile` owns frontier scheduling, link discovery, scope gates
- *     and budget enforcement. TS receives a `CrawlReport` JSON and assembles
- *     a `CrawlRun` from it. **Note:** in this path `handlePage` is NOT
- *     invoked — Rust performs fetch + extract natively; TS sees summary
- *     counters, per-page URL-level outcomes, and the run-level diagnostic
- *     envelope. Per-page artifact delivery to `handlePage` is a future
- *     expansion once N-API surfaces artifacts alongside the report.
+ *   - **Rust run** (`limits.maxRequests > 1`, `limits.maxDepth > 0`, a
+ *     `scope`, or a configured `politeness`): Rust `crawlFile` owns frontier
+ *     scheduling, link discovery, scope gates and budget enforcement. TS
+ *     receives a `CrawlReport` JSON and assembles a `CrawlRun` from it.
+ *     **Note:** in this path `handlePage` is NOT invoked — Rust performs
+ *     fetch + extract natively; TS sees summary counters, per-page URL-level
+ *     outcomes, and the run-level diagnostic envelope. Per-page artifact
+ *     delivery to `handlePage` is a future expansion once N-API surfaces
+ *     artifacts alongside the report.
  */
 
 import { loadPandarkNode } from "./node/load.js";
@@ -107,15 +108,13 @@ export type DiagnosticRecord = {
     target?: string;
 };
 
-/** Options for `new Crawler()`. **Currently ignored** — Rust binding not ready. */
+/** Options for `new Crawler()`. */
 export type CrawlerOptions = {
-    store?: { path: string };
-    politeness?: "aggressive" | "conservative";
-};
-
-/** Options for `crawler.fetch()`. **Currently ignored** — Rust binding not ready. */
-export type FetchOptions = {
-    browserEndpoint?: string;
+    /**
+     * Scheduling politeness preset forwarded to the Rust crawl runtime.
+     * `aggressive` maps to the Rust developer profile.
+     */
+    politeness?: "conservative" | "balanced" | "aggressive";
 };
 
 /** Options for `crawler.crawl()`. */
@@ -164,38 +163,49 @@ export type CrawlRun<Out = unknown> = {
 /** High-level Pandark crawler. **Authoring surface only** — Rust owns execution. */
 export class Crawler {
     private binding: PandarkBindings;
+    private politeness: CrawlerOptions["politeness"];
 
-    constructor(_options?: CrawlerOptions) {
+    constructor(options?: CrawlerOptions) {
         this.binding = loadPandarkNode();
-        // NOTE: CrawlerOptions (store, politeness) currently ignored — Rust
-        // binding does not yet accept these. Not a bug; when Rust adds the
-        // surface this constructor will forward. See 规划设计/pandark/01.
+        this.politeness = options?.politeness;
     }
 
-    /** Fetch a single URL. Thin wrapper over Rust `fetchSeed`. */
-    async fetch(seed: string, _options?: FetchOptions): Promise<FetchArtifact> {
-        // NOTE: FetchOptions currently ignored — Rust binding not ready.
+    /**
+     * Fetch a single URL. Thin wrapper over Rust `fetchSeed`.
+     *
+     * `binding.fetchSeed` is an **N-API synchronous** function — this method
+     * body performs zero awaits. The `async` signature is kept deliberately so
+     * the public surface stays uniform when future provider backends (browser,
+     * real HTTP client) introduce genuinely async bindings. Callers may safely
+     * `await` the return value; the Promise resolves immediately after the
+     * synchronous Rust call returns.
+     */
+    async fetch(seed: string): Promise<FetchArtifact> {
         const response = this.binding.fetchSeed(seed);
         const artifact = JSON.parse(response.artifactJson) as RawArtifact;
         return normalizeArtifact(artifact);
     }
 
     /**
-     * Run a crawl rooted at `seed`. Two paths — see module doc for details.
+     * Run a crawl rooted at `seed`.
      *
-     * Multi-page is selected when the caller sets `limits.maxRequests > 1`
-     * or `limits.maxDepth > 0`. Rust `crawlFile` owns the whole run; TS
-     * assembles the `CrawlRun` from the returned `CrawlReport`. `handlePage`
-     * is **not** invoked on the multi-page path (Rust extracts natively).
+     * The Rust crawl runtime is used when the caller sets multi-page limits,
+     * a `scope`, or a crawler-level `politeness`. Rust `crawlFile` owns the
+     * whole run; TS assembles the `CrawlRun` from the returned `CrawlReport`.
+     * `handlePage` is **not** invoked on that path (Rust extracts natively).
      *
-     * Single-page is the default and invokes `handlePage` as before.
+     * Single-page without scope or politeness is the default and invokes
+     * `handlePage` as before.
      */
     async crawl<Out>(seed: string, options: CrawlOptions<Out>): Promise<CrawlRun<Out>> {
         const limits = options.limits;
         const multiPage = (limits?.maxRequests ?? 0) > 1 || (limits?.maxDepth ?? 0) > 0;
+        const usesRustRun = multiPage || options.scope !== undefined || this.politeness !== undefined;
 
-        if (multiPage) {
-            return this.runMultiPage(seed, limits);
+        if (usesRustRun) {
+            // Scope and politeness only take effect inside the Rust crawl run;
+            // route through `crawlFile` so they are never silently ignored.
+            return this.runCrawlFile(seed, multiPage ? limits : { maxDepth: 0, maxRequests: 1 }, options);
         }
 
         let artifact: FetchArtifact;
@@ -263,6 +273,9 @@ export class Crawler {
      * 但把所有 fetch/parse/extract 的诊断合并进返回的 ExtractionResult.diagnostics。
      *
      * 这是作者友好的入口 — 替代之前用户不得不手写 CSS selector 链的做法。
+     *
+     * 内部同样走 N-API 同步 binding.fetchSeed，方法体零 await；保留 async 签名
+     * 是为了与未来真正的异步 provider（浏览器 / 真实 HTTP 客户端）接口统一。
      */
     async extractWithProfile(
         url: string,
@@ -315,6 +328,10 @@ export class Crawler {
      * Pass through a page `profile` to pre-filter scope/fields on the TS
      * side before handing off to Rust. Without a profile the Rust side
      * performs full-page HTML → Markdown.
+     *
+     * 底层 `binding.fetchSeed` 与 `binding.extractToMarkdown` 均为 N-API
+     * 同步调用。本方法内部 `await this.fetch()` 仅为保持调用链上的 Promise
+     * 形状一致 — 待未来 async provider 接入后这些 await 才会真正等待。
      */
     async toMarkdown(
         url: string,
@@ -347,12 +364,20 @@ export class Crawler {
      * `CrawlReport` JSON. Per-page artifact delivery is not yet wired, so
      * `handlePage` is not invoked and outcome `output` is always undefined.
      */
-    private runMultiPage<Out>(seed: string, limits: CrawlLimits | undefined): CrawlRun<Out> {
+    private runCrawlFile<Out>(seed: string, limits: CrawlLimits | undefined, options: CrawlOptions<Out>): CrawlRun<Out> {
         try {
             const response = this.binding.crawlFile(
                 seed,
                 limits?.maxDepth,
                 limits?.maxRequests,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                options.scope?.allowedHosts ? [...options.scope.allowedHosts] : undefined,
+                options.scope?.allowedDomains ? [...options.scope.allowedDomains] : undefined,
+                this.politeness,
             );
             return assembleRunFromCrawlFile<Out>(response);
         }
@@ -542,21 +567,19 @@ function assembleRun<Out>(
 type RawRustDiagnostic = {
     code?: string;
     severity?: string;
-    fallback?: string;
-    message_key?: string;
-    messageKey?: string;
-    origin?: { namespace?: string; component?: string };
-    args?: Record<string, unknown>;
-    url?: string;
-    stage?: string;
-    target?: string;
+    origin?: { namespace?: string; component?: string; stage?: string };
+    message?: {
+        key?: string;
+        args?: Array<[string, unknown]>;
+        fallback?: string;
+    };
 };
 
 /** Shape of Rust `DiagnosticEnvelope`. */
 type RawDiagnosticEnvelope = { diagnostics: RawRustDiagnostic[] };
 
-/** Rust-side admission decision — tagged by shape. */
-type RawAdmissionDecision = "admitted" | { reason: string };
+/** Rust-side admission decision — externally tagged enum. */
+type RawAdmissionDecision = "admitted" | { rejected: { reason: string } };
 
 /** Union of Rust `CrawlEvent` variants as serialized (tagged by `kind`). */
 type RawCrawlEvent =
@@ -579,6 +602,8 @@ type RawCrawlReport = {
     skipped: number;
     paused: number;
     committed: number;
+    budget_status: "completed" | "exhausted" | "cancelled";
+    remaining_frontier: number;
     events: { events: RawCrawlEvent[] };
     diagnostics: RawDiagnosticEnvelope;
 };
@@ -654,22 +679,36 @@ function assembleRunFromCrawlFile<Out>(response: {
 
     const admissionRejections = events.filter(
         (e): e is Extract<RawCrawlEvent, { kind: "admitted" }> =>
-            e.kind === "admitted" && typeof (e.decision as unknown) === "object",
+            e.kind === "admitted" && typeof e.decision === "object",
     );
-    const depthRejected = admissionRejections.filter(
-        (e) => (e.decision as { reason?: string })?.reason === "pandark.reject.depth-exceeded",
-    ).length;
-    // Rust does not yet have a scope gate — all other admission rejections
-    // (unsupported scheme, retry exhausted) bucket into scopeRejected.
-    const scopeRejected = admissionRejections.length - depthRejected;
+    const rejectionReasons = admissionRejections.map((e) => rejectionReason(e.decision));
+    const depthRejected = rejectionReasons.filter((reason) => reason === "pandark.reject.depth-exceeded").length;
+    const scopeRejected = rejectionReasons.filter((reason) => reason === "pandark.reject.out-of-scope").length;
+
+    // Scope rejections are part of the per-page ledger, not just a counter.
+    for (const event of admissionRejections) {
+        if (rejectionReason(event.decision) !== "pandark.reject.out-of-scope" || outcomes.has(event.url)) continue;
+        outcomes.set(event.url, {
+            url: event.url,
+            status: "skipped",
+            diagnostics: [{
+                code: "pandark.scope.rejected",
+                fallback: `URL is outside the crawl scope: ${event.url}`,
+                severity: "info",
+                origin: { namespace: "pandark", component: "crawler" },
+                stage: "scope",
+                url: event.url,
+            }],
+        });
+    }
 
     // --- run + budget status ---
-    const { status, budgetStatus } = deriveMultiRunStatus(report, response);
+    const status = deriveMultiRunStatus(report, outcomes);
 
     return {
         status,
-        budgetStatus,
-        remainingFrontier: 0,
+        budgetStatus: report.budget_status,
+        remainingFrontier: report.remaining_frontier,
         outcomes,
         diagnostics: runDiags,
         summary: {
@@ -684,6 +723,12 @@ function assembleRunFromCrawlFile<Out>(response: {
     };
 }
 
+/** Extract the rejection reason from the externally tagged Rust enum. */
+function rejectionReason(decision: RawAdmissionDecision): string | undefined {
+    if (decision === "admitted") return undefined;
+    return decision.rejected?.reason;
+}
+
 /**
  * Normalize a Rust `boost_diagnostic::Diagnostic` into the TS
  * `DiagnosticRecord` shape that downstream consumers expect.
@@ -691,58 +736,51 @@ function assembleRunFromCrawlFile<Out>(response: {
 function normalizeRustDiagnostic(raw: RawRustDiagnostic): DiagnosticRecord {
     return {
         code: raw.code ?? "pandark.unknown",
-        fallback: raw.fallback,
-        messageKey: raw.message_key ?? raw.messageKey,
-        args: raw.args,
+        fallback: raw.message?.fallback,
+        messageKey: raw.message?.key,
+        args: raw.message?.args ? Object.fromEntries(raw.message.args) : undefined,
         origin: raw.origin?.namespace
             ? { namespace: raw.origin.namespace, component: raw.origin.component ?? "" }
             : undefined,
-        severity: (raw.severity as DiagnosticRecord["severity"]) ?? "error",
-        url: raw.url,
-        stage: raw.stage as DiagnosticRecord["stage"],
-        target: raw.target,
+        severity: normalizeRustSeverity(raw.severity),
+        stage: raw.origin?.stage as DiagnosticRecord["stage"],
     };
 }
 
+function normalizeRustSeverity(value: string | undefined): DiagnosticRecord["severity"] {
+    switch (value) {
+        case "bug":
+        case "error":
+            return "error";
+        case "warning":
+            return "warn";
+        case "info":
+        case "hint":
+            return "info";
+        default:
+            return "error";
+    }
+}
+
 /**
- * Derive run-level + budget-level status for a multi-page run.
+ * Derive run-level status for a Rust-backed crawl run.
  *
- * Run status (mirrors single-page semantics):
- *   - any page "failed" → "failed"
- *   - all skipped → "success" (nothing committed, but run itself was valid)
+ * Rules:
+ *   - any failed page or run-level error → "failed"
+ *   - paused run → "cancelled"
+ *   - budget exhausted without errors → "success_unvalidated" (never "success")
+ *   - a page with loss → "success_with_loss"
  *   - otherwise → "success"
- *
- * Budget status:
- *   - checkpoint present → "cancelled" (paused awaiting operator)
- *   - report has RUN_BUDGET_EXCEEDED diagnostic → "exhausted"
- *   - otherwise → "completed"
  */
 function deriveMultiRunStatus<Out>(
     report: RawCrawlReport,
-    response: { exitCode: number; checkpointJson?: string },
-): {
-    status: CrawlRun<Out>["status"];
-    budgetStatus: CrawlRun<Out>["budgetStatus"];
-} {
-    const hasFailed = report.failed > 0;
-    const hasSuccess = report.extracted > 0;
-
-    const status: CrawlRun<Out>["status"] = hasFailed
-        ? "failed"
-        : hasSuccess
-            ? "success"
-            : "success"; // all-skipped or empty run → still "success"
-
-    let budgetStatus: CrawlRun<Out>["budgetStatus"] = "completed";
-    if (response.checkpointJson) {
-        budgetStatus = "cancelled";
+    outcomes: Map<string, PageOutcome<Out>>,
+): CrawlRun<Out>["status"] {
+    if (report.failed > 0 || (report.diagnostics?.diagnostics ?? []).some((d) => d.severity === "error")) {
+        return "failed";
     }
-    else {
-        const budgetExceeded = (report.diagnostics?.diagnostics ?? []).some(
-            (d) => (d.code ?? "") === "pandark.run.budget-exceeded",
-        );
-        if (budgetExceeded) budgetStatus = "exhausted";
-    }
-
-    return { status, budgetStatus };
+    if (report.budget_status === "cancelled") return "cancelled";
+    if (report.budget_status === "exhausted") return "success_unvalidated";
+    if ([...outcomes.values()].some((outcome) => outcome.status === "success_with_loss")) return "success_with_loss";
+    return "success";
 }
