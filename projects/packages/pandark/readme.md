@@ -46,6 +46,25 @@ console.log(crawled.committedPages, crawled.reportJson);
 
 `createPandark()` is the supported entry point. Lower-level exports (`loadPandarkNode`, `@notedge/pandark/cli`) are for integrators.
 
+### Crawler (multi-page)
+
+`Crawler` is a thin authoring surface over the Rust crawl runtime. Rust owns frontier scheduling, scope gates, politeness, and budgets. Setting `scope`, `limits`, or a crawler-level `politeness` routes the run through `crawlFile`, and every committed page is delivered to your `handlePage` callback with the same `Page` shape as single-page crawls.
+
+```ts
+import { Crawler } from "@notedge/pandark";
+
+const crawler = new Crawler({ politeness: "balanced" });
+const run = await crawler.crawl("https://example.com/docs", {
+  scope: { allowedHosts: ["example.com"] },
+  limits: { maxDepth: 2, maxRequests: 50 },
+  handlePage: async (page) => ({ text: await page.html() }),
+});
+
+console.log(run.status, run.budgetStatus, run.remainingFrontier);
+```
+
+`CrawlRun.budgetStatus` is `completed`, `exhausted`, or `cancelled`. A budget-exhausted run reports `success_unvalidated` and carries a `pandark.crawl.budget-exhausted` diagnostic with `remainingFrontier`—it never claims full success.
+
 ## 📊 Reports
 
 Read `reportJson` for coverage, crawl counters, and pause reasons. `--report` on the CLI writes the same JSON to disk. A successful exit can still mean partial extraction—always inspect the report.

@@ -107,14 +107,18 @@ test("Crawler.crawl() derives success_with_loss from handler warnings", async ()
     assert.equal((outcome as { status: string }).status, "success_with_loss");
 });
 
-test("Crawler.crawl() forwards scope to the Rust frontier and crawls allowed pages", async () => {
+test("Crawler.crawl() forwards scope to the Rust frontier and delivers each committed page", async () => {
     const site = await startFixtureSite();
     try {
+        const handled: string[] = [];
         const crawler = new Crawler();
         const run = await crawler.crawl(site.origin, {
             scope: { allowedHosts: ["127.0.0.1"] },
             limits: { maxDepth: 1, maxRequests: 10 },
-            handlePage: async () => ({ text: "unused" }),
+            handlePage: async (page) => {
+                handled.push(page.url);
+                return { text: await page.html() };
+            },
         });
 
         assert.equal(run.status, "success", "scoped crawl should succeed");
@@ -123,6 +127,41 @@ test("Crawler.crawl() forwards scope to the Rust frontier and crawls allowed pag
         assert.equal(run.summary.scopeRejected, 0, "allowed host must not be rejected");
         assert.equal(run.summary.success, 3, "seed and both linked pages should commit");
         assert.equal(run.outcomes.size, 3);
+        assert.equal(handled.length, 3, "handlePage runs for every committed page");
+        for (const outcome of run.outcomes.values()) {
+            assert.equal(outcome.status, "success");
+            assert.ok(
+                typeof outcome.output === "string" && (outcome.output as string).includes("<html"),
+                `page HTML should reach handlePage output: ${String(outcome.output)}`,
+            );
+        }
+    }
+    finally {
+        await site.close();
+    }
+});
+
+test("Crawler.crawl() fails the run when handlePage throws on a committed page", async () => {
+    const site = await startFixtureSite();
+    try {
+        const crawler = new Crawler();
+        const run = await crawler.crawl(site.origin, {
+            scope: { allowedHosts: ["127.0.0.1"] },
+            limits: { maxDepth: 1, maxRequests: 10 },
+            handlePage: async (page) => {
+                if (new URL(page.url).pathname === "/a") throw new Error("boom");
+                return { text: page.url };
+            },
+        });
+
+        assert.equal(run.status, "failed", "a handler failure must fail the run");
+        assert.ok(
+            run.diagnostics.some((diagnostic) => diagnostic.code === "pandark.crawl.handler-threw"),
+            "handler failure should be in the run ledger",
+        );
+        const failed = [...run.outcomes.values()].filter((outcome) => outcome.status === "failed");
+        assert.equal(failed.length, 1);
+        assert.equal(new URL(failed[0].url).pathname, "/a");
     }
     finally {
         await site.close();
@@ -132,14 +171,19 @@ test("Crawler.crawl() forwards scope to the Rust frontier and crawls allowed pag
 test("Crawler.crawl() reports scope rejection from the Rust scope gate", async () => {
     const site = await startFixtureSite();
     try {
+        let handled = 0;
         const crawler = new Crawler();
         const run = await crawler.crawl(site.origin, {
             scope: { allowedHosts: ["example.invalid"] },
-            handlePage: async () => ({ text: "unused" }),
+            handlePage: async () => {
+                handled += 1;
+                return { text: "unused" };
+            },
         });
 
         assert.equal(run.summary.scopeRejected, 1, "seed host is outside the allow-list");
         assert.equal(run.summary.fetched, 0, "out-of-scope seed must not be fetched");
+        assert.equal(handled, 0, "rejected pages must not reach handlePage");
         const [outcome] = run.outcomes.values();
         assert.equal(outcome.status, "skipped");
         assert.ok(
@@ -155,17 +199,23 @@ test("Crawler.crawl() reports scope rejection from the Rust scope gate", async (
 test("Crawler.crawl() surfaces budget exhaustion instead of success", async () => {
     const site = await startFixtureSite();
     try {
+        let handled = 0;
         const crawler = new Crawler();
         const run = await crawler.crawl(site.origin, {
             scope: { allowedHosts: ["127.0.0.1"] },
             limits: { maxDepth: 1, maxRequests: 1 },
-            handlePage: async () => ({ text: "unused" }),
+            handlePage: async () => {
+                handled += 1;
+                return { text: "seed" };
+            },
         });
 
         assert.equal(run.budgetStatus, "exhausted");
         assert.equal(run.status, "success_unvalidated", "budget exhaustion must not masquerade as success");
         assert.ok(run.remainingFrontier >= 2, `both queued links should remain: ${run.remainingFrontier}`);
         assert.equal(run.summary.success, 1, "only the seed was extracted");
+        assert.equal(handled, 1, "only committed pages reach handlePage");
+        assert.equal([...run.outcomes.values()][0].output, "seed");
         assert.ok(
             run.diagnostics.some((diagnostic) => diagnostic.code === "pandark.crawl.budget-exhausted"),
             "budget exhaustion diagnostic must be present",

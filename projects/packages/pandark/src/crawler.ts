@@ -15,13 +15,10 @@
  *
  *   - **Rust run** (`limits.maxRequests > 1`, `limits.maxDepth > 0`, a
  *     `scope`, or a configured `politeness`): Rust `crawlFile` owns frontier
- *     scheduling, link discovery, scope gates and budget enforcement. TS
- *     receives a `CrawlReport` JSON and assembles a `CrawlRun` from it.
- *     **Note:** in this path `handlePage` is NOT invoked — Rust performs
- *     fetch + extract natively; TS sees summary counters, per-page URL-level
- *     outcomes, and the run-level diagnostic envelope. Per-page artifact
- *     delivery to `handlePage` is a future expansion once N-API surfaces
- *     artifacts alongside the report.
+ *     scheduling, link discovery, scope gates and budget enforcement. Every
+ *     committed page is then delivered to `handlePage`, so the caller-defined
+ *     `Out` and per-page diagnostics come from the same contract as
+ *     `Crawler.fetch()`. Rust responses carry the inline body for each page.
  */
 
 import { loadPandarkNode } from "./node/load.js";
@@ -191,11 +188,9 @@ export class Crawler {
      *
      * The Rust crawl runtime is used when the caller sets multi-page limits,
      * a `scope`, or a crawler-level `politeness`. Rust `crawlFile` owns the
-     * whole run; TS assembles the `CrawlRun` from the returned `CrawlReport`.
-     * `handlePage` is **not** invoked on that path (Rust extracts natively).
-     *
-     * Single-page without scope or politeness is the default and invokes
-     * `handlePage` as before.
+     * whole run; each committed page is delivered to `handlePage` with the
+     * same `Page` shape as the single-page path. Single-page without scope or
+     * politeness uses `fetchSeed` and invokes `handlePage` once.
      */
     async crawl<Out>(seed: string, options: CrawlOptions<Out>): Promise<CrawlRun<Out>> {
         const limits = options.limits;
@@ -238,14 +233,7 @@ export class Crawler {
             handlerResult = await options.handlePage(page);
         }
         catch (err) {
-            const handlerDiag: DiagnosticRecord = {
-                code: "pandark.crawl.handler-threw",
-                fallback: `handlePage threw: ${describeError(err)}`,
-                severity: "error",
-                origin: { namespace: "pandark", component: "crawler" },
-                stage: "handler",
-                url: artifact.finalUrl,
-            };
+            const handlerDiag = handlerThrewDiagnostic(artifact.finalUrl, err);
             const outcome: PageOutcome<Out> = {
                 url: artifact.finalUrl,
                 status: "failed",
@@ -357,14 +345,13 @@ export class Crawler {
     }
 
     /**
-     * Multi-page path — delegate entirely to Rust `crawlFile`.
+     * Rust-run path — delegate frontier work to Rust `crawlFile`.
      *
-     * Rust owns fetch, extract, frontier scheduling, scope gates, and
-     * budget enforcement. TS assembles a `CrawlRun` from the returned
-     * `CrawlReport` JSON. Per-page artifact delivery is not yet wired, so
-     * `handlePage` is not invoked and outcome `output` is always undefined.
+     * Rust owns fetch, extract, frontier scheduling, scope gates, and budget
+     * enforcement. TS passes every committed page to `handlePage` and merges
+     * the handler diagnostics into the per-page and run-level ledgers.
      */
-    private runCrawlFile<Out>(seed: string, limits: CrawlLimits | undefined, options: CrawlOptions<Out>): CrawlRun<Out> {
+    private async runCrawlFile<Out>(seed: string, limits: CrawlLimits | undefined, options: CrawlOptions<Out>): Promise<CrawlRun<Out>> {
         try {
             const response = this.binding.crawlFile(
                 seed,
@@ -379,7 +366,7 @@ export class Crawler {
                 options.scope?.allowedDomains ? [...options.scope.allowedDomains] : undefined,
                 this.politeness,
             );
-            return assembleRunFromCrawlFile<Out>(response);
+            return assembleRunFromCrawlFile<Out>(response, options.handlePage);
         }
         catch (err) {
             const diag: DiagnosticRecord = {
@@ -611,31 +598,42 @@ type RawCrawlReport = {
 /**
  * Assemble a `CrawlRun` from the Rust `crawlFile` response.
  *
- * Rust owns all fetch + extract work; TS just reshapes the report. Per-page
- * `output` is always undefined because no `handlePage` callback runs on
- * this path — Rust extracts natively.
+ * Rust owns fetch + extract work. TS delivers every committed page to
+ * `handlePage` with the same `Page` shape as the single-page path, then merges
+ * handler diagnostics into the per-page outcomes and the run-level ledger.
  */
-function assembleRunFromCrawlFile<Out>(response: {
+type RawPageArtifact = {
+    requestedUrl: string;
+    finalUrl: string;
+    status: number;
+    contentType?: string;
+    headersJson: string;
+    body: Uint8Array;
+};
+
+type RawCrawlFileResponse = {
     exitCode: number;
     reportJson: string;
     committedPages: string[];
     checkpointJson?: string;
-}): CrawlRun<Out> {
+    pages: RawPageArtifact[];
+};
+
+async function assembleRunFromCrawlFile<Out>(
+    response: RawCrawlFileResponse,
+    handlePage: HandlePageFn<Out>,
+): Promise<CrawlRun<Out>> {
     const report: RawCrawlReport = JSON.parse(response.reportJson);
     const events = report.events.events;
+    const committed = new Set(response.committedPages);
 
     // --- outcomes ---
     const outcomes = new Map<string, PageOutcome<Out>>();
 
-    // Committed pages → success
-    for (const url of response.committedPages) {
-        outcomes.set(url, { url, status: "success", diagnostics: [] });
-    }
-
     // Events tell us about skipped / failed pages that never committed.
     for (const event of events) {
         if (event.kind === "failed") {
-            if (!outcomes.has(event.url)) {
+            if (!committed.has(event.url) && !outcomes.has(event.url)) {
                 outcomes.set(event.url, {
                     url: event.url,
                     status: "failed",
@@ -651,7 +649,7 @@ function assembleRunFromCrawlFile<Out>(response: {
             }
         }
         else if (event.kind === "skipped") {
-            if (!outcomes.has(event.url)) {
+            if (!committed.has(event.url) && !outcomes.has(event.url)) {
                 outcomes.set(event.url, {
                     url: event.url,
                     status: "skipped",
@@ -660,7 +658,7 @@ function assembleRunFromCrawlFile<Out>(response: {
             }
         }
         else if (event.kind === "paused_for_operator") {
-            if (!outcomes.has(event.url)) {
+            if (!committed.has(event.url) && !outcomes.has(event.url)) {
                 outcomes.set(event.url, {
                     url: event.url,
                     status: "skipped",
@@ -702,8 +700,57 @@ function assembleRunFromCrawlFile<Out>(response: {
         });
     }
 
+    // --- deliver committed pages to the caller ---
+    const pagesByRequestedUrl = new Map<string, RawPageArtifact>();
+    for (const page of response.pages) {
+        pagesByRequestedUrl.set(page.requestedUrl, page);
+    }
+
+    for (const identity of response.committedPages) {
+        const rawPage = pagesByRequestedUrl.get(identity);
+        if (rawPage === undefined) {
+            // The body was not surfaced (for example a disk-cache reference),
+            // so calling `handlePage` would deliver empty HTML.
+            const diagnostic: DiagnosticRecord = {
+                code: "pandark.crawl.page-artifact-unavailable",
+                fallback: `Rust did not return an inline body for committed page ${identity}`,
+                severity: "warn",
+                origin: { namespace: "pandark", component: "crawler" },
+                stage: "handler",
+                url: identity,
+            };
+            runDiags.push(diagnostic);
+            outcomes.set(identity, { url: identity, status: "success_unvalidated", diagnostics: [diagnostic] });
+            continue;
+        }
+
+        const artifact = artifactFromRawPage(rawPage);
+        outcomes.delete(identity);
+        outcomes.delete(artifact.finalUrl);
+
+        let handlerResult: ConverterLikeResult<Out>;
+        try {
+            handlerResult = await handlePage(buildPage(artifact));
+        }
+        catch (err) {
+            const diagnostic = handlerThrewDiagnostic(artifact.finalUrl, err);
+            runDiags.push(diagnostic);
+            outcomes.set(artifact.finalUrl, { url: artifact.finalUrl, status: "failed", diagnostics: [diagnostic] });
+            continue;
+        }
+
+        const pageDiags = (handlerResult.diagnostics ?? []).map((d) => normalizeDiagnostic(d, artifact.finalUrl));
+        outcomes.set(artifact.finalUrl, {
+            url: artifact.finalUrl,
+            status: derivePageStatus(handlerResult, pageDiags),
+            output: extractOutput(handlerResult),
+            diagnostics: pageDiags,
+        });
+        runDiags.push(...pageDiags);
+    }
+
     // --- run + budget status ---
-    const status = deriveMultiRunStatus(report, outcomes);
+    const status = deriveMultiRunStatus(report, outcomes, runDiags);
 
     return {
         status,
@@ -720,6 +767,35 @@ function assembleRunFromCrawlFile<Out>(response: {
             skipped: report.skipped,
             failed: report.failed,
         },
+    };
+}
+
+/** Rehydrate a `FetchArtifact` from the N-API page payload. */
+function artifactFromRawPage(raw: RawPageArtifact): FetchArtifact {
+    const bodyBytes = raw.body instanceof Uint8Array ? raw.body : new Uint8Array(raw.body ?? []);
+    const bodyText = bodyBytes.length > 0
+        ? new TextDecoder("utf-8", { fatal: false }).decode(bodyBytes)
+        : "";
+    return {
+        finalUrl: raw.finalUrl,
+        requestedUrl: raw.requestedUrl,
+        status: raw.status,
+        contentType: raw.contentType ?? "",
+        headers: JSON.parse(raw.headersJson) as Record<string, string>,
+        bodyText,
+        bodyBytes,
+    };
+}
+
+/** Diagnostic emitted when a user `handlePage` callback throws. */
+function handlerThrewDiagnostic(url: string, err: unknown): DiagnosticRecord {
+    return {
+        code: "pandark.crawl.handler-threw",
+        fallback: `handlePage threw: ${describeError(err)}`,
+        severity: "error",
+        origin: { namespace: "pandark", component: "crawler" },
+        stage: "handler",
+        url,
     };
 }
 
@@ -775,8 +851,9 @@ function normalizeRustSeverity(value: string | undefined): DiagnosticRecord["sev
 function deriveMultiRunStatus<Out>(
     report: RawCrawlReport,
     outcomes: Map<string, PageOutcome<Out>>,
+    runDiags: DiagnosticRecord[],
 ): CrawlRun<Out>["status"] {
-    if (report.failed > 0 || (report.diagnostics?.diagnostics ?? []).some((d) => d.severity === "error")) {
+    if (report.failed > 0 || runDiags.some((d) => d.severity === "error")) {
         return "failed";
     }
     if (report.budget_status === "cancelled") return "cancelled";
