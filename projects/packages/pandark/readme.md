@@ -37,7 +37,7 @@ import { createPandark } from "@notedge/pandark";
 
 const pandark = createPandark();
 
-const extracted = pandark.extract("./page.html");
+const extracted = await pandark.extract("./page.html");
 console.log(extracted.status, extracted.reportJson);
 
 const crawled = pandark.crawl("https://example.com", { depth: 1, budget: 20 });

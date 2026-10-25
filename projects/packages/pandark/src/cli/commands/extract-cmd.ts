@@ -31,7 +31,7 @@ async function runExtract(options: ParsedOptions): Promise<number> {
 
     const from = optionString(options, "from");
     const challengePolicy = optionString(options, "challenge-policy");
-    const response = ctx.bindings.extractInput(inputPath, from, undefined, challengePolicy);
+    const response = await ctx.bindings.extractInput(inputPath, from, undefined, challengePolicy);
     const outputPath = optionString(options, "output");
     const reportPath = optionString(options, "report");
 

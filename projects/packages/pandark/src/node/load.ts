@@ -8,18 +8,18 @@ type NativeBinding = {
         frontier: string[];
         reportJson: string;
     };
-    extractFile: (inputPath: string, sourceUrl?: string) => {
+    extractFile: (inputPath: string, sourceUrl?: string) => Promise<{
         exitCode: number;
         status: string;
         documentJson?: string;
         reportJson: string;
-    };
-    extractInput: (inputPath: string, from?: string, sourceUrl?: string, challengePolicy?: string) => {
+    }>;
+    extractInput: (inputPath: string, from?: string, sourceUrl?: string, challengePolicy?: string) => Promise<{
         exitCode: number;
         status: string;
         documentJson?: string;
         reportJson: string;
-    };
+    }>;
     crawlFile: (seed: string, maxDepth?: number, maxRequests?: number, browserFixturesDir?: string, browserFallback?: string, challengePolicy?: string, browserEndpoint?: string, cacheDir?: string, scopeHosts?: string[], scopeDomains?: string[], politeness?: string) => Promise<{
         exitCode: number;
         reportJson: string;

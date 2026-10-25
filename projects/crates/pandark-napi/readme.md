@@ -11,12 +11,13 @@ by `@notedge/pandark/src/node/load.ts`.
 | `fetchSeed`                    | Single-seed fetch artifact JSON (Promise)    |
 | `crawlFile`                    | Bounded crawl with optional browser fixtures (Promise) |
 | `resumeCrawlFile`              | Continue from checkpoint JSON                |
-| `extractInput` / `extractFile` | Semantic extraction to document JSON         |
+| `extractInput` / `extractFile` | Semantic extraction to document JSON (Promise) |
 | `inspectInput` / `inspectFile` | Stage reports without full extract           |
 
-`fetchSeed` and `crawlFile` return Promises: the network and crawl work runs on
-the Node-API thread pool, so the JavaScript event loop stays responsive while a
-request is in flight.
+`fetchSeed`, `crawlFile`, `resumeCrawlFile`, `extractInput`, `extractFile` and
+`extractToMarkdown` return Promises: the native work runs on the Node-API
+thread pool, so the JavaScript event loop stays responsive while a request or
+document parse is in flight.
 
 ## 🔧 Build
 

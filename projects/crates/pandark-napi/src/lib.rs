@@ -100,16 +100,62 @@ pub fn plan_crawl(seed: String, max_depth: Option<u32>, max_requests: Option<u32
 }
 
 /// Extract semantic IR from a local HTML file or browser snapshot.
+///
+/// Resolves a Promise: loading and extraction run on the Node-API thread pool,
+/// so large documents never block the JavaScript event loop.
 #[napi]
 pub fn extract_input(
     input_path: String,
     from: Option<String>,
-    _source_url: Option<String>,
+    source_url: Option<String>,
     challenge_policy: Option<String>,
+) -> AsyncTask<ExtractInputTask> {
+    AsyncTask::new(ExtractInputTask { input_path, from, source_url, challenge_policy })
+}
+
+/// Extract semantic IR from a local HTML file.
+///
+/// Resolves a Promise: the extraction runs on the Node-API thread pool.
+#[napi]
+pub fn extract_file(input_path: String, source_url: Option<String>) -> AsyncTask<ExtractInputTask> {
+    AsyncTask::new(ExtractInputTask { input_path, from: Some("html".into()), source_url, challenge_policy: None })
+}
+
+/// Thread-pool task backing [`extract_input`] and [`extract_file`].
+pub struct ExtractInputTask {
+    input_path: String,
+    from: Option<String>,
+    source_url: Option<String>,
+    challenge_policy: Option<String>,
+}
+
+impl Task for ExtractInputTask {
+    type Output = ExtractResponse;
+    type JsValue = ExtractResponse;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        extract_input_response(
+            &self.input_path,
+            self.from.as_deref(),
+            self.source_url.as_deref(),
+            self.challenge_policy.as_deref(),
+        )
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(output)
+    }
+}
+
+fn extract_input_response(
+    input_path: &str,
+    from: Option<&str>,
+    _source_url: Option<&str>,
+    challenge_policy: Option<&str>,
 ) -> Result<ExtractResponse> {
-    let format = parse_input_format(from.as_deref()).map_err(map_crawl_error)?;
-    let loaded = load_input(&input_path, format).map_err(map_crawl_error)?;
-    let policy = parse_challenge_policy(challenge_policy.as_deref())?;
+    let format = parse_input_format(from).map_err(map_crawl_error)?;
+    let loaded = load_input(input_path, format).map_err(map_crawl_error)?;
+    let policy = parse_challenge_policy(challenge_policy)?;
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
     let budget = ExtractBudget::default();
@@ -125,12 +171,6 @@ pub fn extract_input(
             Err(blocked) => build_challenge_extract_response(&snapshot, blocked),
         },
     }
-}
-
-/// Extract semantic IR from a local HTML file.
-#[napi]
-pub fn extract_file(input_path: String, source_url: Option<String>) -> Result<ExtractResponse> {
-    extract_input(input_path, Some("html".into()), source_url, None)
 }
 
 /// Inspect local HTML or a browser snapshot without writing IR.

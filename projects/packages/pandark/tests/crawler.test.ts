@@ -173,6 +173,38 @@ test("extractToMarkdown resolves on the thread pool and keeps the event loop run
     assert.ok(ticks > 0, "the event loop must keep running while extractToMarkdown awaits");
 });
 
+test("extractInput resolves on the thread pool and keeps the event loop running", { timeout: 60_000 }, async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-extract-"));
+    const input = join(dir, "page.html");
+    // Stay under the 256 KiB probe budget so the HTML extractor is selected,
+    // while still giving the worker task enough work to yield the loop.
+    const paragraphs = Array.from({ length: 1_000 }, (_value, index) => `<p>paragraph ${index}</p>`).join("");
+    const html = `<html><head><title>Extract fixture</title></head><body><h1>Extract fixture heading</h1>${paragraphs}</body></html>`;
+    await writeFile(input, html, "utf8");
+    const binding = loadPandarkNode();
+
+    let ticks = 0;
+    let running = true;
+    const tick = (): void => {
+        ticks += 1;
+        if (running) setImmediate(tick);
+    };
+    setImmediate(tick);
+
+    try {
+        const pending = binding.extractInput(input, "html");
+        assert.equal(typeof pending.then, "function", "extractInput must return a Promise, not the extract response");
+        const response = await pending;
+        assert.equal(response.status, "partial", "HTML extraction reports partial coverage");
+        assert.ok(response.documentJson?.includes("Extract fixture heading"), "document JSON should contain the heading");
+    }
+    finally {
+        running = false;
+    }
+
+    assert.ok(ticks > 0, "the event loop must keep running while extractInput awaits");
+});
+
 test("Crawler.toMarkdown() awaits the async extraction and delivers Markdown", { timeout: 20_000 }, async () => {
     const html = [
         "<!DOCTYPE html><html><head><title>Markdown fixture</title></head><body>",

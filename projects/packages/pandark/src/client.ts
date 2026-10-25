@@ -50,12 +50,12 @@ export type PandarkClient = {
             sourceUrl?: string;
             challengePolicy?: string;
         },
-    ) => {
+    ) => Promise<{
         exitCode: number;
         status: string;
         documentJson?: string;
         reportJson: string;
-    };
+    }>;
     inspect: (
         inputPath: string,
         stage?: string,

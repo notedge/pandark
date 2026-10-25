@@ -53,7 +53,7 @@ TypeScript:
 import {createPandark} from "@notedge/pandark";
 
 const pandark = createPandark();
-const result = pandark.extract("./fixtures/page.html");
+const result = await pandark.extract("./fixtures/page.html");
 console.log(result.status, result.reportJson);
 ```
 
