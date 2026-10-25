@@ -138,10 +138,17 @@ test("extract reads browser snapshot json", async () => {
     );
 
     const result = await runCli(["extract", input, "--from", "snapshot", "-o", output, "--json"]);
-    assert.equal(result.code, 0);
+    // HTML import always records `import.html.partial_coverage`: CSS layout,
+    // scripts, forms and arbitrary DOM semantics are not representable in the
+    // document graph, so the extract status is partial (exit code 3) with a
+    // loss marker, never `complete`.
+    assert.equal(result.code, 3);
     const payload = JSON.parse(result.stdout);
-    assert.equal(payload.status, "complete");
+    assert.equal(payload.status, "partial");
+    assert.equal(payload.report.loss_count, 1);
     assert.ok(payload.document);
+    assert.equal(payload.document.coverage.complete, false);
+    assert.equal(payload.document.coverage.loss[0].code, "import.html.partial_coverage");
 });
 
 test("extract writes document json from local html", async () => {
@@ -155,10 +162,16 @@ test("extract writes document json from local html", async () => {
     );
 
     const result = await runCli(["extract", input, "-o", output, "--json"]);
-    assert.equal(result.code, 0);
+    // Same partial-coverage contract as the snapshot case: a plain HTML page
+    // still drops CSS layout, scripts, forms and arbitrary DOM semantics, so
+    // extraction reports partial coverage instead of claiming `complete`.
+    assert.equal(result.code, 3);
     const payload = JSON.parse(result.stdout);
-    assert.equal(payload.status, "complete");
+    assert.equal(payload.status, "partial");
+    assert.equal(payload.report.loss_count, 1);
     assert.ok(payload.document);
+    assert.equal(payload.document.coverage.complete, false);
+    assert.equal(payload.document.coverage.loss[0].code, "import.html.partial_coverage");
 });
 
 test("crawl uses browser fixtures when http fetch fails", async () => {
