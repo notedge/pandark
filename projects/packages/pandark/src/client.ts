@@ -37,12 +37,12 @@ export type PandarkClient = {
     resume: (
         checkpointJson: string,
         options?: Omit<PandarkCrawlOptions, "depth" | "budget">,
-    ) => {
+    ) => Promise<{
         exitCode: number;
         reportJson: string;
         committedPages: string[];
         checkpointJson?: string;
-    };
+    }>;
     extract: (
         inputPath: string,
         options?: {

@@ -312,6 +312,9 @@ fn crawl_file_response(
 }
 
 /// Resume a crawl from a serialized checkpoint file.
+///
+/// Resolves a Promise: the resume runs on the Node-API thread pool and never
+/// blocks the JavaScript event loop.
 #[napi]
 pub fn resume_crawl_file(
     checkpoint_json: String,
@@ -320,20 +323,67 @@ pub fn resume_crawl_file(
     challenge_policy: Option<String>,
     browser_endpoint: Option<String>,
     cache_dir: Option<String>,
+) -> AsyncTask<ResumeCrawlFileTask> {
+    AsyncTask::new(ResumeCrawlFileTask {
+        checkpoint_json,
+        browser_fixtures_dir,
+        browser_fallback,
+        challenge_policy,
+        browser_endpoint,
+        cache_dir,
+    })
+}
+
+/// Thread-pool task backing [`resume_crawl_file`].
+pub struct ResumeCrawlFileTask {
+    checkpoint_json: String,
+    browser_fixtures_dir: Option<String>,
+    browser_fallback: Option<String>,
+    challenge_policy: Option<String>,
+    browser_endpoint: Option<String>,
+    cache_dir: Option<String>,
+}
+
+impl Task for ResumeCrawlFileTask {
+    type Output = CrawlResponse;
+    type JsValue = CrawlResponse;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        resume_crawl_file_response(
+            &self.checkpoint_json,
+            self.browser_fixtures_dir.as_deref(),
+            self.browser_fallback.as_deref(),
+            self.challenge_policy.as_deref(),
+            self.browser_endpoint.as_deref(),
+            self.cache_dir.as_deref(),
+        )
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(output)
+    }
+}
+
+fn resume_crawl_file_response(
+    checkpoint_json: &str,
+    browser_fixtures_dir: Option<&str>,
+    browser_fallback: Option<&str>,
+    challenge_policy: Option<&str>,
+    browser_endpoint: Option<&str>,
+    cache_dir: Option<&str>,
 ) -> Result<CrawlResponse> {
     let cache_path = cache_dir.map(PathBuf::from);
-    let checkpoint: CrawlCheckpoint = serde_json::from_str(&checkpoint_json).map_err(map_serde_error)?;
+    let checkpoint: CrawlCheckpoint = serde_json::from_str(checkpoint_json).map_err(map_serde_error)?;
     let seed_url = checkpoint.request.seeds.first().ok_or_else(|| Error::from_reason("checkpoint request has no seeds"))?;
     let transport = transport_for_url(&seed_url.url).map_err(map_crawl_error)?;
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
 
-    let browser_stack =
-        build_browser_stack(browser_fixtures_dir.as_deref(), browser_endpoint.as_deref()).map_err(map_crawl_error)?;
+    let browser_stack = build_browser_stack(browser_fixtures_dir, browser_endpoint).map_err(map_crawl_error)?;
     let options = CrawlOptions {
         browser: if browser_stack.is_empty() { None } else { Some(&browser_stack as &dyn BrowserProvider) },
-        browser_fallback: parse_browser_fallback(browser_fallback.as_deref())?,
-        challenge_policy: parse_challenge_policy(challenge_policy.as_deref())?,
+        browser_fallback: parse_browser_fallback(browser_fallback)?,
+        challenge_policy: parse_challenge_policy(challenge_policy)?,
         cache_dir: cache_path.as_deref(),
         ..Default::default()
     };

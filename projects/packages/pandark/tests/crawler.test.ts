@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 import { Crawler } from "../src/crawler.js";
@@ -71,6 +74,72 @@ test("fetchSeed and crawlFile bindings resolve without blocking the event loop",
     }
 
     assert.ok(ticks > 0, "the event loop must keep running while the bindings await");
+});
+
+test("resumeCrawlFile binding resolves without blocking the event loop", { timeout: 20_000 }, async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-resume-"));
+    const fixturesDir = join(dir, "fixtures");
+    await mkdir(fixturesDir);
+    const seed = "http://127.0.0.1:1/pandark-private";
+    await writeFile(
+        join(fixturesDir, "challenge.snapshot.json"),
+        JSON.stringify({
+            requested_url: seed,
+            final_url: "http://127.0.0.1:1/login",
+            document_html: "<html><body>challenge</body></html>",
+            captured_at_epoch: 1,
+            browser_engine: "fixture",
+            profile_id: "test",
+            challenge_state: "challenge_required",
+        }),
+        "utf8",
+    );
+
+    const binding = loadPandarkNode();
+    const paused = await binding.crawlFile(
+        seed,
+        undefined,
+        undefined,
+        fixturesDir,
+        "on-fetch-failure",
+        "pause-for-operator",
+    );
+    const checkpointJson = paused.checkpointJson;
+    assert.ok(checkpointJson, "an operator pause should produce a checkpoint");
+
+    await writeFile(
+        join(fixturesDir, "ready.snapshot.json"),
+        JSON.stringify({
+            requested_url: seed,
+            final_url: seed,
+            document_html: "<html><head><title>Ready</title></head><body><p>ok</p></body></html>",
+            captured_at_epoch: 2,
+            browser_engine: "fixture",
+            profile_id: "test",
+            challenge_state: "normal",
+        }),
+        "utf8",
+    );
+
+    let ticks = 0;
+    let running = true;
+    const tick = (): void => {
+        ticks += 1;
+        if (running) setImmediate(tick);
+    };
+    setImmediate(tick);
+
+    const pendingResume = binding.resumeCrawlFile(
+        checkpointJson,
+        fixturesDir,
+        "on-fetch-failure",
+    );
+    assert.equal(typeof pendingResume.then, "function", "resumeCrawlFile must return a Promise");
+    const resumed = await pendingResume;
+    running = false;
+
+    assert.equal(resumed.committedPages.length, 1, "resume should commit the paused page");
+    assert.ok(ticks > 0, "the event loop must keep running while resumeCrawlFile awaits");
 });
 
 test("Crawler.crawl() fetches seed and invokes handlePage with real page content", async () => {

@@ -70,13 +70,13 @@ export type PandarkBindings = {
         challengePolicy?: string,
         browserEndpoint?: string,
         cacheDir?: string,
-    ) => {
+    ) => Promise<{
         exitCode: number;
         reportJson: string;
         committedPages: string[];
         checkpointJson?: string;
         pages: CrawlPageArtifact[];
-    };
+    }>;
     fetchSeed: (seed: string) => Promise<{
         exitCode: number;
         artifactJson: string;

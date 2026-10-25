@@ -40,7 +40,7 @@ async function runResume(options: ParsedOptions): Promise<number> {
     const challengePolicy = optionString(options, "challenge-policy");
     const browserEndpoint = optionString(options, "browser-endpoint");
     const cacheDir = optionString(options, "cache-dir");
-    const response = ctx.bindings.resumeCrawlFile(
+    const response = await ctx.bindings.resumeCrawlFile(
         checkpointJson,
         browserFixturesDir,
         browserFallback,

@@ -30,7 +30,7 @@ if (existsSync(checkpointFile)) {
   // ==== RESUME PATH ====
   console.log(`📂 resuming from checkpoint at ${checkpointDir}`);
   const saved = readFileSync(checkpointFile, "utf8");
-  const result = pd.resume(saved, { cacheDir });
+  const result = await pd.resume(saved, { cacheDir });
   report = JSON.parse(result.reportJson);
   checkpointJson = result.checkpointJson ?? undefined;
 } else {

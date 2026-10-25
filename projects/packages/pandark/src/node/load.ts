@@ -34,7 +34,7 @@ type NativeBinding = {
             body: Uint8Array;
         }>;
     }>;
-    resumeCrawlFile: (checkpointJson: string, browserFixturesDir?: string, browserFallback?: string, challengePolicy?: string, browserEndpoint?: string, cacheDir?: string) => {
+    resumeCrawlFile: (checkpointJson: string, browserFixturesDir?: string, browserFallback?: string, challengePolicy?: string, browserEndpoint?: string, cacheDir?: string) => Promise<{
         exitCode: number;
         reportJson: string;
         committedPages: string[];
@@ -47,7 +47,7 @@ type NativeBinding = {
             headersJson: string;
             body: Uint8Array;
         }>;
-    };
+    }>;
     fetchSeed: (seed: string) => Promise<{
         exitCode: number;
         artifactJson: string;
