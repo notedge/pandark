@@ -4,10 +4,11 @@ import test from "node:test";
 
 import { Crawler } from "../src/crawler.js";
 
-test("Crawler.fetch() fetches seed page through Rust binding", async () => {
+test("Crawler.fetch() fetches seed page through the synchronous Rust binding", () => {
     const crawler = new Crawler();
     // Use a stable, always-reachable URL
-    const artifact = await crawler.fetch("https://example.com");
+    const artifact = crawler.fetch("https://example.com");
+    assert.ok(!(artifact instanceof Promise), "fetch must return the artifact directly, not a Promise");
     assert.ok(artifact.finalUrl.length > 0, "should have finalUrl");
     assert.ok(artifact.bodyText.length > 0, "should have body text");
     assert.ok(artifact.bodyBytes.length > 0, "should have body bytes");
