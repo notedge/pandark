@@ -227,6 +227,44 @@ test("Crawler.crawl() surfaces budget exhaustion instead of success", async () =
     }
 });
 
+test("Crawler politeness preset reaches the Rust robots gate", async () => {
+    const site = await startFixtureSite({
+        "/": "<html><head><title>Home</title></head><body><a href=\"/admin\">admin</a><a href=\"/a\">a</a></body></html>",
+        "/a": "<html><head><title>A</title></head><body>page a</body></html>",
+        "/admin": "<html><head><title>Admin</title></head><body>admin page</body></html>",
+    });
+    try {
+        const adminUrl = `${site.origin}/admin`;
+        const crawlOptions = {
+            scope: { allowedHosts: ["127.0.0.1"] },
+            limits: { maxDepth: 1, maxRequests: 10 },
+        };
+
+        // Conservative (the Rust default) denies the `/admin` fallback path when
+        // robots.txt is missing.
+        const conservative = new Crawler({ politeness: "conservative" });
+        const conservativeRun = await conservative.crawl(site.origin, {
+            ...crawlOptions,
+            handlePage: async (page) => ({ text: page.url }),
+        });
+        assert.notEqual(conservativeRun.outcomes.get(adminUrl)?.status, "success",
+            "conservative politeness must deny /admin");
+
+        // Developer-level politeness forwards through `crawlFile` and disables
+        // the fallback deny list, so `/admin` is fetched.
+        const aggressive = new Crawler({ politeness: "aggressive" });
+        const aggressiveRun = await aggressive.crawl(site.origin, {
+            ...crawlOptions,
+            handlePage: async (page) => ({ text: page.url }),
+        });
+        assert.equal(aggressiveRun.outcomes.get(adminUrl)?.status, "success",
+            "aggressive politeness must let /admin through");
+    }
+    finally {
+        await site.close();
+    }
+});
+
 /**
  * Fixture site served from a child process.
  *
@@ -234,12 +272,13 @@ test("Crawler.crawl() surfaces budget exhaustion instead of success", async () =
  * in-process HTTP server cannot answer the crawl. The child keeps its own
  * event loop alive while the binding runs.
  */
-async function startFixtureSite(): Promise<{ process: ChildProcess; origin: string; close: () => Promise<void> }> {
-    const pages: Record<string, string> = {
-        "/": "<html><head><title>Home</title></head><body><a href=\"/a\">a</a><a href=\"/b\">b</a></body></html>",
-        "/a": "<html><head><title>A</title></head><body>page a</body></html>",
-        "/b": "<html><head><title>B</title></head><body>page b</body></html>",
-    };
+const DEFAULT_FIXTURE_PAGES: Record<string, string> = {
+    "/": "<html><head><title>Home</title></head><body><a href=\"/a\">a</a><a href=\"/b\">b</a></body></html>",
+    "/a": "<html><head><title>A</title></head><body>page a</body></html>",
+    "/b": "<html><head><title>B</title></head><body>page b</body></html>",
+};
+
+async function startFixtureSite(pages: Record<string, string> = DEFAULT_FIXTURE_PAGES): Promise<{ process: ChildProcess; origin: string; close: () => Promise<void> }> {
     const script = `
         const http = require("node:http");
         const pages = JSON.parse(process.env.PANDARK_FIXTURE_PAGES);
