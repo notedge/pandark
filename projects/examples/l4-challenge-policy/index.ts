@@ -25,7 +25,7 @@ const policy = process.argv[3] ?? "skip";
 const pd = createPandark();
 console.log(`🎯 challengePolicy: ${policy}`);
 
-const { exitCode, reportJson } = pd.crawl(seed, {
+const { exitCode, reportJson } = await pd.crawl(seed, {
   depth: 2,
   budget: 5,
   challengePolicy: policy,

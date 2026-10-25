@@ -36,7 +36,7 @@ if (existsSync(checkpointFile)) {
 } else {
   // ==== FRESH CRAWL PATH ====
   console.log(`🌱 fresh crawl, saving checkpoint to ${checkpointDir}`);
-  const result = pd.crawl(seed, {
+  const result = await pd.crawl(seed, {
     depth: 2,
     budget: 10,
     cacheDir,

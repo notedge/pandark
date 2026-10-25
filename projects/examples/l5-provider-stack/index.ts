@@ -26,7 +26,7 @@ console.log(`   fixture dir: ${fixtureDir}`);
 console.log(`   headless worker: ${headlessEndpoint ?? "(none — HTTP-only)"}`);
 console.log(`   seed: ${seed}`);
 
-const { exitCode, reportJson } = pd.crawl(seed, {
+const { exitCode, reportJson } = await pd.crawl(seed, {
   depth: 2,
   budget: 10,
   // ==== provider stack ====

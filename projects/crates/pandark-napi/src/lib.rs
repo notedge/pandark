@@ -167,9 +167,34 @@ pub fn inspect_file(input_path: String, stage: Option<String>) -> Result<Inspect
 }
 
 /// Fetch one URL through the default transport for its scheme.
+///
+/// Resolves a Promise: the fetch runs on the Node-API thread pool and never
+/// blocks the JavaScript event loop.
 #[napi]
-pub fn fetch_seed(seed: String) -> Result<FetchResponse> {
-    let seed_url = normalize_seed_url(&seed)?;
+pub fn fetch_seed(seed: String) -> AsyncTask<FetchSeedTask> {
+    AsyncTask::new(FetchSeedTask { seed })
+}
+
+/// Thread-pool task backing [`fetch_seed`].
+pub struct FetchSeedTask {
+    seed: String,
+}
+
+impl Task for FetchSeedTask {
+    type Output = FetchResponse;
+    type JsValue = FetchResponse;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        fetch_seed_response(&self.seed)
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(output)
+    }
+}
+
+fn fetch_seed_response(seed: &str) -> Result<FetchResponse> {
+    let seed_url = normalize_seed_url(seed)?;
     let url = Url::parse(&seed_url).map_err(|error| Error::from_reason(error.to_string()))?;
     let transport = transport_for_url(&url).map_err(map_crawl_error)?;
     let mut client = FetchClient::new(transport, RobotsPolicy::from_profile(PolitenessProfile::Conservative));
@@ -178,6 +203,9 @@ pub fn fetch_seed(seed: String) -> Result<FetchResponse> {
 }
 
 /// Crawl linked HTML pages through the transport implied by the seed URL.
+///
+/// Resolves a Promise: the crawl runs on the Node-API thread pool and never
+/// blocks the JavaScript event loop.
 #[napi]
 #[allow(clippy::too_many_arguments)]
 pub fn crawl_file(
@@ -192,21 +220,89 @@ pub fn crawl_file(
     scope_hosts: Option<Vec<String>>,
     scope_domains: Option<Vec<String>>,
     politeness: Option<String>,
+) -> AsyncTask<CrawlFileTask> {
+    AsyncTask::new(CrawlFileTask {
+        seed,
+        max_depth,
+        max_requests,
+        browser_fixtures_dir,
+        browser_fallback,
+        challenge_policy,
+        browser_endpoint,
+        cache_dir,
+        scope_hosts,
+        scope_domains,
+        politeness,
+    })
+}
+
+/// Thread-pool task backing [`crawl_file`].
+pub struct CrawlFileTask {
+    seed: String,
+    max_depth: Option<u32>,
+    max_requests: Option<u32>,
+    browser_fixtures_dir: Option<String>,
+    browser_fallback: Option<String>,
+    challenge_policy: Option<String>,
+    browser_endpoint: Option<String>,
+    cache_dir: Option<String>,
+    scope_hosts: Option<Vec<String>>,
+    scope_domains: Option<Vec<String>>,
+    politeness: Option<String>,
+}
+
+impl Task for CrawlFileTask {
+    type Output = CrawlResponse;
+    type JsValue = CrawlResponse;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        crawl_file_response(
+            &self.seed,
+            self.max_depth,
+            self.max_requests,
+            self.browser_fixtures_dir.as_deref(),
+            self.browser_fallback.as_deref(),
+            self.challenge_policy.as_deref(),
+            self.browser_endpoint.as_deref(),
+            self.cache_dir.as_deref(),
+            self.scope_hosts.clone(),
+            self.scope_domains.clone(),
+            self.politeness.as_deref(),
+        )
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(output)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn crawl_file_response(
+    seed: &str,
+    max_depth: Option<u32>,
+    max_requests: Option<u32>,
+    browser_fixtures_dir: Option<&str>,
+    browser_fallback: Option<&str>,
+    challenge_policy: Option<&str>,
+    browser_endpoint: Option<&str>,
+    cache_dir: Option<&str>,
+    scope_hosts: Option<Vec<String>>,
+    scope_domains: Option<Vec<String>>,
+    politeness: Option<&str>,
 ) -> Result<CrawlResponse> {
     let cache_path = cache_dir.map(PathBuf::from);
-    let mut request = parse_request(&seed, max_depth, max_requests)?;
-    apply_request_options(&mut request, scope_hosts, scope_domains, politeness.as_deref())?;
+    let mut request = parse_request(seed, max_depth, max_requests)?;
+    apply_request_options(&mut request, scope_hosts, scope_domains, politeness)?;
     let seed_url = request.seeds.first().ok_or_else(|| Error::from_reason("at least one seed is required"))?;
     let transport = transport_for_url(&seed_url.url).map_err(map_crawl_error)?;
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
 
-    let browser_stack =
-        build_browser_stack(browser_fixtures_dir.as_deref(), browser_endpoint.as_deref()).map_err(map_crawl_error)?;
+    let browser_stack = build_browser_stack(browser_fixtures_dir, browser_endpoint).map_err(map_crawl_error)?;
     let options = CrawlOptions {
         browser: if browser_stack.is_empty() { None } else { Some(&browser_stack as &dyn BrowserProvider) },
-        browser_fallback: parse_browser_fallback(browser_fallback.as_deref())?,
-        challenge_policy: parse_challenge_policy(challenge_policy.as_deref())?,
+        browser_fallback: parse_browser_fallback(browser_fallback)?,
+        challenge_policy: parse_challenge_policy(challenge_policy)?,
         cache_dir: cache_path.as_deref(),
         ..Default::default()
     };

@@ -1,18 +1,76 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import test from "node:test";
 
 import { Crawler } from "../src/crawler.js";
+import { loadPandarkNode } from "../src/node/load.js";
 
-test("Crawler.fetch() fetches seed page through the synchronous Rust binding", () => {
+test("Crawler.fetch() awaits the async Rust binding and returns the artifact", async () => {
     const crawler = new Crawler();
     // Use a stable, always-reachable URL
-    const artifact = crawler.fetch("https://example.com");
-    assert.ok(!(artifact instanceof Promise), "fetch must return the artifact directly, not a Promise");
+    const pending = crawler.fetch("https://example.com");
+    assert.equal(typeof pending.then, "function", "fetch must return the binding Promise, not a synchronous artifact");
+    const artifact = await pending;
     assert.ok(artifact.finalUrl.length > 0, "should have finalUrl");
     assert.ok(artifact.bodyText.length > 0, "should have body text");
     assert.ok(artifact.bodyBytes.length > 0, "should have body bytes");
     assert.ok(artifact.finalUrl.includes("example.com"), `finalUrl should be example.com: ${artifact.finalUrl}`);
+});
+
+test("fetchSeed and crawlFile bindings resolve without blocking the event loop", { timeout: 20_000 }, async () => {
+    const server = createServer((request, response) => {
+        if ((request.url ?? "/") === "/") {
+            response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+            response.end("<html><body><p>fixture</p></body></html>");
+            return;
+        }
+        response.writeHead(404, { "content-type": "text/plain" });
+        response.end("not found");
+    });
+    await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    const { port } = server.address() as AddressInfo;
+    const origin = `http://127.0.0.1:${port}`;
+    const binding = loadPandarkNode();
+
+    // The fixture server runs on this event loop: the requests can only be
+    // answered while the crawler awaits its binding. A blocking binding would
+    // stall the server and this test would hit its timeout.
+    let ticks = 0;
+    let running = true;
+    const tick = (): void => {
+        ticks += 1;
+        if (running) setImmediate(tick);
+    };
+    setImmediate(tick);
+
+    try {
+        const pendingFetch = binding.fetchSeed(origin);
+        assert.equal(typeof pendingFetch.then, "function", "fetchSeed must return a Promise");
+        const fetchResponse = await pendingFetch;
+        const artifact = JSON.parse(fetchResponse.artifactJson) as {
+            final_url?: string;
+            body?: { inline?: number[] };
+        };
+        assert.ok((artifact.final_url ?? "").startsWith(origin), "fetchSeed should return the fixture URL");
+        const body = new TextDecoder().decode(new Uint8Array(artifact.body?.inline ?? []));
+        assert.ok(body.includes("fixture"), "fetchSeed should return the fixture body");
+
+        const pendingCrawl = binding.crawlFile(origin, 0, 1);
+        assert.equal(typeof pendingCrawl.then, "function", "crawlFile must return a Promise");
+        const crawlResponse = await pendingCrawl;
+        assert.equal(crawlResponse.committedPages.length, 1, "crawlFile should commit the seed page");
+    }
+    finally {
+        running = false;
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+
+    assert.ok(ticks > 0, "the event loop must keep running while the bindings await");
 });
 
 test("Crawler.crawl() fetches seed and invokes handlePage with real page content", async () => {
@@ -268,9 +326,8 @@ test("Crawler politeness preset reaches the Rust robots gate", async () => {
 /**
  * Fixture site served from a child process.
  *
- * The Rust crawl binding is synchronous and blocks the Node event loop, so an
- * in-process HTTP server cannot answer the crawl. The child keeps its own
- * event loop alive while the binding runs.
+ * The child keeps the fixture event loop independent of the test process, so
+ * the fixture server stays reachable throughout a crawl run.
  */
 const DEFAULT_FIXTURE_PAGES: Record<string, string> = {
     "/": "<html><head><title>Home</title></head><body><a href=\"/a\">a</a><a href=\"/b\">b</a></body></html>",

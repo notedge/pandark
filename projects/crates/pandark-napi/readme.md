@@ -8,11 +8,15 @@ by `@notedge/pandark/src/node/load.ts`.
 | Binding                        | Purpose                                      |
 |--------------------------------|----------------------------------------------|
 | `planCrawl`                    | Frontier preview with depth and budget       |
-| `fetchSeed`                    | Single-seed fetch artifact JSON              |
-| `crawlFile`                    | Bounded crawl with optional browser fixtures |
+| `fetchSeed`                    | Single-seed fetch artifact JSON (Promise)    |
+| `crawlFile`                    | Bounded crawl with optional browser fixtures (Promise) |
 | `resumeCrawlFile`              | Continue from checkpoint JSON                |
 | `extractInput` / `extractFile` | Semantic extraction to document JSON         |
 | `inspectInput` / `inspectFile` | Stage reports without full extract           |
+
+`fetchSeed` and `crawlFile` return Promises: the network and crawl work runs on
+the Node-API thread pool, so the JavaScript event loop stays responsive while a
+request is in flight.
 
 ## 🔧 Build
 

@@ -25,7 +25,7 @@ async function runFetch(options: ParsedOptions): Promise<number> {
         return ExitCode.Internal;
     }
 
-    const response = ctx.bindings.fetchSeed(seed);
+    const response = await ctx.bindings.fetchSeed(seed);
     const outputPath = typeof options.output === "string" ? options.output : undefined;
 
     if (outputPath) {

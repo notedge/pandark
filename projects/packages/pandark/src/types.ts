@@ -56,13 +56,13 @@ export type PandarkBindings = {
         scopeHosts?: string[],
         scopeDomains?: string[],
         politeness?: string,
-    ) => {
+    ) => Promise<{
         exitCode: number;
         reportJson: string;
         committedPages: string[];
         checkpointJson?: string;
         pages: CrawlPageArtifact[];
-    };
+    }>;
     resumeCrawlFile: (
         checkpointJson: string,
         browserFixturesDir?: string,
@@ -77,10 +77,10 @@ export type PandarkBindings = {
         checkpointJson?: string;
         pages: CrawlPageArtifact[];
     };
-    fetchSeed: (seed: string) => {
+    fetchSeed: (seed: string) => Promise<{
         exitCode: number;
         artifactJson: string;
-    };
+    }>;
     inspectFile: (
         inputPath: string,
         stage?: string,

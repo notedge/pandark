@@ -25,7 +25,7 @@ const pd = createPandark();
 console.log(`📂 browserFixturesDir: ${fixtureDir}`);
 console.log(`🌱 seed: ${seed}`);
 
-const { exitCode, reportJson } = pd.crawl(seed, {
+const { exitCode, reportJson } = await pd.crawl(seed, {
   depth: 0,
   budget: 1,
   browserFixturesDir: fixtureDir,

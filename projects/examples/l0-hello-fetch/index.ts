@@ -12,7 +12,7 @@ const seed = process.argv[2] ?? "https://example.com";
 const pd = createPandark();
 console.log(`pandark ${pd.version()}`);
 
-const { exitCode, reportJson } = pd.crawl(seed);
+const { exitCode, reportJson } = await pd.crawl(seed);
 if (exitCode !== 0) {
   console.error(`crawl failed: exit ${exitCode}`);
   console.error(reportJson);

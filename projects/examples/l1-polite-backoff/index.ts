@@ -17,7 +17,7 @@ import { createPandark } from "@notedge/pandark";
 const seed = process.argv[2] ?? "https://example.com";
 const pd = createPandark();
 
-const { exitCode, reportJson } = pd.crawl(seed, {
+const { exitCode, reportJson } = await pd.crawl(seed, {
   depth: 2,
   budget: 5,
 });

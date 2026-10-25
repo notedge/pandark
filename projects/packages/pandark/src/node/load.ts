@@ -20,7 +20,7 @@ type NativeBinding = {
         documentJson?: string;
         reportJson: string;
     };
-    crawlFile: (seed: string, maxDepth?: number, maxRequests?: number, browserFixturesDir?: string, browserFallback?: string, challengePolicy?: string, browserEndpoint?: string, cacheDir?: string, scopeHosts?: string[], scopeDomains?: string[], politeness?: string) => {
+    crawlFile: (seed: string, maxDepth?: number, maxRequests?: number, browserFixturesDir?: string, browserFallback?: string, challengePolicy?: string, browserEndpoint?: string, cacheDir?: string, scopeHosts?: string[], scopeDomains?: string[], politeness?: string) => Promise<{
         exitCode: number;
         reportJson: string;
         committedPages: string[];
@@ -33,7 +33,7 @@ type NativeBinding = {
             headersJson: string;
             body: Uint8Array;
         }>;
-    };
+    }>;
     resumeCrawlFile: (checkpointJson: string, browserFixturesDir?: string, browserFallback?: string, challengePolicy?: string, browserEndpoint?: string, cacheDir?: string) => {
         exitCode: number;
         reportJson: string;
@@ -48,10 +48,10 @@ type NativeBinding = {
             body: Uint8Array;
         }>;
     };
-    fetchSeed: (seed: string) => {
+    fetchSeed: (seed: string) => Promise<{
         exitCode: number;
         artifactJson: string;
-    };
+    }>;
     inspectFile: (inputPath: string, stage?: string) => {
         exitCode: number;
         reportJson: string;

@@ -10,10 +10,9 @@
  * `Crawler.fetch()` wraps Rust `fetchSeed` for single-page artifact retrieval.
  *
  * The single-page entry points (`fetch`, `extractWithProfile`, `toMarkdown`)
- * are **synchronous** because the underlying N-API bindings (`fetchSeed`,
- * `extractToMarkdown`) are synchronous and block the Node.js event loop. They
- * return values directly instead of pretending to be async. `Crawler.crawl()`
- * is genuinely async because it awaits the caller's `handlePage`.
+ * are **async**: Rust `fetchSeed` runs on the Node-API thread pool and returns
+ * a Promise, so awaiting it keeps the Node.js event loop free. `Crawler.crawl()`
+ * is async for the same reason and because it awaits the caller's `handlePage`.
  *
  * `Crawler.crawl()` has two execution paths:
  *
@@ -177,12 +176,11 @@ export class Crawler {
     /**
      * Fetch a single URL. Thin wrapper over Rust `fetchSeed`.
      *
-     * **Synchronous** — `binding.fetchSeed` is a synchronous N-API call that
-     * blocks the Node.js event loop until the HTTP response arrives. The
-     * artifact is returned directly, not wrapped in a Promise.
+     * **Async** — `binding.fetchSeed` resolves on the Node-API thread pool, so
+     * the Node.js event loop keeps running while the HTTP response arrives.
      */
-    fetch(seed: string): FetchArtifact {
-        const response = this.binding.fetchSeed(seed);
+    async fetch(seed: string): Promise<FetchArtifact> {
+        const response = await this.binding.fetchSeed(seed);
         const artifact = JSON.parse(response.artifactJson) as RawArtifact;
         return normalizeArtifact(artifact);
     }
@@ -209,7 +207,7 @@ export class Crawler {
 
         let artifact: FetchArtifact;
         try {
-            const response = this.binding.fetchSeed(seed);
+            const response = await this.binding.fetchSeed(seed);
             const raw = JSON.parse(response.artifactJson) as RawArtifact;
             artifact = normalizeArtifact(raw);
         }
@@ -266,16 +264,16 @@ export class Crawler {
      *
      * 这是作者友好的入口 — 替代之前用户不得不手写 CSS selector 链的做法。
      *
-     * 同步方法：内部直接走 N-API 同步 `binding.fetchSeed`，会阻塞 Node.js 事件
-     * 循环，结果直接返回而非包成 Promise。
+     * 异步方法：内部 await N-API 异步 `binding.fetchSeed`，抓取期间 Node.js
+     * 事件循环保持可推进。
      */
-    extractWithProfile(
+    async extractWithProfile(
         url: string,
         profile: ExtractionProfile,
-    ): ExtractionResult {
+    ): Promise<ExtractionResult> {
         let artifact: FetchArtifact;
         try {
-            const response = this.binding.fetchSeed(url);
+            const response = await this.binding.fetchSeed(url);
             const raw = JSON.parse(response.artifactJson) as RawArtifact;
             artifact = normalizeArtifact(raw);
         }
@@ -321,15 +319,14 @@ export class Crawler {
      * side before handing off to Rust. Without a profile the Rust side
      * performs full-page HTML → Markdown.
      *
-     * 底层 `binding.fetchSeed` 与 `binding.extractToMarkdown` 均为 N-API
-     * 同步调用，因此本方法也是同步的：直接返回 `MarkdownResult`，不包成
-     * Promise，也不假装异步。
+     * 底层 `binding.fetchSeed` 是 N-API 异步任务（返回 Promise），而
+     * `binding.extractToMarkdown` 仍是同步调用；本方法因此返回 Promise。
      */
-    toMarkdown(
+    async toMarkdown(
         url: string,
         options?: { profile?: ExtractionProfile; sourceUrl?: string },
-    ): MarkdownResult {
-        const artifact = this.fetch(url);
+    ): Promise<MarkdownResult> {
+        const artifact = await this.fetch(url);
         const sourceUrl = options?.sourceUrl ?? artifact.finalUrl;
 
         if (options?.profile) {
@@ -357,7 +354,7 @@ export class Crawler {
      */
     private async runCrawlFile<Out>(seed: string, limits: CrawlLimits | undefined, options: CrawlOptions<Out>): Promise<CrawlRun<Out>> {
         try {
-            const response = this.binding.crawlFile(
+            const response = await this.binding.crawlFile(
                 seed,
                 limits?.maxDepth,
                 limits?.maxRequests,

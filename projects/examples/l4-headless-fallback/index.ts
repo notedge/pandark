@@ -20,7 +20,7 @@ const browserEndpoint = process.argv[3]; // 可选 headless worker
 
 const pd = createPandark();
 
-const { exitCode, reportJson } = pd.crawl(seed, {
+const { exitCode, reportJson } = await pd.crawl(seed, {
   depth: 2,
   budget: 5,
   // 关键：HTTP fetch 失败 → 自动 try headless

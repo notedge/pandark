@@ -43,7 +43,7 @@ async function runCrawl(options: ParsedOptions): Promise<number> {
     const challengePolicy = optionString(options, "challenge-policy");
     const browserEndpoint = optionString(options, "browser-endpoint");
     const cacheDir = optionString(options, "cache-dir");
-    const response = ctx.bindings.crawlFile(
+    const response = await ctx.bindings.crawlFile(
         seed,
         maxDepth,
         maxRequests,

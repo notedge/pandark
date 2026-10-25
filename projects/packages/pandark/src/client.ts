@@ -21,19 +21,19 @@ export type PandarkClient = {
         frontier: string[];
         reportJson: string;
     };
-    fetch: (seed: string) => {
+    fetch: (seed: string) => Promise<{
         exitCode: number;
         artifactJson: string;
-    };
+    }>;
     crawl: (
         seed: string,
         options?: PandarkCrawlOptions,
-    ) => {
+    ) => Promise<{
         exitCode: number;
         reportJson: string;
         committedPages: string[];
         checkpointJson?: string;
-    };
+    }>;
     resume: (
         checkpointJson: string,
         options?: Omit<PandarkCrawlOptions, "depth" | "budget">,
