@@ -438,14 +438,40 @@ fn apply_request_options(
 }
 
 /// One-shot HTML bytes → Markdown string via Notedown IR.
+///
+/// Resolves a Promise: the extraction runs on the Node-API thread pool, so
+/// long documents never block the JavaScript event loop.
 #[napi]
-pub fn extract_to_markdown(html_bytes: Vec<u8>, source_url: Option<String>) -> Result<MarkdownResult> {
-    let label = source_url.unwrap_or_else(|| "inline-html".to_string());
-    let import = import_html_bytes_with_links(&label, &html_bytes)
+pub fn extract_to_markdown(html_bytes: Uint8Array, source_url: Option<String>) -> AsyncTask<ExtractToMarkdownTask> {
+    AsyncTask::new(ExtractToMarkdownTask { html_bytes: html_bytes.to_vec(), source_url })
+}
+
+/// Thread-pool task backing [`extract_to_markdown`].
+pub struct ExtractToMarkdownTask {
+    html_bytes: Vec<u8>,
+    source_url: Option<String>,
+}
+
+impl Task for ExtractToMarkdownTask {
+    type Output = MarkdownResult;
+    type JsValue = MarkdownResult;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        extract_to_markdown_response(&self.html_bytes, self.source_url.as_deref())
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(output)
+    }
+}
+
+fn extract_to_markdown_response(html_bytes: &[u8], source_url: Option<&str>) -> Result<MarkdownResult> {
+    let label = source_url.unwrap_or("inline-html").to_string();
+    let import = import_html_bytes_with_links(&label, html_bytes)
         .map_err(|err| Error::from_reason(format!("notedown-formats HTML import failed: {err}")))?;
     let graph = import.document;
-    let markdown = export_markdown(&graph)
-        .map_err(|err| Error::from_reason(format!("notedown-formats markdown export failed: {err}")))?;
+    let markdown =
+        export_markdown(&graph).map_err(|err| Error::from_reason(format!("notedown-formats markdown export failed: {err}")))?;
     let diagnostic_codes = graph.coverage.loss.iter().map(|loss| loss.code.clone()).collect();
     Ok(MarkdownResult { markdown, diagnostic_namespace: "notedown.formats.html".into(), diagnostic_codes })
 }

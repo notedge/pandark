@@ -63,11 +63,11 @@ type NativeBinding = {
     extractToMarkdown: (
         htmlBytes: Uint8Array,
         sourceUrl?: string,
-    ) => {
+    ) => Promise<{
         markdown: string;
         diagnosticNamespace: string;
         diagnosticCodes: string[];
-    };
+    }>;
 };
 
 const PLATFORM_PACKAGES: Record<string, string> = {

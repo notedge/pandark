@@ -97,9 +97,13 @@ export type PandarkBindings = {
         exitCode: number;
         reportJson: string;
     };
-    /** One-shot: HTML bytes → Markdown string via Notedown IR. */
+    /**
+     * One-shot: HTML bytes → Markdown string via Notedown IR.
+     *
+     * Returns a Promise: the extraction runs on the Node-API thread pool.
+     */
     extractToMarkdown: (
         htmlBytes: Uint8Array,
         sourceUrl?: string,
-    ) => MarkdownResult;
+    ) => Promise<MarkdownResult>;
 };

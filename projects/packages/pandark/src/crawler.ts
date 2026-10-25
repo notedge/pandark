@@ -10,9 +10,10 @@
  * `Crawler.fetch()` wraps Rust `fetchSeed` for single-page artifact retrieval.
  *
  * The single-page entry points (`fetch`, `extractWithProfile`, `toMarkdown`)
- * are **async**: Rust `fetchSeed` runs on the Node-API thread pool and returns
- * a Promise, so awaiting it keeps the Node.js event loop free. `Crawler.crawl()`
- * is async for the same reason and because it awaits the caller's `handlePage`.
+ * are **async**: Rust `fetchSeed` and `extractToMarkdown` run on the Node-API
+ * thread pool and return Promises, so awaiting them keeps the Node.js event
+ * loop free. `Crawler.crawl()` is async for the same reason and because it
+ * awaits the caller's `handlePage`.
  *
  * `Crawler.crawl()` has two execution paths:
  *
@@ -319,8 +320,9 @@ export class Crawler {
      * side before handing off to Rust. Without a profile the Rust side
      * performs full-page HTML → Markdown.
      *
-     * 底层 `binding.fetchSeed` 是 N-API 异步任务（返回 Promise），而
-     * `binding.extractToMarkdown` 仍是同步调用；本方法因此返回 Promise。
+     * 底层 `binding.fetchSeed` 与 `binding.extractToMarkdown` 都是 N-API
+     * 异步任务（返回 Promise，在 Node-API 线程池执行），抓取与 HTML → Markdown
+     * 提取期间 Node.js 事件循环保持可推进。
      */
     async toMarkdown(
         url: string,
@@ -338,11 +340,11 @@ export class Crawler {
             const extracted = runExtraction(view, options.profile);
             // runExtraction produces bodyHtml (the scoped candidate) — convert that.
             const scopedBytes = new TextEncoder().encode(extracted.bodyHtml ?? artifact.bodyText);
-            return this.binding.extractToMarkdown(scopedBytes, sourceUrl);
+            return await this.binding.extractToMarkdown(scopedBytes, sourceUrl);
         }
 
         // No profile: full HTML → Markdown in one Rust call.
-        return this.binding.extractToMarkdown(artifact.bodyBytes, sourceUrl);
+        return await this.binding.extractToMarkdown(artifact.bodyBytes, sourceUrl);
     }
 
     /**

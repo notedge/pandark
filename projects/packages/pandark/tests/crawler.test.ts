@@ -8,6 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { Crawler } from "../src/crawler.js";
+import { defineExtractionProfile } from "../src/index.js";
 import { loadPandarkNode } from "../src/node/load.js";
 
 test("Crawler.fetch() awaits the async Rust binding and returns the artifact", async () => {
@@ -140,6 +141,87 @@ test("resumeCrawlFile binding resolves without blocking the event loop", { timeo
 
     assert.equal(resumed.committedPages.length, 1, "resume should commit the paused page");
     assert.ok(ticks > 0, "the event loop must keep running while resumeCrawlFile awaits");
+});
+
+test("extractToMarkdown resolves on the thread pool and keeps the event loop running", { timeout: 60_000 }, async () => {
+    const binding = loadPandarkNode();
+    const html = largeFixtureHtml();
+
+    // The document is large enough that the synchronous alternative would
+    // stall this event loop for many milliseconds. A thread-pool task lets the
+    // `setImmediate` chain below run to completion while the worker extracts.
+    let ticks = 0;
+    let running = true;
+    const tick = (): void => {
+        ticks += 1;
+        if (running) setImmediate(tick);
+    };
+    setImmediate(tick);
+
+    try {
+        const pending = binding.extractToMarkdown(new TextEncoder().encode(html), "https://example.com/large");
+        assert.equal(typeof pending.then, "function", "extractToMarkdown must return a Promise, not the markdown result");
+        const result = await pending;
+        assert.equal(result.diagnosticNamespace, "notedown.formats.html");
+        assert.ok(result.markdown.includes("Large fixture heading"), "markdown should contain the document heading");
+        assert.ok(result.markdown.includes("paragraph 19999"), "markdown should contain the last paragraph");
+    }
+    finally {
+        running = false;
+    }
+
+    assert.ok(ticks > 0, "the event loop must keep running while extractToMarkdown awaits");
+});
+
+test("Crawler.toMarkdown() awaits the async extraction and delivers Markdown", { timeout: 20_000 }, async () => {
+    const html = [
+        "<!DOCTYPE html><html><head><title>Markdown fixture</title></head><body>",
+        "<nav>noise</nav><article><h1>Article title</h1><p>Body paragraph</p></article>",
+        "</body></html>",
+    ].join("");
+    const server = createServer((_request, response) => {
+        response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        response.end(html);
+    });
+    await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    const { port } = server.address() as AddressInfo;
+    const origin = `http://127.0.0.1:${port}`;
+
+    let ticks = 0;
+    let running = true;
+    const tick = (): void => {
+        ticks += 1;
+        if (running) setImmediate(tick);
+    };
+    setImmediate(tick);
+
+    try {
+        const crawler = new Crawler();
+        const pending = crawler.toMarkdown(origin);
+        assert.equal(typeof pending.then, "function", "toMarkdown must stay asynchronous");
+
+        const full = await pending;
+        assert.ok(full.markdown.includes("Article title"), `full-page markdown should keep the heading: ${full.markdown}`);
+        assert.ok(full.markdown.includes("Body paragraph"), "full-page markdown should keep the body");
+
+        const profile = defineExtractionProfile({
+            name: "markdown-fixture",
+            scope: { candidates: ["article"], policy: "first-match" },
+            exclude: ["nav"],
+        });
+        const scoped = await crawler.toMarkdown(origin, { profile });
+        assert.ok(scoped.markdown.includes("Body paragraph"), "profile markdown should keep the scoped body");
+        assert.ok(!scoped.markdown.includes("noise"), "profile markdown must not include excluded nodes");
+    }
+    finally {
+        running = false;
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+
+    assert.ok(ticks > 0, "the event loop must keep running while toMarkdown awaits fetch and extraction");
 });
 
 test("Crawler.crawl() fetches seed and invokes handlePage with real page content", async () => {
@@ -391,6 +473,25 @@ test("Crawler politeness preset reaches the Rust robots gate", async () => {
         await site.close();
     }
 });
+
+/**
+ * Deterministic large HTML fixture for the extraction timing check.
+ *
+ * Built in-process so the test never touches the network, and big enough that
+ * a synchronous HTML → Markdown conversion would visibly stall the loop.
+ */
+function largeFixtureHtml(): string {
+    const paragraphs: string[] = [];
+    for (let index = 0; index < 20_000; index += 1) {
+        paragraphs.push(`<p>paragraph ${index} with <a href="/p/${index}">link ${index}</a></p>`);
+    }
+    return [
+        "<!DOCTYPE html><html><head><title>Large fixture</title></head><body><article>",
+        "<h1>Large fixture heading</h1>",
+        paragraphs.join("\n"),
+        "</article></body></html>",
+    ].join("\n");
+}
 
 /**
  * Fixture site served from a child process.
