@@ -13,7 +13,7 @@ export function registerInspectCommand(cli: Cli): void {
         .action((options: ParsedOptions) => runInspect(options));
 }
 
-function runInspect(options: ParsedOptions): number {
+async function runInspect(options: ParsedOptions): Promise<number> {
     const inputPath = options._[0];
     if (!inputPath || typeof inputPath !== "string") {
         console.error("inspect requires an input file path");
@@ -29,7 +29,7 @@ function runInspect(options: ParsedOptions): number {
     const stage = optionString(options, "stage");
     const from = optionString(options, "from");
     const challengePolicy = optionString(options, "challenge-policy");
-    const response = ctx.bindings.inspectInput(inputPath, stage, from, challengePolicy);
+    const response = await ctx.bindings.inspectInput(inputPath, stage, from, challengePolicy);
 
     if (options.json) {
         console.log(

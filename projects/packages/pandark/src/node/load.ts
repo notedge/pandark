@@ -52,14 +52,14 @@ type NativeBinding = {
         exitCode: number;
         artifactJson: string;
     }>;
-    inspectFile: (inputPath: string, stage?: string) => {
+    inspectFile: (inputPath: string, stage?: string) => Promise<{
         exitCode: number;
         reportJson: string;
-    };
-    inspectInput: (inputPath: string, stage?: string, from?: string, challengePolicy?: string) => {
+    }>;
+    inspectInput: (inputPath: string, stage?: string, from?: string, challengePolicy?: string) => Promise<{
         exitCode: number;
         reportJson: string;
-    };
+    }>;
     extractToMarkdown: (
         htmlBytes: Uint8Array,
         sourceUrl?: string,
