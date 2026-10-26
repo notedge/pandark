@@ -84,19 +84,19 @@ export type PandarkBindings = {
     inspectFile: (
         inputPath: string,
         stage?: string,
-    ) => {
+    ) => Promise<{
         exitCode: number;
         reportJson: string;
-    };
+    }>;
     inspectInput: (
         inputPath: string,
         stage?: string,
         from?: string,
         challengePolicy?: string,
-    ) => {
+    ) => Promise<{
         exitCode: number;
         reportJson: string;
-    };
+    }>;
     /**
      * One-shot: HTML bytes → Markdown string via Notedown IR.
      *

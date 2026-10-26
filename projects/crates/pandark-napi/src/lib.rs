@@ -174,17 +174,63 @@ fn extract_input_response(
 }
 
 /// Inspect local HTML or a browser snapshot without writing IR.
+///
+/// Resolves a Promise: loading and inspection run on the Node-API thread pool,
+/// so large documents never block the JavaScript event loop.
 #[napi]
 pub fn inspect_input(
     input_path: String,
     stage: Option<String>,
     from: Option<String>,
     challenge_policy: Option<String>,
+) -> AsyncTask<InspectInputTask> {
+    AsyncTask::new(InspectInputTask { input_path, stage, from, challenge_policy })
+}
+
+/// Inspect a local HTML file without writing IR.
+///
+/// Resolves a Promise: the inspection runs on the Node-API thread pool.
+#[napi]
+pub fn inspect_file(input_path: String, stage: Option<String>) -> AsyncTask<InspectInputTask> {
+    AsyncTask::new(InspectInputTask { input_path, stage, from: Some("html".into()), challenge_policy: None })
+}
+
+/// Thread-pool task backing [`inspect_input`] and [`inspect_file`].
+pub struct InspectInputTask {
+    input_path: String,
+    stage: Option<String>,
+    from: Option<String>,
+    challenge_policy: Option<String>,
+}
+
+impl Task for InspectInputTask {
+    type Output = InspectResponse;
+    type JsValue = InspectResponse;
+
+    fn compute(&mut self) -> Result<Self::Output> {
+        inspect_input_response(
+            &self.input_path,
+            self.stage.as_deref(),
+            self.from.as_deref(),
+            self.challenge_policy.as_deref(),
+        )
+    }
+
+    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
+        Ok(output)
+    }
+}
+
+fn inspect_input_response(
+    input_path: &str,
+    stage: Option<&str>,
+    from: Option<&str>,
+    challenge_policy: Option<&str>,
 ) -> Result<InspectResponse> {
-    let format = parse_input_format(from.as_deref()).map_err(map_crawl_error)?;
-    let loaded = load_input(&input_path, format).map_err(map_crawl_error)?;
-    let inspect_stage = parse_inspect_stage(stage.as_deref())?;
-    let policy = parse_challenge_policy(challenge_policy.as_deref())?;
+    let format = parse_input_format(from).map_err(map_crawl_error)?;
+    let loaded = load_input(input_path, format).map_err(map_crawl_error)?;
+    let inspect_stage = parse_inspect_stage(stage)?;
+    let policy = parse_challenge_policy(challenge_policy)?;
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
     let budget = ExtractBudget::default();
@@ -198,12 +244,6 @@ pub fn inspect_input(
         _ => 0,
     };
     Ok(InspectResponse { exit_code, report_json: serde_json::to_string(&report).map_err(map_serde_error)? })
-}
-
-/// Inspect a local HTML file without writing IR.
-#[napi]
-pub fn inspect_file(input_path: String, stage: Option<String>) -> Result<InspectResponse> {
-    inspect_input(input_path, stage, Some("html".into()), None)
 }
 
 /// Fetch one URL through the default transport for its scheme.

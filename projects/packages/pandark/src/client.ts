@@ -63,10 +63,10 @@ export type PandarkClient = {
             from?: string;
             challengePolicy?: string;
         },
-    ) => {
+    ) => Promise<{
         exitCode: number;
         reportJson: string;
-    };
+    }>;
 };
 
 /** High-level Pandark client backed by the platform Node-API binding. */
