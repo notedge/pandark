@@ -34,7 +34,7 @@ Submodule re-exports mirror the `notedown` facade pattern:
 
 Root-level exports remain the orchestration entry points for crawl, extract, and inspect flows.
 
-See `pandark` crate docs and `projects/crates/pandark/tests/` for the current public Rust entry points.
+See `pandark` crate docs and `projects/pandark.rs/crates/pandark/tests/` for the current public Rust entry points.
 
 ## ⚠️ Release status
 

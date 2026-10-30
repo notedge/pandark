@@ -9,21 +9,30 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-const CRATES_DIR = join(ROOT, "projects", "crates");
+const CRATE_ROOTS = [
+  join(ROOT, "projects", "pandark.rs", "crates"),
+  join(ROOT, "projects", "pandark.rs", "exports"),
+];
 
 function fail(message) {
   console.error(`check-arch-boundaries: ${message}`);
   process.exitCode = 1;
 }
 
-function crateNames() {
-  return readdirSync(CRATES_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
+function crateEntries() {
+  const out = [];
+  for (const root of CRATE_ROOTS) {
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        out.push({ name: entry.name, dir: join(root, entry.name) });
+      }
+    }
+  }
+  return out;
 }
 
-function readManifest(crate) {
-  return readFileSync(join(CRATES_DIR, crate, "Cargo.toml"), "utf8");
+function readManifest(crateDir) {
+  return readFileSync(join(crateDir, "Cargo.toml"), "utf8");
 }
 
 const DEPENDENCY_SECTIONS = new Set([
@@ -65,23 +74,33 @@ function declaresDependency(manifest, name) {
   return declaredDependencies(manifest).has(name);
 }
 
+function findCrate(name) {
+  return crateEntries().find((entry) => entry.name === name);
+}
+
 function checkYydbOnlyInStore() {
-  for (const crate of crateNames()) {
-    const manifest = readManifest(crate);
+  for (const crate of crateEntries()) {
+    const manifest = readManifest(crate.dir);
     if (!declaresDependency(manifest, "yydb") && !manifest.includes("dep:yydb")) {
       continue;
     }
-    if (crate !== "pandark-store") {
-      fail(`crate \`${crate}\` must not declare a direct \`yydb\` dependency`);
+    if (crate.name !== "pandark-store") {
+      fail(`crate \`${crate.name}\` must not declare a direct \`yydb\` dependency`);
     }
   }
-  if (!declaresDependency(readManifest("pandark-store"), "yydb")) {
+  const store = findCrate("pandark-store");
+  if (!store || !declaresDependency(readManifest(store.dir), "yydb")) {
     fail("`pandark-store` must declare optional `yydb` dependency");
   }
 }
 
 function checkFetchDeps() {
-  const manifest = readManifest("pandark-fetch");
+  const fetch = findCrate("pandark-fetch");
+  if (!fetch) {
+    fail("`pandark-fetch` crate is missing");
+    return;
+  }
+  const manifest = readManifest(fetch.dir);
   for (const forbidden of ["yydb", "notedown-ir", "pandark-store", "napi"]) {
     if (declaresDependency(manifest, forbidden)) {
       fail(`\`pandark-fetch\` must not depend on \`${forbidden}\``);
@@ -90,7 +109,12 @@ function checkFetchDeps() {
 }
 
 function checkPandarkIsRlibOnly() {
-  const manifest = readManifest("pandark");
+  const facade = findCrate("pandark");
+  if (!facade) {
+    fail("`pandark` crate is missing");
+    return;
+  }
+  const manifest = readManifest(facade.dir);
   if (manifest.includes("cdylib")) {
     fail("`pandark` must be an rlib facade and must not build a cdylib");
   }
@@ -117,11 +141,11 @@ function listRustFiles(dir) {
 }
 
 function checkNoYydbImportsOutsideStore() {
-  for (const crate of crateNames()) {
-    if (crate === "pandark-store") {
+  for (const crate of crateEntries()) {
+    if (crate.name === "pandark-store") {
       continue;
     }
-    const srcDir = join(CRATES_DIR, crate, "src");
+    const srcDir = join(crate.dir, "src");
     try {
       statSync(srcDir);
     } catch {

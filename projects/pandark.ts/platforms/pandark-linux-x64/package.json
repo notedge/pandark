@@ -1,13 +1,13 @@
 {
-    "name": "@notedge/pandark-linux-arm64",
+    "name": "@notedge/pandark-linux-x64",
     "version": "0.0.17",
-    "description": "Pandark Node-API binary for Linux arm64",
+    "description": "Pandark Node-API binary for Linux x64",
     "type": "module",
     "license": "MPL-2.0",
     "repository": {
         "type": "git",
         "url": "https://github.com/notedge/pandark.git",
-        "directory": "projects/packages/pandark-linux-arm64"
+        "directory": "projects/pandark.ts/platforms/pandark-linux-x64"
     },
     "publishConfig": {
         "access": "public"
@@ -15,5 +15,5 @@
     "main": "./index.js",
     "files": ["index.js", "lib", "readme.md"],
     "os": ["linux"],
-    "cpu": ["arm64"]
+    "cpu": ["x64"]
 }

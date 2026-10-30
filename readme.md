@@ -25,7 +25,7 @@ Write ./out/page.json and ./out/page.report.json and explain any gaps in the rep
 ```
 
 Full agent workflow: [
-`projects/packages/pandark-skills/skills/pandark/SKILL.md`](projects/packages/pandark-skills/skills/pandark/SKILL.md).
+`projects/pandark.ts/packages/pandark-skills/skills/pandark/SKILL.md`](projects/pandark.ts/packages/pandark-skills/skills/pandark/SKILL.md).
 
 ## 📦 Install and try it
 

@@ -7,9 +7,9 @@
     "repository": {
         "type": "git",
         "url": "https://github.com/notedge/pandark.git",
-        "directory": "projects/packages/pandark"
+        "directory": "projects/pandark.ts/packages/pandark"
     },
-    "homepage": "https://github.com/notedge/pandark/tree/dev/projects/packages/pandark",
+    "homepage": "https://github.com/notedge/pandark/tree/dev/projects/pandark.ts/packages/pandark",
     "publishConfig": {
         "access": "public"
     },

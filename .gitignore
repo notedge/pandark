@@ -24,11 +24,11 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 yarn-error.log
-projects/crates/pandark-napi/index.js
-projects/crates/pandark-napi/index.d.ts
-projects/packages/pandark-*/lib/
-projects/packages/homepage/dist/
-projects/packages/homepage/public/
+projects/pandark.rs/exports/pandark-napi/index.js
+projects/pandark.rs/exports/pandark-napi/index.d.ts
+projects/pandark.ts/platforms/pandark-*/lib/
+projects/pandark.ts/homepage/dist/
+projects/pandark.ts/homepage/public/
 dist/
 *.node
 *.wasm

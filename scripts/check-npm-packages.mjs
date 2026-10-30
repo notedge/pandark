@@ -9,13 +9,13 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const PUBLISHABLE = [
-    "projects/packages/pandark",
-    "projects/packages/pandark-skills",
-    "projects/packages/pandark-win32-x64",
-    "projects/packages/pandark-linux-x64",
-    "projects/packages/pandark-linux-arm64",
-    "projects/packages/pandark-darwin-x64",
-    "projects/packages/pandark-darwin-arm64",
+    "projects/pandark.ts/packages/pandark",
+    "projects/pandark.ts/packages/pandark-skills",
+    "projects/pandark.ts/platforms/pandark-win32-x64",
+    "projects/pandark.ts/platforms/pandark-linux-x64",
+    "projects/pandark.ts/platforms/pandark-linux-arm64",
+    "projects/pandark.ts/platforms/pandark-darwin-x64",
+    "projects/pandark.ts/platforms/pandark-darwin-arm64",
 ];
 
 const MOJIBAKE = /鈥|�|ï¿½|\uFFFD/;
@@ -92,7 +92,7 @@ for (const rel of PUBLISHABLE) {
         }
     }
 
-    if (rel.startsWith("projects/packages/pandark-") && rel !== "projects/packages/pandark-skills") {
+    if (rel.startsWith("projects/pandark.ts/platforms/pandark-")) {
         const main = pkg.main ?? "./index.js";
         const mainPath = path.join(dir, main);
         if (!fs.existsSync(mainPath)) {

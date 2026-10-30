@@ -1,12 +1,15 @@
 [workspace]
 resolver = "2"
-members = ["projects/crates/*"]
+members = [
+    "projects/pandark.rs/crates/*",
+    "projects/pandark.rs/exports/*",
+]
 default-members = [
-    "projects/crates/pandark",
-    "projects/crates/pandark-types",
-    "projects/crates/pandark-fetch",
-    "projects/crates/pandark-extract",
-    "projects/crates/pandark-store",
+    "projects/pandark.rs/crates/pandark",
+    "projects/pandark.rs/crates/pandark-types",
+    "projects/pandark.rs/crates/pandark-fetch",
+    "projects/pandark.rs/crates/pandark-extract",
+    "projects/pandark.rs/crates/pandark-store",
 ]
 
 [workspace.package]
@@ -31,12 +34,12 @@ notedown-formats = { git = "https://github.com/notedge/notedown.git", rev = "84b
 # Overlaid by local path `.cargo/config.toml` (git ignored).
 yydb = { git = "https://github.com/yy-database/yydb.rs", rev = "f7eaf8ecfdb1cbaf6089a4b560caffa0c2acabeb" }
 # Local dependencies
-pandark-types = { path = "projects/crates/pandark-types" }
-pandark-fetch = { path = "projects/crates/pandark-fetch" }
-pandark-extract = { path = "projects/crates/pandark-extract" }
-pandark-store = { path = "projects/crates/pandark-store", default-features = false }
-pandark = { path = "projects/crates/pandark" }
-pandark-napi = { path = "projects/crates/pandark-napi" }
+pandark-types = { path = "projects/pandark.rs/crates/pandark-types" }
+pandark-fetch = { path = "projects/pandark.rs/crates/pandark-fetch" }
+pandark-extract = { path = "projects/pandark.rs/crates/pandark-extract" }
+pandark-store = { path = "projects/pandark.rs/crates/pandark-store", default-features = false }
+pandark = { path = "projects/pandark.rs/crates/pandark" }
+pandark-napi = { path = "projects/pandark.rs/exports/pandark-napi" }
 
 # External dependencies
 serde = { version = "1.0.229", features = ["derive"] }

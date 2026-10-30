@@ -1,13 +1,13 @@
 {
-    "name": "@notedge/pandark-darwin-arm64",
+    "name": "@notedge/pandark-darwin-x64",
     "version": "0.0.17",
-    "description": "Pandark Node-API binary for macOS arm64",
+    "description": "Pandark Node-API binary for macOS x64",
     "type": "module",
     "license": "MPL-2.0",
     "repository": {
         "type": "git",
         "url": "https://github.com/notedge/pandark.git",
-        "directory": "projects/packages/pandark-darwin-arm64"
+        "directory": "projects/pandark.ts/platforms/pandark-darwin-x64"
     },
     "publishConfig": {
         "access": "public"
@@ -15,5 +15,5 @@
     "main": "./index.js",
     "files": ["index.js", "lib", "readme.md"],
     "os": ["darwin"],
-    "cpu": ["arm64"]
+    "cpu": ["x64"]
 }

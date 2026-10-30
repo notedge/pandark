@@ -1,3 +1,5 @@
 packages:
-    - projects/packages/*
-    - projects/examples/*
+    - projects/pandark.ts/packages/*
+    - projects/pandark.ts/platforms/*
+    - projects/pandark.ts/examples/*
+    - projects/pandark.ts/homepage

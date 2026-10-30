@@ -27,4 +27,4 @@ From the repository root:
 pnpm run build:napi
 ```
 
-Copies `index.*.node` into `projects/packages/pandark-<platform>/lib/` for npm packaging.
+Copies `index.*.node` into `projects/pandark.ts/platforms/pandark-<platform>/lib/` for npm packaging.

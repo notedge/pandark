@@ -48,8 +48,8 @@ const NATIVE_PLATFORMS = [
 
 /** @type {{ dir: string, publishName?: string }[]} */
 const JS_PACKAGES = [
-    { dir: "projects/packages/pandark-skills" },
-    { dir: "projects/packages/pandark", publishName: "@notedge/pandark" },
+    { dir: "projects/pandark.ts/packages/pandark-skills" },
+    { dir: "projects/pandark.ts/packages/pandark", publishName: "@notedge/pandark" },
 ];
 
 function fail(msg) {
@@ -187,7 +187,7 @@ function publishNative(version, artifactsRoot) {
     let skipped = 0;
     for (const plat of NATIVE_PLATFORMS) {
         const name = `@notedge/pandark-${plat.short}`;
-        const packageDir = path.join(ROOT, "projects/packages", `pandark-${plat.short}`);
+        const packageDir = path.join(ROOT, "projects/pandark.ts/platforms", `pandark-${plat.short}`);
         const artDir = path.join(artifactsRoot, plat.short);
         if (!fs.existsSync(artDir)) {
             console.log(` · ${name} no artifact (${plat.short}) — skip`);
