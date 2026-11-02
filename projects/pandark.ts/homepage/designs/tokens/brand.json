@@ -1,5 +1,32 @@
 {
     "brand": {
-        "primary": "#2563eb"
+        "primary": "#2563eb",
+        "energy": "#3b82f6"
+    },
+    "surface": {
+        "paper": "#FFFFFF",
+        "mist": "#f8fafc",
+        "page": "#f1f5f9",
+        "fill": "#FAFBFC",
+        "ink": "#0f172a",
+        "graphite": "#334155",
+        "code": "#0F1115"
+    },
+    "text": {
+        "ink": "#0f172a",
+        "steel": "#475569",
+        "tertiary": "#646A73",
+        "on-brand": "#eff6ff",
+        "on-ink": "#f8fafc"
+    },
+    "line": {
+        "default": "#e2e8f0",
+        "subtle": "#f1f5f9",
+        "strong": "#334155"
+    },
+    "font": {
+        "sans": "\"IBM Plex Sans\", \"Segoe UI\", sans-serif",
+        "mono": "\"IBM Plex Mono\", ui-monospace, monospace",
+        "display": "\"IBM Plex Sans\", \"Segoe UI\", sans-serif"
     }
 }
