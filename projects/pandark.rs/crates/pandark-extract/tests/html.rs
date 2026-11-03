@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use notedown_ir::{Block, SourceKind};
+use notedown_ir::{Block, DocumentGraph, SourceKind};
 use pandark_extract::{Extractor, HtmlExtractor};
 use pandark_types::{
     BodyStorage, ExtractBudget, ExtractContext, ExtractInput, ExtractStatus, FetchArtifact, LinkRelation, TransportProvenance,
@@ -22,6 +22,17 @@ fn artifact(page: &str, html: &str) -> FetchArtifact {
         transport_provenance: TransportProvenance::Test,
         cache_key: page.into(),
     }
+}
+
+fn loss_span_text<'a>(document: &DocumentGraph, code: &str, body: &'a str) -> &'a str {
+    let index = document
+        .coverage
+        .loss
+        .iter()
+        .position(|loss| loss.code == code)
+        .unwrap_or_else(|| panic!("missing loss `{code}`: {:?}", document.coverage.loss));
+    let span = document.loss_span(index).expect("every diagram loss must carry an authored span");
+    &body[span.start as usize..span.end as usize]
 }
 
 #[test]
@@ -135,6 +146,12 @@ fn bitmap_only_diagram_is_kept_and_marked_unstructured() {
         .expect("bitmap-only diagrams must carry the explicit loss marker");
     assert!(marker.message.contains("位图，无结构"), "{:?}", marker.message);
     assert!(marker.message.contains("flowchart"), "alt text must be recorded: {:?}", marker.message);
+    let body = String::from_utf8(artifact.body_bytes().expect("inline body").to_vec()).expect("utf8 html");
+    let covered = loss_span_text(&document, "pandark.extract.diagram_bitmap", &body);
+    assert!(
+        covered.contains("<img"),
+        "the bitmap loss must point at the authored image block: {covered:?}"
+    );
 }
 
 #[test]
@@ -151,6 +168,31 @@ fn plain_images_do_not_trigger_diagram_bitmap_loss() {
     assert!(
         !document.coverage.loss.iter().any(|loss| loss.code == "pandark.extract.diagram_bitmap"),
         "unmarked images are ordinary assets, not diagrams"
+    );
+    assert!(
+        !document.coverage.loss.iter().any(|loss| loss.code == "pandark.extract.diagram_source_missing"),
+        "plain inline svg carries no diagram-source loss"
+    );
+}
+
+#[test]
+fn rendered_mermaid_svg_without_source_keeps_a_span_loss() {
+    let html = r#"<html><head><title>Rendered</title></head><body><p>before</p><svg xmlns="http://www.w3.org/2000/svg" aria-roledescription="flowchart-v2" viewBox="0 0 10 10"><rect width="10" height="10"/></svg><p>after</p></body></html>"#;
+    let artifact = artifact("https://example.com/docs/rendered.html", html);
+    let result = HtmlExtractor
+        .extract(ExtractInput { artifact: &artifact, budget: ExtractBudget::default() }, &ExtractContext::default());
+
+    let document = result.document.expect("document");
+    assert_eq!(result.status, ExtractStatus::Partial, "missing source is a partial extraction");
+    assert!(
+        document.assets.iter().any(|asset| asset.media_type.as_deref() == Some("image/svg+xml")),
+        "the rendered vector stays a graphic asset"
+    );
+    let body = String::from_utf8(artifact.body_bytes().expect("inline body").to_vec()).expect("utf8 html");
+    let covered = loss_span_text(&document, "pandark.extract.diagram_source_missing", &body);
+    assert!(
+        covered.contains("<svg"),
+        "the missing-source loss must point at the rendered markup: {covered:?}"
     );
 }
 

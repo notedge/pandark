@@ -1,5 +1,7 @@
 use notedown_formats::from_format_error;
-use notedown_ir::{Block, DocumentGraph, DocumentId, Inline, LossMarker, SemanticStatus};
+use notedown_ir::{
+    Block, DocumentGraph, DocumentId, Inline, LossMarker, SemanticStatus, SourceKind, SourceSpan,
+};
 use pandark_types::{
     ExtractBudget, ExtractContext, ExtractInput, ExtractResult, ExtractStatus, FetchArtifact, ProbeResult, ProbeStatus,
 };
@@ -165,13 +167,41 @@ fn resolve_target(base_url: &url::Url, target: &str) -> Option<String> {
 ///    silently flattens the image into plain text.
 fn classify_diagram_resources(document: &mut DocumentGraph) {
     let mut svg_payloads: Vec<(notedown_ir::NodeId, String)> = Vec::new();
-    let mut bitmaps: Vec<(String, String)> = Vec::new();
-    for node in &document.blocks {
+    let mut pending_losses: Vec<(usize, LossMarker, Option<SourceSpan>)> = Vec::new();
+    for (index, node) in document.blocks.iter().enumerate() {
         match &node.block {
             Block::RawHtml { html } if html.contains("<svg") => {
                 svg_payloads.push((node.id, html.clone()));
+                if looks_like_rendered_diagram(html) {
+                    pending_losses.push((
+                        index,
+                        LossMarker {
+                            code: "pandark.extract.diagram_source_missing".into(),
+                            message: "无法获取源码: the page shipped a rendered diagram as `<svg>` markup without authored diagram source; kept as an image asset".into(),
+                            status: SemanticStatus::Partial,
+                        },
+                        authored_span(document, node.id),
+                    ));
+                }
             }
-            block => collect_bitmap_diagrams(block, &mut bitmaps),
+            block => {
+                let mut bitmaps = Vec::new();
+                collect_bitmap_diagrams(block, &mut bitmaps);
+                if !bitmaps.is_empty() {
+                    let span = authored_span(document, node.id);
+                    for (source, alt) in bitmaps {
+                        pending_losses.push((
+                            index,
+                            LossMarker {
+                                code: "pandark.extract.diagram_bitmap".into(),
+                                message: format!("位图，无结构: diagram available only as raster image `{source}` (alt `{alt}`); kept as image asset without structural recovery"),
+                                status: SemanticStatus::Partial,
+                            },
+                            span,
+                        ));
+                    }
+                }
+            }
         }
     }
 
@@ -198,13 +228,42 @@ fn classify_diagram_resources(document: &mut DocumentGraph) {
         });
     }
 
-    for (source, alt) in bitmaps {
-        document.push_loss(LossMarker {
-            code: "pandark.extract.diagram_bitmap".into(),
-            message: format!("位图，无结构: diagram available only as raster image `{source}` (alt `{alt}`); kept as image asset without structural recovery"),
-            status: SemanticStatus::Partial,
-        });
+    // Losses keep document order so repeated extractions of one page produce
+    // the same loss sequence and every marker points at its authored block.
+    pending_losses.sort_by_key(|(index, _, _)| *index);
+    for (_, marker, span) in pending_losses {
+        document.push_loss_at(marker, span);
     }
+}
+
+/// The authored byte span of one block.
+///
+/// Notedown's HTML importer records provenance through `SourceRef` entries
+/// rather than block-slot spans, so both locations are consulted before giving
+/// up.
+fn authored_span(document: &DocumentGraph, id: notedown_ir::NodeId) -> Option<SourceSpan> {
+    if let Some(span) = document.block_span(id) {
+        return Some(span);
+    }
+    document.sources.iter().find_map(|source| {
+        if source.node != id {
+            return None;
+        }
+        match source.kind {
+            SourceKind::TextSpan { start, end } => SourceSpan::new(start as usize, end as usize),
+            _ => None,
+        }
+    })
+}
+
+/// Detects markup that a diagram runtime rendered in place of authored source.
+///
+/// Generic inline SVG stays an ordinary graphic resource; only Mermaid's
+/// rendered signatures trigger the missing-source loss.
+fn looks_like_rendered_diagram(markup: &str) -> bool {
+    ["aria-roledescription=", "class=\"mermaid", "id=\"mermaid", "data-processed=\"true\""]
+        .iter()
+        .any(|signal| markup.contains(signal))
 }
 
 /// Collect bitmap-only diagrams: authored `<img>` occurrences marked with the
