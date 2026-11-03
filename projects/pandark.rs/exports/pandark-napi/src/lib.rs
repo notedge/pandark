@@ -150,11 +150,11 @@ impl Task for ExtractInputTask {
 fn extract_input_response(
     input_path: &str,
     from: Option<&str>,
-    _source_url: Option<&str>,
+    source_url: Option<&str>,
     challenge_policy: Option<&str>,
 ) -> Result<ExtractResponse> {
     let format = parse_input_format(from).map_err(map_crawl_error)?;
-    let loaded = load_input(input_path, format).map_err(map_crawl_error)?;
+    let loaded = pandark::load_input_with_source(input_path, format, source_url).map_err(map_crawl_error)?;
     let policy = parse_challenge_policy(challenge_policy)?;
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];

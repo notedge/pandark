@@ -147,3 +147,31 @@ test("extractInput rejects an unknown input format", async () => {
         },
     );
 });
+
+test("extractFile without a source url resolves relative assets against the local file url", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-no-source-url-"));
+    const input = join(dir, "page.html");
+    await writeFile(input, '<html><body><p><img src="img/flow.png" alt="f"></p></body></html>', "utf8");
+    const binding = loadPandarkNode();
+    const response = await binding.extractFile(input);
+    const document = JSON.parse(response.documentJson ?? "");
+    assert.equal(document.assets.length, 1);
+    assert.ok(
+        document.assets[0].source.startsWith("file://"),
+        `without a source url the local file url stays the base: ${document.assets[0].source}`,
+    );
+});
+
+test("extractFile rejects an invalid source url", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-bad-source-url-"));
+    const input = join(dir, "page.html");
+    await writeFile(input, "<html><body>x</body></html>", "utf8");
+    const binding = loadPandarkNode();
+    await assert.rejects(
+        binding.extractFile(input, "not a url"),
+        (error: Error) => {
+            assert.match(error.message, /not a url/, "the rejection must name the invalid url");
+            return true;
+        },
+    );
+});

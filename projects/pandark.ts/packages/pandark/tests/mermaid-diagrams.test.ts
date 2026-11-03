@@ -81,9 +81,9 @@ test("inline svg and bitmap diagrams keep their resource forms through extractio
 
     // Tier 3: the bitmap stays an image asset and the IR marks 位图，无结构.
     const bitmapAsset = document.assets.find(
-        (asset: { source?: string }) => typeof asset.source === "string" && asset.source.endsWith("renders/flow.png"),
+        (asset: { source?: string }) => asset.source === "https://example.com/docs/renders/flow.png",
     );
-    assert.ok(bitmapAsset, "the bitmap must be kept as an image asset with its resolved URL");
+    assert.ok(bitmapAsset, "the bitmap must resolve against the caller-supplied page url");
     const marker = document.coverage.loss.find(
         (loss: { code: string }) => loss.code === "pandark.extract.diagram_bitmap",
     );

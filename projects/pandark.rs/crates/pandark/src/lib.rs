@@ -48,7 +48,7 @@ pub use browser::{
 pub use crawl::{CrawlOptions, CrawlOutput, CrawlState, resume_crawl_from_checkpoint, run_crawl, run_crawl_with_options};
 pub use extract::{Extractor, HtmlExtractor, run_extract, select_extractor};
 pub use frontier::{FrontierQueue, frontier_from_links};
-pub use input::{InputFormat, LoadedInput, load_input, parse_input_format};
+pub use input::{InputFormat, LoadedInput, load_input, load_input_with_source, parse_input_format};
 pub use inspect::{inspect_artifact, inspect_snapshot};
 pub use markdown_project::{PublishedPageProject, publish_extracted_page};
 pub use pandark_fetch::{

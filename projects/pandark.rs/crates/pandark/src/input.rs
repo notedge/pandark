@@ -48,6 +48,40 @@ pub fn parse_input_format(from: Option<&str>) -> Result<InputFormat> {
 
 /// Load extract or inspect input from a local path.
 pub fn load_input(path: &str, format: InputFormat) -> Result<LoadedInput> {
+    load_input_with_source(path, format, None)
+}
+
+/// Load extract or inspect input from a local path, optionally overriding the
+/// page identity with the caller-supplied source URL.
+///
+/// A local HTML file is a stand-in for a page fetched from the web. When the
+/// caller knows the page URL, relative asset and link targets inside the
+/// document must resolve against that URL — not against the local `file://`
+/// path. The override replaces the artifact's `request_url`/`final_url`
+/// identity; the `cache_key` keeps the local path so cache lookups stay
+/// per-file. Snapshots carry their own `final_url` from the browser session
+/// and are never overridden.
+pub fn load_input_with_source(path: &str, format: InputFormat, source_url: Option<&str>) -> Result<LoadedInput> {
+    let mut loaded = load_input_impl(path, format)?;
+    if let (LoadedInput::Artifact(artifact), Some(source_url)) = (&mut loaded, source_url) {
+        let page_url = url::Url::parse(source_url).map_err(|error| {
+            let diag = boost_diagnostic::Diagnostic::new(
+                pd::code(pd::URL_INVALID),
+                DiagnosticSeverity::Error,
+                pd::origin_crawl(),
+                Message::new("pandark.diagnostic.sourceUrlInvalid")
+                    .with_arg("url", MessageArg::Text(source_url.to_string()))
+                    .with_fallback(format!("invalid source url `{source_url}`: {error}")),
+            );
+            CrawlError::from(diag)
+        })?;
+        artifact.request_url = page_url.clone();
+        artifact.final_url = page_url;
+    }
+    Ok(loaded)
+}
+
+fn load_input_impl(path: &str, format: InputFormat) -> Result<LoadedInput> {
     let file_path = Path::new(path);
     let resolved = match format {
         InputFormat::Html => InputFormat::Html,
