@@ -44,6 +44,117 @@ fn html_import_drives_title_blocks_assets_and_provenance() {
 }
 
 #[test]
+fn mermaid_source_blocks_stay_diagrams_with_provenance() {
+    let artifact = artifact(
+        "https://example.com/docs/flow.html",
+        "<html><head><title>Flow</title></head><body>\n\
+         <div class=\"mermaid\">flowchart TD\n  A[Fetch] --&gt; B{OK?}</div>\n\
+         <pre><code class=\"language-mermaid\">flowchart LR\n  X --&gt; Y</code></pre>\n\
+         </body></html>",
+    );
+    let result = HtmlExtractor
+        .extract(ExtractInput { artifact: &artifact, budget: ExtractBudget::default() }, &ExtractContext::default());
+
+    let document = result.document.expect("document");
+    let diagrams: Vec<_> = document
+        .blocks
+        .iter()
+        .filter(|node| matches!(&node.block, Block::Diagram { language, .. } if language == "mermaid"))
+        .collect();
+    assert_eq!(diagrams.len(), 2, "both mermaid containers must become diagram blocks: {:?}", document.blocks);
+    for node in &diagrams {
+        let Block::Diagram { source, .. } = &node.block else { unreachable!() };
+        assert!(source.contains("flowchart"), "authored source must be preserved verbatim: {source:?}");
+        assert!(source.contains("-->"), "character references must decode back to authored edges: {source:?}");
+        assert!(
+            document.sources_for(node.id).iter().any(|s| matches!(s.kind, SourceKind::TextSpan { .. })),
+            "diagram blocks must carry byte-span provenance"
+        );
+    }
+    // Source tier is lossless: no bitmap or structural loss markers.
+    assert!(!document.coverage.loss.iter().any(|loss| loss.code == "pandark.extract.diagram_bitmap"));
+}
+
+#[test]
+fn inline_svg_is_registered_as_graphic_resource_reference() {
+    let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\"/></svg>";
+    let artifact = artifact(
+        "https://example.com/docs/rendered.html",
+        &format!("<html><head><title>Rendered</title></head><body><p>before</p>{svg}<p>after</p></body></html>"),
+    );
+    let result = HtmlExtractor
+        .extract(ExtractInput { artifact: &artifact, budget: ExtractBudget::default() }, &ExtractContext::default());
+
+    let document = result.document.expect("document");
+    let svg_node = document
+        .blocks
+        .iter()
+        .find(|node| matches!(&node.block, Block::RawHtml { html } if html.contains("<svg")))
+        .expect("inline svg must survive as a RawHtml block");
+    let asset = document
+        .assets
+        .iter()
+        .find(|asset| asset.media_type.as_deref() == Some("image/svg+xml"))
+        .expect("inline svg must be registered as a graphic resource asset");
+    assert_eq!(asset.status, notedown_ir::SemanticStatus::Resolved);
+    let payload = String::from_utf8(asset.bytes.clone().expect("svg markup kept as asset bytes")).expect("utf8 svg");
+    assert!(payload.contains("<svg"), "asset payload must be the exact svg markup: {payload:?}");
+    assert!(
+        document.relations.iter().any(|relation| {
+            relation.kind == notedown_ir::RelationKind::Embeds
+                && relation.source == notedown_ir::RelationEndpoint::Node(svg_node.id)
+                && relation.target == notedown_ir::RelationEndpoint::Asset(asset.id)
+        }),
+        "the svg block must embed the registered asset"
+    );
+}
+
+#[test]
+fn bitmap_only_diagram_is_kept_and_marked_unstructured() {
+    let artifact = artifact(
+        "https://example.com/docs/bitmap.html",
+        r#"<html><head><title>Bitmap</title></head><body><p><img class="mermaid" src="renders/flow.png" alt="flowchart"></p></body></html>"#,
+    );
+    let result = HtmlExtractor
+        .extract(ExtractInput { artifact: &artifact, budget: ExtractBudget::default() }, &ExtractContext::default());
+
+    let document = result.document.expect("document");
+    // The raster image stays a first-class asset with its resolved URL.
+    let asset = document
+        .assets
+        .iter()
+        .find(|asset| asset.source.as_deref() == Some("https://example.com/docs/renders/flow.png"))
+        .expect("the bitmap must be kept as an image asset");
+    assert_eq!(asset.media_type.as_deref(), Some("image/png"));
+    // The IR explicitly marks it: 位图，无结构 — no OCR, no silent text fallback.
+    let marker = document
+        .coverage
+        .loss
+        .iter()
+        .find(|loss| loss.code == "pandark.extract.diagram_bitmap")
+        .expect("bitmap-only diagrams must carry the explicit loss marker");
+    assert!(marker.message.contains("位图，无结构"), "{:?}", marker.message);
+    assert!(marker.message.contains("flowchart"), "alt text must be recorded: {:?}", marker.message);
+}
+
+#[test]
+fn plain_images_do_not_trigger_diagram_bitmap_loss() {
+    let artifact = artifact(
+        "https://example.com/docs/photo.html",
+        r#"<html><head><title>Photo</title></head><body><p><img src="photo.png" alt="a photo"></p></body></html>"#,
+    );
+    let result = HtmlExtractor
+        .extract(ExtractInput { artifact: &artifact, budget: ExtractBudget::default() }, &ExtractContext::default());
+
+    let document = result.document.expect("document");
+    assert_eq!(document.assets.len(), 1);
+    assert!(
+        !document.coverage.loss.iter().any(|loss| loss.code == "pandark.extract.diagram_bitmap"),
+        "unmarked images are ordinary assets, not diagrams"
+    );
+}
+
+#[test]
 fn html_links_resolve_against_page_base_and_keep_crawl_relations() {
     let artifact = artifact(
         "https://example.com/docs/page.html",

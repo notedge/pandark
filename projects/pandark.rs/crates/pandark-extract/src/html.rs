@@ -72,6 +72,7 @@ impl Extractor for HtmlExtractor {
         let mut document = import.document;
         document.id = page_document_id(ctx.page_identity.as_deref().unwrap_or(&label));
         resolve_asset_targets(&mut document, &base_url);
+        classify_diagram_resources(&mut document);
 
         let status = if document.validate().is_valid() {
             if document.coverage.complete { ExtractStatus::Complete } else { ExtractStatus::Partial }
@@ -147,6 +148,114 @@ fn resolve_inline_targets(inlines: &mut [Inline], base_url: &url::Url) {
 
 fn resolve_target(base_url: &url::Url, target: &str) -> Option<String> {
     url::Url::parse(target).or_else(|_| base_url.join(target)).ok().map(|url| url.to_string())
+}
+
+/// Classify diagram resources by available information, in three tiers:
+///
+/// 1. `Block::Diagram` — the authored source (e.g. Mermaid) is already kept
+///    verbatim in the IR with byte-span provenance attached by the importer.
+///    Nothing to do here; the tier exists so downstream keeps it source-first.
+/// 2. `Block::RawHtml` carrying `<svg>` markup — the page shipped a rendered
+///    vector graphic instead of source. Register it as an image asset with the
+///    exact markup as payload so consumers treat it as a graphic resource
+///    reference rather than prose.
+/// 3. Bitmap-only diagrams (`<img class="mermaid">` etc.) — keep the image
+///    asset (URL + alt) and push an explicit loss marker: 位图，无结构. Pandark
+///    never OCR-reconstructs diagram structure from raster bytes and never
+///    silently flattens the image into plain text.
+fn classify_diagram_resources(document: &mut DocumentGraph) {
+    let mut svg_payloads: Vec<(notedown_ir::NodeId, String)> = Vec::new();
+    let mut bitmaps: Vec<(String, String)> = Vec::new();
+    for node in &document.blocks {
+        match &node.block {
+            Block::RawHtml { html } if html.contains("<svg") => {
+                svg_payloads.push((node.id, html.clone()));
+            }
+            block => collect_bitmap_diagrams(block, &mut bitmaps),
+        }
+    }
+
+    let mut next_asset = document.assets.iter().map(|asset| asset.id.0).max().unwrap_or(0);
+    let mut next_link = document.relations.iter().map(|relation| relation.id.0).max().unwrap_or(0);
+    for (node, markup) in svg_payloads {
+        next_asset += 1;
+        next_link += 1;
+        let asset_id = notedown_ir::AssetId(next_asset);
+        document.push_asset(notedown_ir::Asset {
+            id: asset_id,
+            kind: notedown_ir::AssetKind::Image,
+            content_identity: None,
+            source: None,
+            media_type: Some("image/svg+xml".into()),
+            status: SemanticStatus::Resolved,
+            bytes: Some(markup.into_bytes()),
+        });
+        document.push_relation(notedown_ir::Relation {
+            id: notedown_ir::LinkId(next_link),
+            kind: notedown_ir::RelationKind::Embeds,
+            source: notedown_ir::RelationEndpoint::Node(node),
+            target: notedown_ir::RelationEndpoint::Asset(asset_id),
+        });
+    }
+
+    for (source, alt) in bitmaps {
+        document.push_loss(LossMarker {
+            code: "pandark.extract.diagram_bitmap".into(),
+            message: format!("位图，无结构: diagram available only as raster image `{source}` (alt `{alt}`); kept as image asset without structural recovery"),
+            status: SemanticStatus::Partial,
+        });
+    }
+}
+
+/// Collect bitmap-only diagrams: authored `<img>` occurrences marked with the
+/// `mermaid` (or `diagram`) class, which the importer keeps as an attributed
+/// inline image.
+fn collect_bitmap_diagrams(block: &Block, out: &mut Vec<(String, String)>) {
+    match block {
+        Block::Section { title, .. } => collect_bitmap_inlines(title, out),
+        Block::Paragraph { content } | Block::Quote { content } => collect_bitmap_inlines(content, out),
+        Block::List { items, .. } => {
+            for item in items {
+                collect_bitmap_inlines(&item.content, out);
+            }
+        }
+        Block::Table { rows, .. } => {
+            for row in rows {
+                for cell in &row.cells {
+                    collect_bitmap_inlines(&cell.content, out);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_bitmap_inlines(inlines: &[Inline], out: &mut Vec<(String, String)>) {
+    for inline in inlines {
+        match inline {
+            Inline::Attributed { attributes, children } => {
+                let marked = attributes.classes.iter().any(|class| class == "mermaid" || class == "diagram");
+                if marked {
+                    for (source, alt) in children.iter().filter_map(image_parts) {
+                        out.push((source, alt));
+                    }
+                }
+                collect_bitmap_inlines(children, out);
+            }
+            Inline::Styled { children, .. } => collect_bitmap_inlines(children, out),
+            _ => {}
+        }
+    }
+}
+
+fn image_parts(inline: &Inline) -> Option<(String, String)> {
+    match inline {
+        Inline::Image { source, alt, .. } if !source.is_empty() => {
+            let alt = alt.iter().map(Inline::plain_text).collect::<String>();
+            Some((source.clone(), alt))
+        }
+        _ => None,
+    }
 }
 
 fn page_document_id(page_identity: &str) -> DocumentId {
