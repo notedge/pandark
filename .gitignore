@@ -16,7 +16,7 @@ Cargo.lock
 
 # Node
 node_modules/
-.cache/npm-placeholder.json
+.cache/
 .env.placeholder.local
 distribution/
 coverage/
