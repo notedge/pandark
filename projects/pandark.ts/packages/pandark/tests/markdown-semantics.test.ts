@@ -122,3 +122,28 @@ test("extractInput blocks login snapshots under the stop challenge policy", asyn
     const report = JSON.parse(response.reportJson);
     assert.equal(report.challenge_state, "login_required");
 });
+
+test("extractFile rejects a missing input file with a structured error", async () => {
+    const binding = loadPandarkNode();
+    await assert.rejects(
+        binding.extractFile("E:/definitely/not/a/real-file.html"),
+        (error: Error) => {
+            assert.ok(error.message.length > 0, "the rejection must carry a message");
+            return true;
+        },
+    );
+});
+
+test("extractInput rejects an unknown input format", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-bad-format-"));
+    const input = join(dir, "page.html");
+    await writeFile(input, "<html><body>x</body></html>", "utf8");
+    const binding = loadPandarkNode();
+    await assert.rejects(
+        binding.extractInput(input, "not-a-format"),
+        (error: Error) => {
+            assert.match(error.message, /format/i, "the rejection must name the format problem");
+            return true;
+        },
+    );
+});
