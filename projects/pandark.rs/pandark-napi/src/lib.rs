@@ -2,19 +2,19 @@
 
 use std::path::PathBuf;
 
-use napi::bindgen_prelude::*;
-use napi_derive::napi;
-use notedown_formats::{export::markdown::export_markdown, import::html::import_html_bytes_with_links};
-use pandark::{
+use crawler::{
     BrowserProvider, ChallengeBlocked, CrawlOptions, CrawlOutput, Extractor, HtmlExtractor, LoadedInput, build_browser_stack,
     initial_report, inspect_artifact, inspect_snapshot, load_input, parse_input_format, plan_crawl as build_plan,
     resolve_crawl_seed_specs, resume_crawl_from_checkpoint, run_crawl_with_options, run_extract, run_extract_from_snapshot,
 };
-use pandark_fetch::{FetchClient, FetchRequest, RobotsPolicy, transport_for_url};
-use pandark_types::{
+use crawler_fetch::{FetchClient, FetchRequest, RobotsPolicy, transport_for_url};
+use crawler_types::{
     BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlReport, CrawlRequest, CrawlScope,
     ExtractBudget, ExtractContext, ExtractStatus, InspectStage, PolitenessProfile,
 };
+use document_formats::{export::markdown::export_markdown, import::html::import_html_bytes_with_links};
+use napi::bindgen_prelude::*;
+use napi_derive::napi;
 use url::Url;
 
 /// N-API crawl plan response.
@@ -154,7 +154,7 @@ fn extract_input_response(
     challenge_policy: Option<&str>,
 ) -> Result<ExtractResponse> {
     let format = parse_input_format(from).map_err(map_crawl_error)?;
-    let loaded = pandark::load_input_with_source(input_path, format, source_url).map_err(map_crawl_error)?;
+    let loaded = crawler::load_input_with_source(input_path, format, source_url).map_err(map_crawl_error)?;
     let policy = parse_challenge_policy(challenge_policy)?;
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
@@ -208,12 +208,7 @@ impl Task for InspectInputTask {
     type JsValue = InspectResponse;
 
     fn compute(&mut self) -> Result<Self::Output> {
-        inspect_input_response(
-            &self.input_path,
-            self.stage.as_deref(),
-            self.from.as_deref(),
-            self.challenge_policy.as_deref(),
-        )
+        inspect_input_response(&self.input_path, self.stage.as_deref(), self.from.as_deref(), self.challenge_policy.as_deref())
     }
 
     fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
@@ -548,10 +543,10 @@ impl Task for ExtractToMarkdownTask {
 fn extract_to_markdown_response(html_bytes: &[u8], source_url: Option<&str>) -> Result<MarkdownResult> {
     let label = source_url.unwrap_or("inline-html").to_string();
     let import = import_html_bytes_with_links(&label, html_bytes)
-        .map_err(|err| Error::from_reason(format!("notedown-formats HTML import failed: {err}")))?;
+        .map_err(|err| Error::from_reason(format!("document-formats HTML import failed: {err}")))?;
     let graph = import.document;
     let markdown =
-        export_markdown(&graph).map_err(|err| Error::from_reason(format!("notedown-formats markdown export failed: {err}")))?;
+        export_markdown(&graph).map_err(|err| Error::from_reason(format!("document-formats markdown export failed: {err}")))?;
     let diagnostic_codes = graph.coverage.loss.iter().map(|loss| loss.code.clone()).collect();
     Ok(MarkdownResult { markdown, diagnostic_namespace: "notedown.formats.html".into(), diagnostic_codes })
 }
@@ -592,7 +587,7 @@ fn normalize_seed_url(seed: &str) -> Result<String> {
     Ok(url.to_string())
 }
 
-fn build_extract_response(result: pandark_types::ExtractResult) -> Result<ExtractResponse> {
+fn build_extract_response(result: crawler_types::ExtractResult) -> Result<ExtractResponse> {
     let status = match result.status {
         ExtractStatus::Complete => "complete",
         ExtractStatus::Partial => "partial",
@@ -607,7 +602,7 @@ fn build_extract_response(result: pandark_types::ExtractResult) -> Result<Extrac
         ExtractStatus::Unsupported | ExtractStatus::Failed => 2,
     };
     let report_json = serde_json::json!({
-        "schema_version": pandark_types::diagnostics::SCHEMA_REPORT,
+        "schema_version": crawler_types::diagnostics::SCHEMA_REPORT,
         "operation": "extract",
         "status": status,
         "source_url": result.source_url.to_string(),
@@ -648,11 +643,11 @@ fn parse_politeness(profile: &str) -> Result<PolitenessProfile> {
 }
 
 fn build_challenge_extract_response(
-    snapshot: &pandark_types::BrowserSnapshot,
+    snapshot: &crawler_types::BrowserSnapshot,
     blocked: ChallengeBlocked,
 ) -> Result<ExtractResponse> {
     let report_json = serde_json::json!({
-        "schema_version": pandark_types::diagnostics::SCHEMA_REPORT,
+        "schema_version": crawler_types::diagnostics::SCHEMA_REPORT,
         "operation": "extract",
         "status": "challenge_blocked",
         "source_url": snapshot.final_url.to_string(),
@@ -672,7 +667,7 @@ fn parse_inspect_stage(stage: Option<&str>) -> Result<InspectStage> {
     }
 }
 
-fn map_crawl_error(error: pandark_types::CrawlError) -> Error {
+fn map_crawl_error(error: crawler_types::CrawlError) -> Error {
     Error::from_reason(error.to_string())
 }
 

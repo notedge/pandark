@@ -14,10 +14,10 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-notedown-formats = { workspace = true }
-pandark = { workspace = true }
-pandark-fetch = { workspace = true }
-pandark-types = { workspace = true }
+document-formats = { workspace = true }
+crawler = { workspace = true }
+crawler-fetch = { workspace = true }
+crawler-types = { workspace = true }
 napi = { workspace = true }
 napi-derive = { workspace = true }
 serde = { workspace = true }

@@ -24,8 +24,8 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 yarn-error.log
-projects/pandark.rs/exports/pandark-napi/index.js
-projects/pandark.rs/exports/pandark-napi/index.d.ts
+projects/pandark.rs/pandark-napi/index.js
+projects/pandark.rs/pandark-napi/index.d.ts
 projects/pandark.ts/platforms/pandark-*/lib/
 projects/pandark.ts/homepage/dist/
 projects/pandark.ts/homepage/public/
