@@ -66,6 +66,47 @@ test("extractToMarkdown keeps tables and footnote endnotes", { timeout: 60_000 }
     assert.ok(!markdown.includes("doc-endnotes"), "the endnotes container must not leak as prose");
 });
 
+test("extractToMarkdown keeps merged cells and nested quoted lists", { timeout: 60_000 }, async () => {
+    const binding = loadPandarkNode();
+    const html = [
+        "<!DOCTYPE html><html><head><title>Structures</title></head><body>",
+        "<h1>Structures</h1>",
+        '<table><tr><th colspan="2">Head</th></tr><tr><td rowspan="2">a</td><td>b</td></tr><tr><td>c</td></tr></table>',
+        "<blockquote><ul><li>alpha</li><li>beta</li></ul></blockquote>",
+        "<p>Inline <b>markup</b> stays.</p>",
+        "</body></html>",
+    ].join("");
+
+    const result = await binding.extractToMarkdown(new TextEncoder().encode(html), "https://example.com/structures");
+    const markdown = result.markdown;
+
+    assert.match(markdown, /<table>/, `a spanning table must be written as an HTML table: ${markdown}`);
+    assert.match(markdown, /colspan="2"/, `the column span must be written back: ${markdown}`);
+    assert.match(markdown, /rowspan="2"/, `the row span must be written back: ${markdown}`);
+    assert.match(markdown, /^> - alpha$/m, `a list inside a quote must stay nested: ${markdown}`);
+    assert.match(markdown, /^> - beta$/m, `every quoted item keeps its nested list form: ${markdown}`);
+    assert.match(markdown, /Inline \*\*markup\*\* stays\./, `an authored bold tag must keep its emphasis: ${markdown}`);
+});
+
+test("extractToMarkdown reports a definition list downgrade instead of dropping it", { timeout: 60_000 }, async () => {
+    const binding = loadPandarkNode();
+    const html = [
+        "<!DOCTYPE html><html><head><title>Definitions</title></head><body>",
+        "<dl><dt>Term</dt><dd>Definition</dd></dl>",
+        "</body></html>",
+    ].join("");
+
+    const result = await binding.extractToMarkdown(new TextEncoder().encode(html), "https://example.com/definitions");
+    const markdown = result.markdown;
+
+    assert.match(markdown, /Term/, `the term text must survive the downgrade: ${markdown}`);
+    assert.match(markdown, /Definition/, `the definition text must survive the downgrade: ${markdown}`);
+    assert.ok(
+        result.diagnosticCodes.includes("import.html.definition_list"),
+        `the paragraph downgrade must be reported: ${JSON.stringify(result.diagnosticCodes)}`,
+    );
+});
+
 test("extractWithProfile delivers scoped results through the async entry", async () => {
     const html = [
         "<!DOCTYPE html><html><head><title>Scoped</title></head><body>",
