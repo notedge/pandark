@@ -41,6 +41,31 @@ test("extractToMarkdown preserves authored semantics across the HTML to Markdown
     assert.match(markdown, /!\[pic alt\]\(\/pic\.png\)/, "images must keep alt and src");
 });
 
+test("extractToMarkdown keeps tables and footnote endnotes", { timeout: 60_000 }, async () => {
+    const binding = loadPandarkNode();
+    const html = [
+        "<!DOCTYPE html><html><head><title>Tables</title></head><body>",
+        "<h1>Daily notes</h1>",
+        '<p>Source<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>.</p>',
+        "<table><tr><th>Topic</th><th>Owner</th></tr><tr><td>alpha</td><td>beta</td></tr></table>",
+        '<section class="footnotes" role="doc-endnotes"><ol><li id="fn1"><p>Measured on 2026-11-04.</p></li></ol></section>',
+        "</body></html>",
+    ].join("");
+
+    const result = await binding.extractToMarkdown(new TextEncoder().encode(html), "https://example.com/tables");
+    const markdown = result.markdown;
+
+    assert.match(markdown, /^# Daily notes/m, "the heading must stay a heading");
+    assert.ok(markdown.includes("Source[^1]"), `the footnote reference must stay a GFM note: ${markdown}`);
+    assert.ok(
+        markdown.includes("[^1]: Measured on 2026-11-04."),
+        `the endnote body must become a GFM definition: ${markdown}`,
+    );
+    assert.match(markdown, /^\| Topic \| Owner \|$/m, "the table header must stay a table row");
+    assert.match(markdown, /^\| alpha \| beta \|$/m, "the table body must stay a table row");
+    assert.ok(!markdown.includes("doc-endnotes"), "the endnotes container must not leak as prose");
+});
+
 test("extractWithProfile delivers scoped results through the async entry", async () => {
     const html = [
         "<!DOCTYPE html><html><head><title>Scoped</title></head><body>",
