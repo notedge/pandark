@@ -164,7 +164,7 @@ Always prefer `pandark … --json` when the user or agent needs structured outpu
 |--------------------------------|-----------------------------|------------------------------------------|
 | `--depth <n>`                  | integer                     | Limit link hops from seeds               |
 | `--budget <n>`                 | integer                     | Cap total HTTP requests                  |
-| `--browser-fallback`           | `never`, `on-fetch-failure` | Use browser when HTTP fetch fails        |
+| `--browser-fallback`           | `never`, `on-fetch-failure` | Use browser when HTTP fetch fails or yields an empty/script-only shell |
 | `--browser-fixtures-dir <dir>` | path                        | Offline/dev: JSON snapshots keyed by URL |
 | `--browser-endpoint <url>`     | HTTP base URL               | Remote browser worker (when deployed)    |
 | `--challenge-policy`           | see below                   | Behavior on login/challenge pages        |

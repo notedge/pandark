@@ -576,7 +576,23 @@ type RawCrawlEvent =
     | { kind: "discovered"; url: string; depth: number }
     | { kind: "admitted"; url: string; decision: RawAdmissionDecision }
     | { kind: "fetched"; url: string; status: number; cache_hit: boolean }
-    | { kind: "browser_fallback"; url: string; fetch_error: string; browser_engine: string }
+    | {
+          kind: "browser_fallback";
+          url: string;
+          trigger: "fetch_failure" | "low_yield";
+          fetch_error: string | null;
+          browser_engine: string;
+          observed_text_chars: number | null;
+          observed_content_blocks: number | null;
+      }
+    | {
+          kind: "browser_fallback_failed";
+          url: string;
+          trigger: "fetch_failure" | "low_yield";
+          diagnostic_code: string;
+          provider_code: string | null;
+          reason: string;
+      }
     | { kind: "extracted"; url: string; status: string; extractor: string }
     | { kind: "committed"; page_identity: string }
     | { kind: "skipped"; url: string; reason: string }
@@ -635,7 +651,22 @@ async function assembleRunFromCrawlFile<Out>(
 
     // Events tell us about skipped / failed pages that never committed.
     for (const event of events) {
-        if (event.kind === "failed") {
+        if (event.kind === "browser_fallback_failed") {
+            if (!committed.has(event.url)) {
+                const prior = outcomes.get(event.url);
+                const diagnostics = prior?.diagnostics ?? [];
+                diagnostics.push({
+                    code: event.provider_code ?? event.diagnostic_code,
+                    fallback: event.reason,
+                    severity: "error",
+                    origin: { namespace: "pandark", component: "crawler" },
+                    stage: "fetch",
+                    url: event.url,
+                });
+                outcomes.set(event.url, { url: event.url, status: "failed", diagnostics });
+            }
+        }
+        else if (event.kind === "failed") {
             if (!committed.has(event.url) && !outcomes.has(event.url)) {
                 outcomes.set(event.url, {
                     url: event.url,
