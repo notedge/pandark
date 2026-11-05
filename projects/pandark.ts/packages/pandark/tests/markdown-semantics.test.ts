@@ -66,7 +66,7 @@ test("extractToMarkdown keeps tables and footnote endnotes", { timeout: 60_000 }
     assert.ok(!markdown.includes("doc-endnotes"), "the endnotes container must not leak as prose");
 });
 
-test("extractToMarkdown keeps merged cells and nested quoted lists", { timeout: 60_000 }, async () => {
+test("extractToMarkdown flattens merged cells into a pipe table and records the downgrade", { timeout: 60_000 }, async () => {
     const binding = loadPandarkNode();
     const html = [
         "<!DOCTYPE html><html><head><title>Structures</title></head><body>",
@@ -80,9 +80,17 @@ test("extractToMarkdown keeps merged cells and nested quoted lists", { timeout: 
     const result = await binding.extractToMarkdown(new TextEncoder().encode(html), "https://example.com/structures");
     const markdown = result.markdown;
 
-    assert.match(markdown, /<table>/, `a spanning table must be written as an HTML table: ${markdown}`);
-    assert.match(markdown, /colspan="2"/, `the column span must be written back: ${markdown}`);
-    assert.match(markdown, /rowspan="2"/, `the row span must be written back: ${markdown}`);
+    // Notedown deliberately keeps a spanning table as a pipe table by
+    // flattening the merged slots instead of emitting inline HTML, and records
+    // the downgrade so the loss is observable.
+    assert.ok(
+        result.diagnosticCodes.includes("import.html.table_spans"),
+        `the span downgrade must be recorded: ${result.diagnosticCodes.join(", ")}`,
+    );
+    assert.match(markdown, /^\| Head \|  \|$/m, `the spanning header must stay a pipe row: ${markdown}`);
+    assert.match(markdown, /^\| a \| b \|$/m, "the row that opens the span must keep its cells");
+    assert.match(markdown, /^\|  \| c \|$/m, "the covered slot must stay an empty continuation cell");
+    assert.ok(!markdown.includes("<table>"), "the table must not fall back to inline HTML");
     assert.match(markdown, /^> - alpha$/m, `a list inside a quote must stay nested: ${markdown}`);
     assert.match(markdown, /^> - beta$/m, `every quoted item keeps its nested list form: ${markdown}`);
     assert.match(markdown, /Inline \*\*markup\*\* stays\./, `an authored bold tag must keep its emphasis: ${markdown}`);

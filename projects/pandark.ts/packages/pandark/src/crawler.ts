@@ -571,6 +571,16 @@ type RawDiagnosticEnvelope = { diagnostics: RawRustDiagnostic[] };
 /** Rust-side admission decision — externally tagged enum. */
 type RawAdmissionDecision = "admitted" | { rejected: { reason: string } };
 
+/**
+ * Admission rejection reasons owned by the Rust crawler.
+ *
+ * These mirror `crawler::admission::REJECT_OUT_OF_SCOPE` and
+ * `REJECT_DEPTH_EXCEEDED`. Pandark only classifies them — it never renames
+ * crawler diagnostics or invents a parallel reason vocabulary.
+ */
+const REJECT_OUT_OF_SCOPE = "crawler.reject.out-of-scope";
+const REJECT_DEPTH_EXCEEDED = "crawler.reject.depth-exceeded";
+
 /** Union of Rust `CrawlEvent` variants as serialized (tagged by `kind`). */
 type RawCrawlEvent =
     | { kind: "discovered"; url: string; depth: number }
@@ -714,12 +724,12 @@ async function assembleRunFromCrawlFile<Out>(
             e.kind === "admitted" && typeof e.decision === "object",
     );
     const rejectionReasons = admissionRejections.map((e) => rejectionReason(e.decision));
-    const depthRejected = rejectionReasons.filter((reason) => reason === "pandark.reject.depth-exceeded").length;
-    const scopeRejected = rejectionReasons.filter((reason) => reason === "pandark.reject.out-of-scope").length;
+    const depthRejected = rejectionReasons.filter((reason) => reason === REJECT_DEPTH_EXCEEDED).length;
+    const scopeRejected = rejectionReasons.filter((reason) => reason === REJECT_OUT_OF_SCOPE).length;
 
     // Scope rejections are part of the per-page ledger, not just a counter.
     for (const event of admissionRejections) {
-        if (rejectionReason(event.decision) !== "pandark.reject.out-of-scope" || outcomes.has(event.url)) continue;
+        if (rejectionReason(event.decision) !== REJECT_OUT_OF_SCOPE || outcomes.has(event.url)) continue;
         outcomes.set(event.url, {
             url: event.url,
             status: "skipped",

@@ -459,7 +459,7 @@ test("Crawler.crawl() surfaces budget exhaustion instead of success", async () =
         assert.equal(handled, 1, "only committed pages reach handlePage");
         assert.equal([...run.outcomes.values()][0].output, "seed");
         assert.ok(
-            run.diagnostics.some((diagnostic) => diagnostic.code === "pandark.crawl.budget-exhausted"),
+            run.diagnostics.some((diagnostic) => diagnostic.code === "crawler.crawl.budget-exhausted"),
             "budget exhaustion diagnostic must be present",
         );
     }

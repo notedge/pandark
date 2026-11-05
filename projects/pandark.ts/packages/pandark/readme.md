@@ -63,7 +63,7 @@ const run = await crawler.crawl("https://example.com/docs", {
 console.log(run.status, run.budgetStatus, run.remainingFrontier);
 ```
 
-`CrawlRun.budgetStatus` is `completed`, `exhausted`, or `cancelled`. A budget-exhausted run reports `success_unvalidated` and carries a `pandark.crawl.budget-exhausted` diagnostic with `remainingFrontier`—it never claims full success.
+`CrawlRun.budgetStatus` is `completed`, `exhausted`, or `cancelled`. A budget-exhausted run reports `success_unvalidated` and carries a `crawler.crawl.budget-exhausted` diagnostic with `remainingFrontier`—it never claims full success.
 
 ## 📊 Reports
 

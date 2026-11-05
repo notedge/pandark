@@ -85,7 +85,7 @@ test("inline svg and bitmap diagrams keep their resource forms through extractio
     );
     assert.ok(bitmapAsset, "the bitmap must resolve against the caller-supplied page url");
     const marker = document.coverage.loss.find(
-        (loss: { code: string }) => loss.code === "pandark.extract.diagram_bitmap",
+        (loss: { code: string }) => loss.code === "crawler.extract.diagram_bitmap",
     );
     assert.ok(marker, "bitmap-only diagrams must carry the explicit loss marker");
     assert.ok(marker.message.includes("位图，无结构"), marker.message);
