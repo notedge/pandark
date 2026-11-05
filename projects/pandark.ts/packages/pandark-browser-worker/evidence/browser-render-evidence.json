@@ -1,0 +1,149 @@
+{
+  "schema": "pandark.browser-render-evidence/v0",
+  "worker": {
+    "engine": "chromium-156",
+    "profile_id": "playwright-headless",
+    "settle": "readyState complete plus 2 animation frames without DOM mutations"
+  },
+  "limits": {
+    "minPageTimeoutMs": 1000,
+    "maxPageTimeoutMs": 30000,
+    "defaultPageTimeoutMs": 20000,
+    "defaultSettleMs": 5000,
+    "maxSettleMs": 10000,
+    "quietFrames": 2,
+    "maxConcurrentCaptures": 1,
+    "maxQueuedCaptures": 8,
+    "maxSnapshotBytes": 8388608,
+    "maxNetworkBytes": 33554432,
+    "maxRedirects": 4,
+    "maxDomDepth": 128,
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    }
+  },
+  "fixtures": [
+    {
+      "name": "static-article",
+      "path": "/static-article.html",
+      "expected_title": "静态文章样本",
+      "body_marker": "静态正文标记：直取即可抽取。",
+      "direct": {
+        "ok": true,
+        "title": "静态文章样本",
+        "text_chars": 93,
+        "block_nodes": 5,
+        "body_marker_hit": true,
+        "extraction_status": "partial"
+      },
+      "rendered": {
+        "ok": true,
+        "title": "静态文章样本",
+        "text_chars": 93,
+        "block_nodes": 5,
+        "body_marker_hit": true,
+        "extraction_status": "partial"
+      }
+    },
+    {
+      "name": "js-shell",
+      "path": "/js-shell.html",
+      "expected_title": "浏览器渲染文章样本",
+      "body_marker": "渲染正文标记：脚本注入后才会出现。",
+      "direct": {
+        "ok": true,
+        "title": "JS 骨架页面",
+        "text_chars": 3,
+        "block_nodes": 1,
+        "body_marker_hit": false,
+        "extraction_status": "partial"
+      },
+      "rendered": {
+        "ok": true,
+        "title": "浏览器渲染文章样本",
+        "text_chars": 109,
+        "block_nodes": 5,
+        "body_marker_hit": true,
+        "extraction_status": "partial"
+      }
+    },
+    {
+      "name": "js-fetch",
+      "path": "/js-fetch.html",
+      "expected_title": "JS 渲染列表样本",
+      "body_marker": "列表正文标记：fetch 返回后才会出现。",
+      "direct": {
+        "ok": true,
+        "title": "JS 请求骨架页面",
+        "text_chars": 3,
+        "block_nodes": 1,
+        "body_marker_hit": false,
+        "extraction_status": "partial"
+      },
+      "rendered": {
+        "ok": true,
+        "title": "JS 渲染列表样本",
+        "text_chars": 93,
+        "block_nodes": 3,
+        "body_marker_hit": true,
+        "extraction_status": "partial"
+      }
+    }
+  ],
+  "browser_fallback": {
+    "fetch_error": "response body exceeded configured budget: 8388608 bytes",
+    "worker_code": "pandark.browser.snapshot-too-large",
+    "crawler_browser_fallback_event": false,
+    "page_visits_during_crawl": 2,
+    "committed_pages": 0,
+    "note": "the 8 MiB fetch body budget and the 8 MiB snapshot cap both reject this page, so the crawl reports only the fetch failure"
+  },
+  "guards": {
+    "private_address_denied": {
+      "status": 403,
+      "code": "pandark.browser.private-address-denied"
+    },
+    "render_timeout": {
+      "status": 504,
+      "code": "pandark.browser.render-timeout",
+      "timeout_ms": 2000
+    },
+    "redirect_limit": {
+      "status": 508,
+      "code": "pandark.browser.redirect-limit",
+      "max_redirects": 4
+    },
+    "dom_depth_limit": {
+      "status": 422,
+      "code": "pandark.browser.dom-depth-limit",
+      "max_dom_depth": 128
+    },
+    "snapshot_too_large": {
+      "status": 413,
+      "code": "pandark.browser.snapshot-too-large",
+      "max_snapshot_bytes": 8388608
+    }
+  },
+  "real_site": {
+    "status": "ok",
+    "url": "https://quotes.toscrape.com/js/",
+    "body_marker": "The world as we have created it is a process",
+    "direct": {
+      "ok": true,
+      "title": "Quotes to Scrape",
+      "text_chars": 92,
+      "block_nodes": 4,
+      "body_marker_hit": false,
+      "extraction_status": "partial"
+    },
+    "rendered": {
+      "ok": true,
+      "title": "Quotes to Scrape",
+      "text_chars": 1478,
+      "block_nodes": 24,
+      "body_marker_hit": true,
+      "extraction_status": "partial"
+    }
+  }
+}

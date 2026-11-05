@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>JS 骨架页面</title>
+</head>
+<body>
+    <main>
+        <div id="mount">加载中</div>
+    </main>
+    <script>
+        window.addEventListener("load", () => {
+            setTimeout(() => {
+                document.title = "浏览器渲染文章样本";
+                document.getElementById("mount").innerHTML =
+                    "<article>" +
+                    "<h1>浏览器渲染文章样本</h1>" +
+                    "<p>渲染正文标记：脚本注入后才会出现。</p>" +
+                    "<p>这一段由页面内联脚本在 load 事件之后写入 DOM，HTTP 直取只能拿到骨架。</p>" +
+                    "<h2>渲染小节</h2>" +
+                    "<p>第二段渲染正文用于确认注入后的段落与标题都能进入 notedown-ir。</p>" +
+                    "</article>";
+            }, 0);
+        });
+    </script>
+</body>
+</html>
