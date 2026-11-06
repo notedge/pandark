@@ -20,6 +20,9 @@ const PUBLISHABLE = [
 
 const MOJIBAKE = /鈥|�|ï¿½|\uFFFD/;
 const BAD_BIN_SUFFIX = /\.mjs$/;
+const CANONICAL_VERSION = JSON.parse(
+    fs.readFileSync(path.join(ROOT, "projects/pandark.ts/packages/pandark/package.json"), "utf8"),
+).version;
 
 function fail(msg) {
     console.error(`check-npm-packages: ${msg}`);
@@ -47,6 +50,11 @@ for (const rel of PUBLISHABLE) {
 
     if (pkg.private) {
         fail(`${label}: must not be private`);
+        errors += 1;
+    }
+
+    if (pkg.version !== CANONICAL_VERSION) {
+        fail(`${label}: version ${String(pkg.version)} must match @notedge/pandark ${CANONICAL_VERSION}`);
         errors += 1;
     }
 

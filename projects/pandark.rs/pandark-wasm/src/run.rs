@@ -5,16 +5,16 @@
 
 use crawler_extract::{Extractor, HtmlExtractor, run_extract};
 use crawler_types::{
-    CrawlBudgetStatus, CrawlReport, CrawlRequest, CrawlScope, ExtractBudget, ExtractContext, ExtractStatus, FetchArtifact,
-    RedirectHop, BodyStorage, CrawlError,
+    BodyStorage, CrawlBudgetStatus, CrawlError, CrawlReport, CrawlRequest, CrawlScope, ExtractBudget, ExtractContext,
+    ExtractStatus, FetchArtifact, RedirectHop,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::capability::{Capabilities, CapabilityError};
 
 /// One run request issued by the host.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunRequest {
     /// Seed URLs in crawl order.
     pub seeds: Vec<String>,
@@ -41,6 +41,7 @@ pub enum StoredPageKind {
 
 /// Per-page outcome surfaced in the report envelope.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PageOutcome {
     /// Requested URL.
     pub url: String,

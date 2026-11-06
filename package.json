@@ -4,7 +4,8 @@
     "scripts": {
         "build": "cargo build --release",
         "build:napi": "node scripts/build-napi.mjs",
-        "test": "cargo test --release && pnpm --filter @notedge/pandark test:e2e",
+        "build:wasm": "node scripts/build-wasm.mjs",
+        "test": "cargo test --release && pnpm build:wasm && pnpm --filter @notedge/pandark test:e2e",
         "test:e2e": "pnpm --filter @notedge/pandark test:e2e",
         "typecheck": "pnpm -r --if-present run typecheck",
         "check:npm": "node scripts/check-npm-packages.mjs",

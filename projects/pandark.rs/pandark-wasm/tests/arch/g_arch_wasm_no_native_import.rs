@@ -2,15 +2,11 @@
 // fixture: arch.wasm.no_native_import
 //
 // Compile the adapter for `wasm32-unknown-unknown` and inspect the linked
-// artifact: every import module must be wasm-bindgen glue. A filesystem
-// (`wasi_snapshot_preview1`), a native browser or an embedded YYDB would show
-// up as an additional import module and fail the gate.
+// artifact: the module must import nothing at all. A filesystem
+// (`wasi_snapshot_preview1`), a native browser, an embedded YYDB or bindgen
+// host glue would show up in the import section and fail the gate.
 
 use std::{env, path::PathBuf, process::Command};
-
-/// Import modules that the wasm-bindgen glue is allowed to reference.
-const ALLOWED_IMPORT_MODULES: &[&str] =
-    &["__wbindgen_placeholder__", "__wbindgen_externref_xform__", "./pandark_wasm_bg.js"];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).ancestors().nth(3).expect("workspace root").to_path_buf()
@@ -134,28 +130,23 @@ fn g_arch_wasm_no_native_import() {
     assert_eq!(&bytes[..4], b"\0asm", "the artifact must be a wasm module");
 
     let imports = imports(&bytes);
-    let modules: Vec<&str> = imports.iter().map(|(module, _)| module.as_str()).collect();
-    for module in &modules {
-        assert!(
-            ALLOWED_IMPORT_MODULES.contains(module),
-            "the wasm artifact imports module `{module}`. G-ARCH-4 forbids native filesystem, browser and YYDB imports. all imports: {imports:?}"
-        );
-    }
-    for (module, field) in &imports {
-        assert!(
-            !field.to_ascii_lowercase().contains("yydb"),
-            "the wasm artifact imports `{module}::{field}`. embedded YYDB is forbidden"
-        );
-    }
+    assert!(
+        imports.is_empty(),
+        "the wasm artifact must not import anything. G-ARCH-4 forbids native filesystem, browser, YYDB and bindgen glue imports. all imports: {imports:?}"
+    );
 
     let exports = exports(&bytes);
-    assert!(
-        exports.iter().any(|name| name.starts_with("pandark_wasm_version")),
-        "the artifact must export the version surface, exports: {exports:?}"
-    );
-    assert!(
-        exports.iter().any(|name| name.starts_with("pandark_wasm_capabilities_json")),
-        "the artifact must export the capability surface"
-    );
-
+    for required in [
+        "memory",
+        "pandark_wasm_abi_version",
+        "pandark_wasm_alloc",
+        "pandark_wasm_dealloc",
+        "pandark_wasm_run",
+        "pandark_wasm_result_ptr",
+        "pandark_wasm_result_len",
+        "pandark_wasm_version_ptr",
+        "pandark_wasm_version_len",
+    ] {
+        assert!(exports.iter().any(|name| name == required), "the artifact must export `{required}`, exports: {exports:?}");
+    }
 }

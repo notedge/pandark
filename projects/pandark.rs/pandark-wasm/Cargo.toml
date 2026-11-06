@@ -20,9 +20,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen = { workspace = true }
-
 [[test]]
 name = "g_arch_wasm_capability_fixture"
 path = "tests/arch/g_arch_wasm_capability_fixture.rs"
