@@ -6,6 +6,13 @@
 // `.node` file into an otherwise empty directory and loaded by a fresh `node`
 // process. A version-string assertion alone would pass even if the cdylib were
 // broken or accidentally linked against private Pandark modules.
+//
+// The test binary deliberately never references the `pandark_napi` crate. The
+// Node-API host symbols are only resolvable inside a `node` process, so a Rust
+// test that called the crate directly would fail to link on Linux and macOS.
+// Every surface check therefore runs in the `node` script below, over the
+// standalone `.node`. For the same reason the package disables the library
+// unit-test and doc-test targets.
 
 use std::{
     path::{Path, PathBuf},
@@ -98,12 +105,32 @@ impl Drop for NodeArtifact {
 
 fn load_through_node(artifact: &NodeArtifact) -> String {
     let script = r#"
-const { pandarkVersion } = require(process.env.PANDARK_GATE_MODULE);
-const version = pandarkVersion();
+const binding = require(process.env.PANDARK_GATE_MODULE);
+
+const version = binding.pandarkVersion();
 if (typeof version !== "string" || version.length === 0) {
     console.error("the standalone .node returned an empty version");
     process.exit(2);
 }
+
+const plan = binding.planCrawl("https://example.com", 1, 2);
+if (typeof plan.reportJson !== "string" || plan.reportJson.length === 0) {
+    console.error("the standalone .node returned an empty crawl plan report");
+    process.exit(3);
+}
+
+let rejectedEmptySeed = false;
+try {
+    binding.planCrawl("", undefined, undefined);
+}
+catch (error) {
+    rejectedEmptySeed = true;
+}
+if (!rejectedEmptySeed) {
+    console.error("the standalone .node accepted an empty crawl seed");
+    process.exit(4);
+}
+
 process.stdout.write(version);
 "#;
     let output = Command::new("node")
@@ -125,5 +152,4 @@ fn g_arch_napi_standalone_build() {
     let artifact = NodeArtifact::install(&cdylib);
     let version = load_through_node(&artifact);
     assert_eq!(version, env!("CARGO_PKG_VERSION"), "the loaded .node must report the crate version");
-    assert!(pandark_napi::pandark_version() == version, "the in-process binding and the .node must agree");
 }

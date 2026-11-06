@@ -12,6 +12,11 @@ publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+# The binding can only be exercised inside a `node` host: the Node-API symbols
+# are resolved by the runtime, so a Rust test binary that linked this crate
+# would fail with undefined `napi_*` symbols on Linux and macOS.
+test = false
+doctest = false
 
 [dependencies]
 document-formats = { workspace = true }
