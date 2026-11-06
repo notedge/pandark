@@ -79,11 +79,18 @@ test("fetchSeed and crawlFile bindings resolve without blocking the event loop",
 
 test("resumeCrawlFile binding resolves without blocking the event loop", { timeout: 20_000 }, async () => {
     const dir = await mkdtemp(join(tmpdir(), "pandark-resume-"));
-    const fixturesDir = join(dir, "fixtures");
-    await mkdir(fixturesDir);
+    // Keep the challenge and ready snapshots in separate directories. Both
+    // key the same seed URL, and fixture loading lets later directories
+    // override earlier ones, whereas entries inside one directory load in an
+    // unspecified order, so a single directory would make the resume outcome
+    // depend on how the filesystem enumerates files.
+    const challengeDir = join(dir, "challenge");
+    const readyDir = join(dir, "ready");
+    await mkdir(challengeDir);
+    await mkdir(readyDir);
     const seed = "http://127.0.0.1:1/pandark-private";
     await writeFile(
-        join(fixturesDir, "challenge.snapshot.json"),
+        join(challengeDir, "challenge.snapshot.json"),
         JSON.stringify({
             requested_url: seed,
             final_url: "http://127.0.0.1:1/login",
@@ -101,7 +108,7 @@ test("resumeCrawlFile binding resolves without blocking the event loop", { timeo
         seed,
         undefined,
         undefined,
-        fixturesDir,
+        challengeDir,
         "on-fetch-failure",
         "pause-for-operator",
     );
@@ -109,7 +116,7 @@ test("resumeCrawlFile binding resolves without blocking the event loop", { timeo
     assert.ok(checkpointJson, "an operator pause should produce a checkpoint");
 
     await writeFile(
-        join(fixturesDir, "ready.snapshot.json"),
+        join(readyDir, "ready.snapshot.json"),
         JSON.stringify({
             requested_url: seed,
             final_url: seed,
@@ -132,7 +139,7 @@ test("resumeCrawlFile binding resolves without blocking the event loop", { timeo
 
     const pendingResume = binding.resumeCrawlFile(
         checkpointJson,
-        fixturesDir,
+        `${challengeDir},${readyDir}`,
         "on-fetch-failure",
     );
     assert.equal(typeof pendingResume.then, "function", "resumeCrawlFile must return a Promise");

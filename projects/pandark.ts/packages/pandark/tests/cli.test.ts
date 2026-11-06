@@ -216,12 +216,18 @@ test("crawl uses browser fixtures when http fetch fails", async () => {
 
 test("crawl pause and resume through checkpoint file", async () => {
     const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
-    const fixturesDir = join(dir, "fixtures");
+    // Both snapshots key the same seed URL, so the challenge and ready
+    // snapshots live in separate directories. Fixture loading applies later
+    // directories last, while entries inside one directory load in an
+    // unspecified order.
+    const challengeDir = join(dir, "challenge");
+    const readyDir = join(dir, "ready");
     const checkpointPath = join(dir, "checkpoint.json");
-    await mkdir(fixturesDir);
+    await mkdir(challengeDir);
+    await mkdir(readyDir);
     const seed = "http://127.0.0.1:1/pandark-private";
     await writeFile(
-        join(fixturesDir, "challenge.snapshot.json"),
+        join(challengeDir, "challenge.snapshot.json"),
         JSON.stringify({
             requested_url: seed,
             final_url: "http://127.0.0.1:1/login",
@@ -238,7 +244,7 @@ test("crawl pause and resume through checkpoint file", async () => {
         "crawl",
         seed,
         "--browser-fixtures-dir",
-        fixturesDir,
+        challengeDir,
         "--browser-fallback",
         "on-fetch-failure",
         "--challenge-policy",
@@ -255,7 +261,7 @@ test("crawl pause and resume through checkpoint file", async () => {
     assert.equal(pausedPayload.report.paused, 1);
 
     await writeFile(
-        join(fixturesDir, "ready.snapshot.json"),
+        join(readyDir, "ready.snapshot.json"),
         JSON.stringify({
             requested_url: seed,
             final_url: seed,
@@ -273,7 +279,7 @@ test("crawl pause and resume through checkpoint file", async () => {
         "resume",
         checkpointPath,
         "--browser-fixtures-dir",
-        fixturesDir,
+        `${challengeDir},${readyDir}`,
         "--browser-fallback",
         "on-fetch-failure",
         "--json",
