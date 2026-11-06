@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -397,4 +397,146 @@ test("crawl reads newline-delimited seed file", async () => {
     assert.equal(result.code, 0);
     const payload = JSON.parse(result.stdout);
     assert.equal(payload.committedPages.length, 2);
+});
+
+// ---------------------------------------------------------------------------
+// Rust / N-API 抽取报告 parity
+// ---------------------------------------------------------------------------
+
+test("inspect html report matches the native binding report", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const input = join(dir, "page.html");
+    await writeFile(
+        input,
+        '<html><head><title>Parity</title></head><body><a href="/docs">docs</a><img src="/p.png" alt="p"></body></html>',
+        "utf8",
+    );
+
+    const cliResult = await runCli(["inspect", input, "--json"]);
+    assert.equal(cliResult.code, 0, cliResult.stderr);
+    const cliPayload = JSON.parse(cliResult.stdout);
+
+    const binding = loadPandarkNode();
+    const native = await binding.inspectInput(input);
+    assert.equal(cliPayload.exitCode, native.exitCode);
+    assert.deepEqual(cliPayload.report, JSON.parse(native.reportJson));
+});
+
+test("inspect login snapshot report matches the native binding report", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const input = join(dir, "login.snapshot.json");
+    await writeFile(
+        input,
+        JSON.stringify({
+            requested_url: "https://example.com/private",
+            final_url: "https://example.com/login",
+            document_html: "<html><body>login</body></html>",
+            captured_at_epoch: 1,
+            browser_engine: "fixture",
+            profile_id: "test",
+            challenge_state: "login_required",
+        }),
+        "utf8",
+    );
+
+    const cliResult = await runCli([
+        "inspect",
+        input,
+        "--from",
+        "snapshot",
+        "--challenge-policy",
+        "stop",
+        "--json",
+    ]);
+    assert.equal(cliResult.code, 2, cliResult.stderr);
+    const cliPayload = JSON.parse(cliResult.stdout);
+
+    const binding = loadPandarkNode();
+    const native = await binding.inspectInput(input, undefined, "snapshot", "stop");
+    assert.equal(cliPayload.exitCode, native.exitCode);
+    assert.deepEqual(cliPayload.report, JSON.parse(native.reportJson));
+});
+
+test("extract html document and report match the native binding", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const input = join(dir, "page.html");
+    const documentPath = join(dir, "page.json");
+    await writeFile(
+        input,
+        "<html><head><title>T</title></head><body><p>hello</p><img src='/pic.png' alt='pic'></body></html>",
+        "utf8",
+    );
+
+    const cliResult = await runCli(["extract", input, "-o", documentPath, "--json"]);
+    assert.equal(cliResult.code, 3, cliResult.stderr);
+    const cliPayload = JSON.parse(cliResult.stdout);
+    const writtenDocument = JSON.parse(await readFile(documentPath, "utf8"));
+
+    const binding = loadPandarkNode();
+    const native = await binding.extractInput(input);
+    assert.equal(cliPayload.exitCode, native.exitCode);
+    assert.equal(cliPayload.status, native.status);
+    assert.deepEqual(cliPayload.report, JSON.parse(native.reportJson));
+    assert.deepEqual(cliPayload.document, JSON.parse(native.documentJson ?? "null"));
+    assert.deepEqual(writtenDocument, cliPayload.document);
+});
+
+test("extract snapshot under a challenge policy matches the native binding", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const input = join(dir, "challenge.snapshot.json");
+    await writeFile(
+        input,
+        JSON.stringify({
+            requested_url: "https://example.com/private",
+            final_url: "https://example.com/verify",
+            document_html: "<html><head><title>Verify</title></head><body>verification</body></html>",
+            captured_at_epoch: 2,
+            browser_engine: "fixture",
+            profile_id: "test",
+            challenge_state: "challenge_required",
+        }),
+        "utf8",
+    );
+
+    const cliResult = await runCli([
+        "extract",
+        input,
+        "--from",
+        "snapshot",
+        "--challenge-policy",
+        "skip-page",
+        "--json",
+    ]);
+    const cliPayload = JSON.parse(cliResult.stdout);
+
+    const binding = loadPandarkNode();
+    const native = await binding.extractInput(input, "snapshot", undefined, "skip-page");
+    assert.equal(cliPayload.exitCode, native.exitCode);
+    assert.equal(cliPayload.status, native.status);
+    assert.deepEqual(cliPayload.report, JSON.parse(native.reportJson));
+    assert.deepEqual(cliPayload.document, JSON.parse(native.documentJson ?? "null"));
+});
+
+test("extractToMarkdown loss codes match the extract document report", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const input = join(dir, "merged.html");
+    const html =
+        "<html><head><title>Merged</title></head><body>" +
+        '<table><tr><td colspan="2">merged</td></tr><tr><td>a</td><td>b</td></tr></table>' +
+        "</body></html>";
+    await writeFile(input, html, "utf8");
+
+    const binding = loadPandarkNode();
+    const markdown = await binding.extractToMarkdown(
+        new TextEncoder().encode(html),
+        "https://example.com/merged",
+    );
+    const native = await binding.extractFile(input, "https://example.com/merged");
+    const document = JSON.parse(native.documentJson ?? "null");
+
+    assert.equal(markdown.diagnosticNamespace, "notedown.formats.html");
+    assert.deepEqual(
+        markdown.diagnosticCodes,
+        document.coverage.loss.map((loss: { code: string }) => loss.code),
+    );
 });
