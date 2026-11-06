@@ -18,10 +18,10 @@ edition = "2024"
 boost-diagnostic = { git = "https://github.com/oovm/rust-boost", rev = "9aa52745d6eae2d7748c76e4e3e6555e1f6e4b86", default-features = false, features = ["std", "serde"] }
 boost-log = { git = "https://github.com/oovm/rust-boost", rev = "9aa52745d6eae2d7748c76e4e3e6555e1f6e4b86" }
 # Crawler implementation. Pinned to `document.rs` so the local tree keeps only the Node-API adapter.
-crawler = { git = "https://github.com/notedge/document.rs", rev = "80fe47c4df6babf263c79c2a3df61d2b18e9f08a" }
-crawler-fetch = { git = "https://github.com/notedge/document.rs", rev = "80fe47c4df6babf263c79c2a3df61d2b18e9f08a" }
-crawler-types = { git = "https://github.com/notedge/document.rs", rev = "80fe47c4df6babf263c79c2a3df61d2b18e9f08a" }
-document-formats = { git = "https://github.com/notedge/document.rs", rev = "80fe47c4df6babf263c79c2a3df61d2b18e9f08a", default-features = false, features = ["markdown", "html"] }
+crawler = { git = "https://github.com/notedge/document.rs", rev = "09233692f146c411b12e38f3f66645c63c67b8a6" }
+crawler-fetch = { git = "https://github.com/notedge/document.rs", rev = "09233692f146c411b12e38f3f66645c63c67b8a6" }
+crawler-types = { git = "https://github.com/notedge/document.rs", rev = "09233692f146c411b12e38f3f66645c63c67b8a6" }
+document-formats = { git = "https://github.com/notedge/document.rs", rev = "09233692f146c411b12e38f3f66645c63c67b8a6", default-features = false, features = ["markdown", "html"] }
 
 # External dependencies
 serde = { version = "1.0.229", features = ["derive"] }
