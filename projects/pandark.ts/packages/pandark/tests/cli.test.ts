@@ -540,3 +540,36 @@ test("extractToMarkdown loss codes match the extract document report", async () 
         document.coverage.loss.map((loss: { code: string }) => loss.code),
     );
 });
+
+test("nested table loss codes match across the native extraction entries", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const input = join(dir, "nested.html");
+    const html =
+        "<html><head><title>Nested</title></head><body>" +
+        "<table><tr><td>outer<table><tr><td>inner</td></tr></table></td></tr></table>" +
+        "</body></html>";
+    await writeFile(input, html, "utf8");
+
+    const binding = loadPandarkNode();
+    const markdown = await binding.extractToMarkdown(
+        new TextEncoder().encode(html),
+        "https://example.com/nested",
+    );
+    const native = await binding.extractFile(input);
+    const document = JSON.parse(native.documentJson ?? "null");
+    const lossCodes = document.coverage.loss.map((loss: { code: string }) => loss.code);
+
+    assert.equal(markdown.diagnosticNamespace, "notedown.formats.html");
+    assert.ok(lossCodes.includes("import.html.table_nested"), "nested table flattening is reported");
+    assert.deepEqual(markdown.diagnosticCodes, lossCodes);
+
+    const cliResult = await runCli(["extract", input, "--json"]);
+    assert.equal(cliResult.code, native.exitCode, cliResult.stderr);
+    const cliPayload = JSON.parse(cliResult.stdout);
+    assert.equal(cliPayload.status, native.status);
+    assert.deepEqual(cliPayload.report, JSON.parse(native.reportJson));
+    assert.deepEqual(
+        cliPayload.document.coverage.loss.map((loss: { code: string }) => loss.code),
+        lossCodes,
+    );
+});
