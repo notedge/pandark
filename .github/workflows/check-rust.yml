@@ -18,6 +18,8 @@ jobs:
       - run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-unknown
       - name: Build workspace
         run: cargo build --release
       - name: Test workspace

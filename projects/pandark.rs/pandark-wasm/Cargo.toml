@@ -1,0 +1,32 @@
+[package]
+name = "pandark-wasm"
+version.workspace = true
+authors.workspace = true
+description = "WebAssembly capability adapter for Pandark"
+readme = "readme.md"
+homepage = "https://github.com/notedge/pandark"
+repository = "https://github.com/notedge/pandark"
+license.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+crawler-extract = { workspace = true }
+crawler-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+url = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { workspace = true }
+
+[[test]]
+name = "g_arch_wasm_capability_fixture"
+path = "tests/arch/g_arch_wasm_capability_fixture.rs"
+
+[[test]]
+name = "g_arch_wasm_no_native_import"
+path = "tests/arch/g_arch_wasm_no_native_import.rs"
