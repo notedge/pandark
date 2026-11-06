@@ -20,15 +20,15 @@ edition = "2024"
 boost-diagnostic = { git = "https://github.com/oovm/rust-boost", rev = "9aa52745d6eae2d7748c76e4e3e6555e1f6e4b86", default-features = false, features = ["std", "serde"] }
 boost-log = { git = "https://github.com/oovm/rust-boost", rev = "9aa52745d6eae2d7748c76e4e3e6555e1f6e4b86" }
 # Crawler implementation. Pinned to `document.rs` so the local tree keeps only the Node-API adapter.
-crawler = { git = "https://github.com/notedge/document.rs", rev = "cddba8d9e6de007850ebb276263cded23695a2ab" }
-crawler-fetch = { git = "https://github.com/notedge/document.rs", rev = "cddba8d9e6de007850ebb276263cded23695a2ab" }
-crawler-types = { git = "https://github.com/notedge/document.rs", rev = "cddba8d9e6de007850ebb276263cded23695a2ab" }
+crawler = { git = "https://github.com/notedge/document.rs", rev = "b1a423243bc8fff4a027795de935492a6beb88bc" }
+crawler-fetch = { git = "https://github.com/notedge/document.rs", rev = "b1a423243bc8fff4a027795de935492a6beb88bc" }
+crawler-types = { git = "https://github.com/notedge/document.rs", rev = "b1a423243bc8fff4a027795de935492a6beb88bc" }
 # Extraction only: the WASM adapter must not pull the native `crawler` facade
 # (which owns `crawler-store` and its optional embedded YYDB).
-crawler-extract = { git = "https://github.com/notedge/document.rs", rev = "cddba8d9e6de007850ebb276263cded23695a2ab" }
+crawler-extract = { git = "https://github.com/notedge/document.rs", rev = "b1a423243bc8fff4a027795de935492a6beb88bc" }
 # Store contract only: the Node adapter opens a `.yydx` store for crawl and resume.
-crawler-store = { git = "https://github.com/notedge/document.rs", rev = "cddba8d9e6de007850ebb276263cded23695a2ab" }
-document-formats = { git = "https://github.com/notedge/document.rs", rev = "cddba8d9e6de007850ebb276263cded23695a2ab", default-features = false, features = ["markdown", "html"] }
+crawler-store = { git = "https://github.com/notedge/document.rs", rev = "b1a423243bc8fff4a027795de935492a6beb88bc" }
+document-formats = { git = "https://github.com/notedge/document.rs", rev = "b1a423243bc8fff4a027795de935492a6beb88bc", default-features = false, features = ["markdown", "html"] }
 
 # External dependencies
 serde = { version = "1.0.229", features = ["derive"] }
