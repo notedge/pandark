@@ -22,5 +22,7 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Build workspace
         run: cargo build --release
+      - name: Check architecture boundaries
+        run: node scripts/check-arch-boundaries.mjs
       - name: Test workspace
         run: cargo test --release

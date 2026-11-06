@@ -9,6 +9,7 @@
         "test:e2e": "pnpm --filter @notedge/pandark test:e2e",
         "typecheck": "pnpm -r --if-present run typecheck",
         "check:npm": "node scripts/check-npm-packages.mjs",
+        "check:arch": "node scripts/check-arch-boundaries.mjs",
         "homepage:dev": "pnpm --filter @notedge/homepage dev",
         "homepage:build": "pnpm --filter @notedge/homepage build",
         "homepage:check": "pnpm --filter @notedge/homepage check",
