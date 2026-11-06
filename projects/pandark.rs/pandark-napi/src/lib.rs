@@ -5,9 +5,11 @@ use std::path::PathBuf;
 use crawler::{
     BrowserProvider, ChallengeBlocked, CrawlOptions, CrawlOutput, Extractor, HtmlExtractor, LoadedInput, build_browser_stack,
     initial_report, inspect_artifact, inspect_snapshot, load_input, parse_input_format, plan_crawl as build_plan,
-    resolve_crawl_seed_specs, resume_crawl_from_checkpoint, run_crawl_with_options, run_extract, run_extract_from_snapshot,
+    resolve_crawl_seed_specs, resume_crawl_from_checkpoint, resume_crawl_from_checkpoint_with_store, run_crawl_with_options,
+    run_crawl_with_store, run_extract, run_extract_from_snapshot,
 };
 use crawler_fetch::{FetchClient, FetchRequest, RobotsPolicy, transport_for_url};
+use crawler_store::{Store, StoreConfig, YydbStore};
 use crawler_types::{
     BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlReport, CrawlRequest, CrawlScope,
     ExtractBudget, ExtractContext, ExtractStatus, InspectStage, PolitenessProfile,
@@ -295,6 +297,7 @@ pub fn crawl_file(
     scope_hosts: Option<Vec<String>>,
     scope_domains: Option<Vec<String>>,
     politeness: Option<String>,
+    store_path: Option<String>,
 ) -> AsyncTask<CrawlFileTask> {
     AsyncTask::new(CrawlFileTask {
         seed,
@@ -308,6 +311,7 @@ pub fn crawl_file(
         scope_hosts,
         scope_domains,
         politeness,
+        store_path,
     })
 }
 
@@ -324,6 +328,7 @@ pub struct CrawlFileTask {
     scope_hosts: Option<Vec<String>>,
     scope_domains: Option<Vec<String>>,
     politeness: Option<String>,
+    store_path: Option<String>,
 }
 
 impl Task for CrawlFileTask {
@@ -343,6 +348,7 @@ impl Task for CrawlFileTask {
             self.scope_hosts.clone(),
             self.scope_domains.clone(),
             self.politeness.as_deref(),
+            self.store_path.as_deref(),
         )
     }
 
@@ -364,6 +370,7 @@ fn crawl_file_response(
     scope_hosts: Option<Vec<String>>,
     scope_domains: Option<Vec<String>>,
     politeness: Option<&str>,
+    store_path: Option<&str>,
 ) -> Result<CrawlResponse> {
     let cache_path = cache_dir.map(PathBuf::from);
     let mut request = parse_request(seed, max_depth, max_requests)?;
@@ -382,7 +389,13 @@ fn crawl_file_response(
         ..Default::default()
     };
 
-    let output = run_crawl_with_options(request, transport, &extractors, options).map_err(map_crawl_error)?;
+    let output = match store_path {
+        Some(path) => {
+            let mut store = YydbStore::open(StoreConfig::yydb(PathBuf::from(path))).map_err(map_store_error)?;
+            run_crawl_with_store(request, transport, &extractors, options, &mut store).map_err(map_crawl_error)?
+        }
+        None => run_crawl_with_options(request, transport, &extractors, options).map_err(map_crawl_error)?,
+    };
     build_crawl_response(output)
 }
 
@@ -398,6 +411,7 @@ pub fn resume_crawl_file(
     challenge_policy: Option<String>,
     browser_endpoint: Option<String>,
     cache_dir: Option<String>,
+    store_path: Option<String>,
 ) -> AsyncTask<ResumeCrawlFileTask> {
     AsyncTask::new(ResumeCrawlFileTask {
         checkpoint_json,
@@ -406,6 +420,7 @@ pub fn resume_crawl_file(
         challenge_policy,
         browser_endpoint,
         cache_dir,
+        store_path,
     })
 }
 
@@ -417,6 +432,7 @@ pub struct ResumeCrawlFileTask {
     challenge_policy: Option<String>,
     browser_endpoint: Option<String>,
     cache_dir: Option<String>,
+    store_path: Option<String>,
 }
 
 impl Task for ResumeCrawlFileTask {
@@ -431,6 +447,7 @@ impl Task for ResumeCrawlFileTask {
             self.challenge_policy.as_deref(),
             self.browser_endpoint.as_deref(),
             self.cache_dir.as_deref(),
+            self.store_path.as_deref(),
         )
     }
 
@@ -446,6 +463,7 @@ fn resume_crawl_file_response(
     challenge_policy: Option<&str>,
     browser_endpoint: Option<&str>,
     cache_dir: Option<&str>,
+    store_path: Option<&str>,
 ) -> Result<CrawlResponse> {
     let cache_path = cache_dir.map(PathBuf::from);
     let checkpoint: CrawlCheckpoint = serde_json::from_str(checkpoint_json).map_err(map_serde_error)?;
@@ -463,7 +481,14 @@ fn resume_crawl_file_response(
         ..Default::default()
     };
 
-    let output = resume_crawl_from_checkpoint(checkpoint, transport, &extractors, options).map_err(map_crawl_error)?;
+    let output = match store_path {
+        Some(path) => {
+            let mut store = YydbStore::open(StoreConfig::yydb(PathBuf::from(path))).map_err(map_store_error)?;
+            resume_crawl_from_checkpoint_with_store(checkpoint, transport, &extractors, options, &mut store)
+                .map_err(map_crawl_error)?
+        }
+        None => resume_crawl_from_checkpoint(checkpoint, transport, &extractors, options).map_err(map_crawl_error)?,
+    };
     build_crawl_response(output)
 }
 
@@ -669,6 +694,10 @@ fn parse_inspect_stage(stage: Option<&str>) -> Result<InspectStage> {
 
 fn map_crawl_error(error: crawler_types::CrawlError) -> Error {
     Error::from_reason(error.to_string())
+}
+
+fn map_store_error(error: crawler_store::StoreError) -> Error {
+    Error::from_reason(format!("crawler store: {error}"))
 }
 
 fn map_serde_error(error: serde_json::Error) -> Error {

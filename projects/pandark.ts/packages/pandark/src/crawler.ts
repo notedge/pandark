@@ -368,6 +368,7 @@ export class Crawler {
                 options.scope?.allowedHosts ? [...options.scope.allowedHosts] : undefined,
                 options.scope?.allowedDomains ? [...options.scope.allowedDomains] : undefined,
                 this.politeness,
+                undefined,
             );
             return assembleRunFromCrawlFile<Out>(response, options.handlePage);
         }

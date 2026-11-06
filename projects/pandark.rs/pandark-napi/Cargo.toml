@@ -22,6 +22,7 @@ doctest = false
 document-formats = { workspace = true }
 crawler = { workspace = true }
 crawler-fetch = { workspace = true }
+crawler-store = { workspace = true }
 crawler-types = { workspace = true }
 napi = { workspace = true }
 napi-derive = { workspace = true }

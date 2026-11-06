@@ -20,5 +20,6 @@
     "cli.opt.checkpointOut": "crawl 暂停时写出 checkpoint JSON",
     "cli.opt.browserEndpoint": "抓取降级时使用的 HTTP 浏览器 worker 基址",
     "cli.opt.checkpointDir": "crawl 暂停时自动命名写出 checkpoint 的目录",
-    "cli.opt.cacheDir": "crawl 与 resume 使用的持久化 fetch 响应缓存目录"
+    "cli.opt.cacheDir": "crawl 与 resume 使用的持久化 fetch 响应缓存目录",
+    "cli.opt.store": "crawl 与 resume 使用的 `.yydx` store 文件，同目录自动建立对象根"
 }

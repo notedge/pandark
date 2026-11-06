@@ -18,6 +18,7 @@ export function registerCrawlCommand(cli: Cli): void {
         .option("--checkpoint-out <file>", "cli.opt.checkpointOut")
         .option("--checkpoint-dir <dir>", "cli.opt.checkpointDir")
         .option("--cache-dir <dir>", "cli.opt.cacheDir")
+        .option("--store <file>", "cli.opt.store")
         .option("--report <file>", "cli.opt.report")
         .option("--json", "cli.opt.json")
         .action((options: ParsedOptions) => runCrawl(options));
@@ -43,6 +44,7 @@ async function runCrawl(options: ParsedOptions): Promise<number> {
     const challengePolicy = optionString(options, "challenge-policy");
     const browserEndpoint = optionString(options, "browser-endpoint");
     const cacheDir = optionString(options, "cache-dir");
+    const storePath = optionString(options, "store");
     const response = await ctx.bindings.crawlFile(
         seed,
         maxDepth,
@@ -52,6 +54,10 @@ async function runCrawl(options: ParsedOptions): Promise<number> {
         challengePolicy,
         browserEndpoint,
         cacheDir,
+        undefined,
+        undefined,
+        undefined,
+        storePath,
     );
     const reportPath = optionString(options, "report");
     const checkpointPath = resolveCheckpointPath(

@@ -26,6 +26,8 @@ crawler-types = { git = "https://github.com/notedge/document.rs", rev = "f8ae394
 # Extraction only: the WASM adapter must not pull the native `crawler` facade
 # (which owns `crawler-store` and its optional embedded YYDB).
 crawler-extract = { git = "https://github.com/notedge/document.rs", rev = "f8ae394e614cdd7f9ef721b1921f51d3934f7da2" }
+# Store contract only: the Node adapter opens a `.yydx` store for crawl and resume.
+crawler-store = { git = "https://github.com/notedge/document.rs", rev = "f8ae394e614cdd7f9ef721b1921f51d3934f7da2" }
 document-formats = { git = "https://github.com/notedge/document.rs", rev = "f8ae394e614cdd7f9ef721b1921f51d3934f7da2", default-features = false, features = ["markdown", "html"] }
 
 # External dependencies

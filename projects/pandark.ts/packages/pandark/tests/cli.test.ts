@@ -6,6 +6,8 @@ import { spawn } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { loadPandarkNode } from "../src/node/load.js";
+
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 const cliEntry = join(packageRoot, "bin/pandark");
 
@@ -329,6 +331,63 @@ test("crawl writes checkpoint into checkpoint-dir on pause", async () => {
     assert.ok(pausedPayload.checkpoint);
     assert.ok(pausedPayload.checkpointPath);
     assert.match(pausedPayload.checkpointPath, /pandark-checkpoint-.*\.json$/);
+});
+
+test("crawl --store and native crawlFile produce the same report", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
+    const fixturesDir = join(dir, "fixtures");
+    await mkdir(fixturesDir);
+    const seed = "http://127.0.0.1:1/pandark-store-parity";
+    await writeFile(
+        join(fixturesDir, "page.snapshot.json"),
+        JSON.stringify({
+            requested_url: seed,
+            final_url: seed,
+            document_html:
+                "<html><head><title>Store parity</title></head><body><p>same report</p></body></html>",
+            captured_at_epoch: 1,
+            browser_engine: "fixture",
+            profile_id: "test",
+            challenge_state: "normal",
+        }),
+        "utf8",
+    );
+
+    const cliStore = join(dir, "cli.yydx");
+    const nativeStore = join(dir, "native.yydx");
+    const cliResult = await runCli([
+        "crawl",
+        seed,
+        "--browser-fixtures-dir",
+        fixturesDir,
+        "--browser-fallback",
+        "on-fetch-failure",
+        "--budget",
+        "1",
+        "--store",
+        cliStore,
+        "--json",
+    ]);
+    assert.equal(cliResult.code, 0, cliResult.stderr);
+    const cliPayload = JSON.parse(cliResult.stdout);
+
+    const binding = loadPandarkNode();
+    const nativeResult = await binding.crawlFile(
+        seed,
+        undefined,
+        1,
+        fixturesDir,
+        "on-fetch-failure",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        nativeStore,
+    );
+    assert.equal(nativeResult.exitCode, 0);
+    assert.deepEqual(JSON.parse(nativeResult.reportJson), cliPayload.report);
 });
 
 test("crawl reads newline-delimited seed file", async () => {

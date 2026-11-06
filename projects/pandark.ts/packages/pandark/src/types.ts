@@ -56,6 +56,7 @@ export type PandarkBindings = {
         scopeHosts?: string[],
         scopeDomains?: string[],
         politeness?: string,
+        storePath?: string,
     ) => Promise<{
         exitCode: number;
         reportJson: string;
@@ -70,6 +71,7 @@ export type PandarkBindings = {
         challengePolicy?: string,
         browserEndpoint?: string,
         cacheDir?: string,
+        storePath?: string,
     ) => Promise<{
         exitCode: number;
         reportJson: string;

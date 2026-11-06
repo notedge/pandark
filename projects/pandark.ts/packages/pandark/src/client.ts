@@ -9,6 +9,7 @@ export type PandarkCrawlOptions = {
     challengePolicy?: string;
     browserEndpoint?: string;
     cacheDir?: string;
+    storePath?: string;
 };
 
 export type PandarkClient = {
@@ -87,6 +88,10 @@ export function createPandark(bindings?: PandarkBindings): PandarkClient {
                 options?.challengePolicy,
                 options?.browserEndpoint,
                 options?.cacheDir,
+                undefined,
+                undefined,
+                undefined,
+                options?.storePath,
             ),
         resume: (checkpointJson, options) =>
             native.resumeCrawlFile(
@@ -96,6 +101,7 @@ export function createPandark(bindings?: PandarkBindings): PandarkClient {
                 options?.challengePolicy,
                 options?.browserEndpoint,
                 options?.cacheDir,
+                options?.storePath,
             ),
         extract: (inputPath, options) => {
             if (options?.from || options?.challengePolicy) {
