@@ -52,7 +52,6 @@ export type PandarkBindings = {
         browserFallback?: string,
         challengePolicy?: string,
         browserEndpoint?: string,
-        cacheDir?: string,
         scopeHosts?: string[],
         scopeDomains?: string[],
         politeness?: string,
@@ -61,22 +60,21 @@ export type PandarkBindings = {
         exitCode: number;
         reportJson: string;
         committedPages: string[];
-        checkpointJson?: string;
+        runId?: string;
         pages: CrawlPageArtifact[];
     }>;
     resumeCrawlFile: (
-        checkpointJson: string,
+        runId: string,
         browserFixturesDir?: string,
         browserFallback?: string,
         challengePolicy?: string,
         browserEndpoint?: string,
-        cacheDir?: string,
         storePath?: string,
     ) => Promise<{
         exitCode: number;
         reportJson: string;
         committedPages: string[];
-        checkpointJson?: string;
+        runId?: string;
         pages: CrawlPageArtifact[];
     }>;
     fetchSeed: (seed: string) => Promise<{

@@ -1,59 +1,59 @@
-// L2 — 持久化缓存 + 断点续爬：DiskResponseCache + checkpoint。
+// L2 — 持久化 store + 断点续爬：`.yydx` store。
 //
-// Pandark 每次 fetch 都写 cache（URL → body bytes + headers）。
-// 下次 crawl 从 checkpoint 恢复（resumeCrawlFile），
-// 已抓过的 URL 直接从 cache 读，不发 HTTP。
+// Pandark 把 frontier、页面事务、对象与报告事件都写进 store，
+// 暂停后用运行 id 从同一个 store 恢复，不再需要 JSON checkpoint。
 //
 // 对大站点抓取中途挂掉特别重要——2 小时的 crawl 不白跑。
 //
 //   cd l2-cache-resume && pnpm install
-//   mkdir -p .cache .checkpoints
-//   pnpm start https://example.com .cache .checkpoints
+//   pnpm start https://example.com .pandark/run.yydx
 
 import { createPandark } from "@notedge/pandark";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
 const seed = process.argv[2] ?? "https://example.com";
-const cacheDir = process.argv[3] ?? ".cache";
-const checkpointDir = process.argv[4] ?? ".checkpoints";
+const storePath = process.argv[3] ?? ".pandark/run.yydx";
 
-mkdirSync(cacheDir, { recursive: true });
-mkdirSync(checkpointDir, { recursive: true });
+mkdirSync(dirname(storePath), { recursive: true });
 
-const checkpointFile = `${checkpointDir}/checkpoint.json`;
+const runIdFile = `${storePath}.run-id`;
 const pd = createPandark();
 
 let report;
-let checkpointJson: string | undefined;
+let runId: string | undefined;
+let paused = false;
 
-if (existsSync(checkpointFile)) {
-  // ==== RESUME PATH ====
-  console.log(`📂 resuming from checkpoint at ${checkpointDir}`);
-  const saved = readFileSync(checkpointFile, "utf8");
-  const result = await pd.resume(saved, { cacheDir });
-  report = JSON.parse(result.reportJson);
-  checkpointJson = result.checkpointJson ?? undefined;
+if (existsSync(runIdFile)) {
+    // ==== RESUME PATH ====
+    const savedRunId = readFileSync(runIdFile, "utf8").trim();
+    console.log(`📂 resuming run ${savedRunId} from ${storePath}`);
+    const result = await pd.resume(savedRunId, { storePath });
+    report = JSON.parse(result.reportJson);
+    runId = result.runId ?? savedRunId;
+    paused = (report.paused ?? 0) > 0;
 } else {
-  // ==== FRESH CRAWL PATH ====
-  console.log(`🌱 fresh crawl, saving checkpoint to ${checkpointDir}`);
-  const result = await pd.crawl(seed, {
-    depth: 2,
-    budget: 10,
-    cacheDir,
-  });
-  report = JSON.parse(result.reportJson);
-  checkpointJson = result.checkpointJson ?? undefined;
+    // ==== FRESH CRAWL PATH ====
+    console.log(`🌱 fresh crawl into ${storePath}`);
+    const result = await pd.crawl(seed, {
+        depth: 2,
+        budget: 10,
+        storePath,
+    });
+    report = JSON.parse(result.reportJson);
+    runId = result.runId;
+    paused = result.exitCode === 3;
 }
 
 console.log(
-  `✅ extracted=${report.extracted}  failed=${report.failed}  skipped=${report.skipped}  committed=${report.committed}`,
+    `✅ extracted=${report.extracted}  failed=${report.failed}  skipped=${report.skipped}  committed=${report.committed}`,
 );
-console.log(`💾 cache at ${cacheDir}  (re-run uses it, warm start)`);
+console.log(`💾 store at ${storePath}  (re-run resumes it)`);
 
-if (checkpointJson) {
-  writeFileSync(checkpointFile, checkpointJson);
-  console.log(`📂 checkpoint saved to ${checkpointFile}`);
-} else if (existsSync(checkpointFile)) {
-  rmSync(checkpointFile);
-  console.log(`✅ run complete, checkpoint cleared`);
+if (paused && runId) {
+    writeFileSync(runIdFile, runId);
+    console.log(`📂 run id saved to ${runIdFile}`);
+} else if (existsSync(runIdFile)) {
+    rmSync(runIdFile);
+    console.log(`✅ run complete, run id cleared`);
 }

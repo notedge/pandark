@@ -364,7 +364,6 @@ export class Crawler {
                 undefined,
                 undefined,
                 undefined,
-                undefined,
                 options.scope?.allowedHosts ? [...options.scope.allowedHosts] : undefined,
                 options.scope?.allowedDomains ? [...options.scope.allowedDomains] : undefined,
                 this.politeness,
@@ -645,7 +644,7 @@ type RawCrawlFileResponse = {
     exitCode: number;
     reportJson: string;
     committedPages: string[];
-    checkpointJson?: string;
+    runId?: string;
     pages: RawPageArtifact[];
 };
 

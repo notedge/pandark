@@ -35,33 +35,29 @@ pandark crawl SEED
   [--browser-fixtures-dir <dir>]
   [--browser-endpoint <url>]
   [--challenge-policy stop|pause-for-operator|skip-page|fallback-http]
-  [--checkpoint-out <file>]
-  [--checkpoint-dir <dir>]
-  [--cache-dir <dir>]
+  [--store <file.yydx>]
   [--report <file>]
   [--json]
 ```
 
 ## `pandark resume` flags
 
-Same browser/challenge/cache/checkpoint flags as crawl, but positional arg is the checkpoint file:
+Same browser/challenge flags as crawl, but the positional arg is the run id printed by a store-backed crawl, and
+`--store` is required:
 
 ```
-pandark resume CHECKPOINT.json
+pandark resume RUN_ID
+  --store <file.yydx>
   [--browser-fallback …]
   [--challenge-policy …]
   [--browser-fixtures-dir <dir>]
   [--browser-endpoint <url>]
-  [--cache-dir <dir>]
-  [--checkpoint-out <file>]
-  [--checkpoint-dir <dir>]
   [--report <file>]
   [--json]
 ```
 
-Auto-named checkpoints in `--checkpoint-dir` look like:
-
-`pandark-checkpoint-<seed-slug>-<iso-timestamp>.json`
+The store keeps frontier, claims, committed pages and the original request. A resume re-claims only uncommitted
+frontier records and rejects a mismatched `browser_fallback` strategy. There is no JSON checkpoint file.
 
 ## `pandark extract` / `inspect` flags
 
@@ -108,18 +104,18 @@ type PandarkClient = {
         browserFallback?: string;
         challengePolicy?: string;
         browserEndpoint?: string;
-        cacheDir?: string;
+        storePath?: string;
     }) => {
         exitCode: number;
         reportJson: string;
         committedPages: string[];
-        checkpointJson?: string;
+        runId?: string;
     };
-    resume: (checkpointJson: string, options?: Omit<PandarkCrawlOptions, "depth" | "budget">) => {
+    resume: (runId: string, options?: Omit<PandarkCrawlOptions, "depth" | "budget">) => {
         exitCode: number;
         reportJson: string;
         committedPages: string[];
-        checkpointJson?: string;
+        runId?: string;
     };
     extract: (inputPath: string, options?: {
         from?: string;
@@ -168,13 +164,12 @@ URL + `.snapshot.json`.
 {
     "exitCode": 0,
     "committedPages": ["https://example.com/"],
-    "checkpoint": null,
-    "checkpointPath": null,
+    "runId": "…",
     "report": { }
 }
 ```
 
-When paused, `checkpoint` is populated and `checkpointPath` is set if `--checkpoint-out` or `--checkpoint-dir` was used.
+`runId` is present when `--store` was passed. On a pause (exit code 3) the run stays resumable in that store.
 
 ## Minimal probe script
 

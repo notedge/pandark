@@ -5,14 +5,14 @@ use std::path::PathBuf;
 use crawler::{
     BrowserProvider, ChallengeBlocked, CrawlOptions, CrawlOutput, Extractor, HtmlExtractor, LoadedInput, build_browser_stack,
     initial_report, inspect_artifact, inspect_snapshot, load_input, parse_input_format, plan_crawl as build_plan,
-    resolve_crawl_seed_specs, resume_crawl_from_checkpoint, resume_crawl_from_checkpoint_with_store, run_crawl_with_options,
-    run_crawl_with_store, run_extract, run_extract_from_snapshot,
+    resolve_crawl_seed_specs, resume_crawl_from_store, run_crawl_with_options, run_crawl_with_store, run_extract,
+    run_extract_from_snapshot,
 };
 use crawler_fetch::{FetchClient, FetchRequest, RobotsPolicy, transport_for_url};
 use crawler_store::{Store, StoreConfig, YydbStore};
 use crawler_types::{
-    BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlCheckpoint, CrawlReport, CrawlRequest, CrawlScope,
-    ExtractBudget, ExtractContext, ExtractStatus, InspectStage, PolitenessProfile,
+    BrowserFallbackPolicy, ChallengeOutcome, ChallengePolicy, CrawlReport, CrawlRequest, CrawlScope, ExtractBudget,
+    ExtractContext, ExtractStatus, InspectStage, PolitenessProfile,
 };
 use document_formats::{export::markdown::export_markdown, import::html::import_html_bytes_with_links};
 use napi::bindgen_prelude::*;
@@ -58,7 +58,8 @@ pub struct CrawlResponse {
     pub exit_code: u32,
     pub report_json: String,
     pub committed_pages: Vec<String>,
-    pub checkpoint_json: Option<String>,
+    /// Store run identity, present when the crawl persisted to a store.
+    pub run_id: Option<String>,
     /// Every page fetched during the run, in crawl order.
     pub pages: Vec<CrawlPageArtifact>,
 }
@@ -293,7 +294,6 @@ pub fn crawl_file(
     browser_fallback: Option<String>,
     challenge_policy: Option<String>,
     browser_endpoint: Option<String>,
-    cache_dir: Option<String>,
     scope_hosts: Option<Vec<String>>,
     scope_domains: Option<Vec<String>>,
     politeness: Option<String>,
@@ -307,7 +307,6 @@ pub fn crawl_file(
         browser_fallback,
         challenge_policy,
         browser_endpoint,
-        cache_dir,
         scope_hosts,
         scope_domains,
         politeness,
@@ -324,7 +323,6 @@ pub struct CrawlFileTask {
     browser_fallback: Option<String>,
     challenge_policy: Option<String>,
     browser_endpoint: Option<String>,
-    cache_dir: Option<String>,
     scope_hosts: Option<Vec<String>>,
     scope_domains: Option<Vec<String>>,
     politeness: Option<String>,
@@ -344,7 +342,6 @@ impl Task for CrawlFileTask {
             self.browser_fallback.as_deref(),
             self.challenge_policy.as_deref(),
             self.browser_endpoint.as_deref(),
-            self.cache_dir.as_deref(),
             self.scope_hosts.clone(),
             self.scope_domains.clone(),
             self.politeness.as_deref(),
@@ -366,13 +363,11 @@ fn crawl_file_response(
     browser_fallback: Option<&str>,
     challenge_policy: Option<&str>,
     browser_endpoint: Option<&str>,
-    cache_dir: Option<&str>,
     scope_hosts: Option<Vec<String>>,
     scope_domains: Option<Vec<String>>,
     politeness: Option<&str>,
     store_path: Option<&str>,
 ) -> Result<CrawlResponse> {
-    let cache_path = cache_dir.map(PathBuf::from);
     let mut request = parse_request(seed, max_depth, max_requests)?;
     apply_request_options(&mut request, scope_hosts, scope_domains, politeness)?;
     let seed_url = request.seeds.first().ok_or_else(|| Error::from_reason("at least one seed is required"))?;
@@ -385,7 +380,6 @@ fn crawl_file_response(
         browser: if browser_stack.is_empty() { None } else { Some(&browser_stack as &dyn BrowserProvider) },
         browser_fallback: parse_browser_fallback(browser_fallback)?,
         challenge_policy: parse_challenge_policy(challenge_policy)?,
-        cache_dir: cache_path.as_deref(),
         ..Default::default()
     };
 
@@ -399,39 +393,36 @@ fn crawl_file_response(
     build_crawl_response(output)
 }
 
-/// Resume a crawl from a serialized checkpoint file.
+/// Resume a crawl from a persisted run in a `.yydx` store.
 ///
 /// Resolves a Promise: the resume runs on the Node-API thread pool and never
 /// blocks the JavaScript event loop.
 #[napi]
 pub fn resume_crawl_file(
-    checkpoint_json: String,
+    run_id: String,
     browser_fixtures_dir: Option<String>,
     browser_fallback: Option<String>,
     challenge_policy: Option<String>,
     browser_endpoint: Option<String>,
-    cache_dir: Option<String>,
     store_path: Option<String>,
 ) -> AsyncTask<ResumeCrawlFileTask> {
     AsyncTask::new(ResumeCrawlFileTask {
-        checkpoint_json,
+        run_id,
         browser_fixtures_dir,
         browser_fallback,
         challenge_policy,
         browser_endpoint,
-        cache_dir,
         store_path,
     })
 }
 
 /// Thread-pool task backing [`resume_crawl_file`].
 pub struct ResumeCrawlFileTask {
-    checkpoint_json: String,
+    run_id: String,
     browser_fixtures_dir: Option<String>,
     browser_fallback: Option<String>,
     challenge_policy: Option<String>,
     browser_endpoint: Option<String>,
-    cache_dir: Option<String>,
     store_path: Option<String>,
 }
 
@@ -441,12 +432,11 @@ impl Task for ResumeCrawlFileTask {
 
     fn compute(&mut self) -> Result<Self::Output> {
         resume_crawl_file_response(
-            &self.checkpoint_json,
+            &self.run_id,
             self.browser_fixtures_dir.as_deref(),
             self.browser_fallback.as_deref(),
             self.challenge_policy.as_deref(),
             self.browser_endpoint.as_deref(),
-            self.cache_dir.as_deref(),
             self.store_path.as_deref(),
         )
     }
@@ -457,18 +447,19 @@ impl Task for ResumeCrawlFileTask {
 }
 
 fn resume_crawl_file_response(
-    checkpoint_json: &str,
+    run_id: &str,
     browser_fixtures_dir: Option<&str>,
     browser_fallback: Option<&str>,
     challenge_policy: Option<&str>,
     browser_endpoint: Option<&str>,
-    cache_dir: Option<&str>,
     store_path: Option<&str>,
 ) -> Result<CrawlResponse> {
-    let cache_path = cache_dir.map(PathBuf::from);
-    let checkpoint: CrawlCheckpoint = serde_json::from_str(checkpoint_json).map_err(map_serde_error)?;
-    let seed_url = checkpoint.request.seeds.first().ok_or_else(|| Error::from_reason("checkpoint request has no seeds"))?;
-    let transport = transport_for_url(&seed_url.url).map_err(map_crawl_error)?;
+    let store_path = store_path.ok_or_else(|| Error::from_reason("resume requires a `.yydx` store path"))?;
+    let mut store = YydbStore::open(StoreConfig::yydb(PathBuf::from(store_path))).map_err(map_store_error)?;
+    let resume = store.resume(run_id).map_err(map_store_error)?;
+    let seed_url = Url::parse(&resume.seed_url)
+        .map_err(|err| Error::from_reason(format!("invalid seed URL `{}`: {err}", resume.seed_url)))?;
+    let transport = transport_for_url(&seed_url).map_err(map_crawl_error)?;
     let html = HtmlExtractor;
     let extractors: [&dyn Extractor; 1] = [&html];
 
@@ -477,25 +468,14 @@ fn resume_crawl_file_response(
         browser: if browser_stack.is_empty() { None } else { Some(&browser_stack as &dyn BrowserProvider) },
         browser_fallback: parse_browser_fallback(browser_fallback)?,
         challenge_policy: parse_challenge_policy(challenge_policy)?,
-        cache_dir: cache_path.as_deref(),
         ..Default::default()
     };
-
-    let output = match store_path {
-        Some(path) => {
-            let mut store = YydbStore::open(StoreConfig::yydb(PathBuf::from(path))).map_err(map_store_error)?;
-            resume_crawl_from_checkpoint_with_store(checkpoint, transport, &extractors, options, &mut store)
-                .map_err(map_crawl_error)?
-        }
-        None => resume_crawl_from_checkpoint(checkpoint, transport, &extractors, options).map_err(map_crawl_error)?,
-    };
+    let output = resume_crawl_from_store(resume, transport, &extractors, options, &mut store).map_err(map_crawl_error)?;
     build_crawl_response(output)
 }
 
 fn build_crawl_response(output: CrawlOutput) -> Result<CrawlResponse> {
-    let exit_code = crawl_exit_code(&output.report, output.checkpoint.is_some());
-    let checkpoint_json =
-        output.checkpoint.as_ref().map(|checkpoint| serde_json::to_string(checkpoint)).transpose().map_err(map_serde_error)?;
+    let exit_code = crawl_exit_code(&output.report);
     let pages = output
         .artifacts
         .iter()
@@ -514,7 +494,7 @@ fn build_crawl_response(output: CrawlOutput) -> Result<CrawlResponse> {
         exit_code,
         report_json: serde_json::to_string(&output.report).map_err(map_serde_error)?,
         committed_pages: output.committed_pages,
-        checkpoint_json,
+        run_id: output.run_id,
         pages,
     })
 }
@@ -576,8 +556,8 @@ fn extract_to_markdown_response(html_bytes: &[u8], source_url: Option<&str>) -> 
     Ok(MarkdownResult { markdown, diagnostic_namespace: "notedown.formats.html".into(), diagnostic_codes })
 }
 
-fn crawl_exit_code(report: &CrawlReport, awaiting_resume: bool) -> u32 {
-    if awaiting_resume {
+fn crawl_exit_code(report: &CrawlReport) -> u32 {
+    if report.paused > 0 {
         3
     }
     else if report.failed > 0 {

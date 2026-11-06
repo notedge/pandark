@@ -216,7 +216,7 @@ test("crawl uses browser fixtures when http fetch fails", async () => {
     );
 });
 
-test("crawl pause and resume through checkpoint file", async () => {
+test("crawl pause and resume through a store run id", async () => {
     const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
     // Both snapshots key the same seed URL, so the challenge and ready
     // snapshots live in separate directories. Fixture loading applies later
@@ -224,7 +224,7 @@ test("crawl pause and resume through checkpoint file", async () => {
     // unspecified order.
     const challengeDir = join(dir, "challenge");
     const readyDir = join(dir, "ready");
-    const checkpointPath = join(dir, "checkpoint.json");
+    const storePath = join(dir, "run.yydx");
     await mkdir(challengeDir);
     await mkdir(readyDir);
     const seed = "http://127.0.0.1:1/pandark-private";
@@ -251,16 +251,16 @@ test("crawl pause and resume through checkpoint file", async () => {
         "on-fetch-failure",
         "--challenge-policy",
         "pause-for-operator",
-        "--checkpoint-out",
-        checkpointPath,
+        "--store",
+        storePath,
         "--budget",
         "1",
         "--json",
     ]);
     assert.equal(paused.code, 3);
     const pausedPayload = JSON.parse(paused.stdout);
-    assert.ok(pausedPayload.checkpoint);
     assert.equal(pausedPayload.report.paused, 1);
+    assert.equal(typeof pausedPayload.runId, "string");
 
     await writeFile(
         join(readyDir, "ready.snapshot.json"),
@@ -279,58 +279,24 @@ test("crawl pause and resume through checkpoint file", async () => {
 
     const resumed = await runCli([
         "resume",
-        checkpointPath,
+        pausedPayload.runId,
         "--browser-fixtures-dir",
         `${challengeDir},${readyDir}`,
         "--browser-fallback",
         "on-fetch-failure",
+        "--store",
+        storePath,
         "--json",
     ]);
     assert.equal(resumed.code, 0);
     const resumedPayload = JSON.parse(resumed.stdout);
     assert.equal(resumedPayload.committedPages.length, 1);
+    assert.equal(resumedPayload.runId, pausedPayload.runId);
 });
 
-test("crawl writes checkpoint into checkpoint-dir on pause", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "pandark-cli-"));
-    const fixturesDir = join(dir, "fixtures");
-    const checkpointDir = join(dir, "checkpoints");
-    await mkdir(fixturesDir);
-    const seed = "http://127.0.0.1:1/pandark-private-dir";
-    await writeFile(
-        join(fixturesDir, "challenge.snapshot.json"),
-        JSON.stringify({
-            requested_url: seed,
-            final_url: "http://127.0.0.1:1/login",
-            document_html: "<html><body>challenge</body></html>",
-            captured_at_epoch: 1,
-            browser_engine: "fixture",
-            profile_id: "test",
-            challenge_state: "challenge_required",
-        }),
-        "utf8",
-    );
-
-    const paused = await runCli([
-        "crawl",
-        seed,
-        "--browser-fixtures-dir",
-        fixturesDir,
-        "--browser-fallback",
-        "on-fetch-failure",
-        "--challenge-policy",
-        "pause-for-operator",
-        "--checkpoint-dir",
-        checkpointDir,
-        "--budget",
-        "1",
-        "--json",
-    ]);
-    assert.equal(paused.code, 3);
-    const pausedPayload = JSON.parse(paused.stdout);
-    assert.ok(pausedPayload.checkpoint);
-    assert.ok(pausedPayload.checkpointPath);
-    assert.match(pausedPayload.checkpointPath, /pandark-checkpoint-.*\.json$/);
+test("resume rejects a missing store path", async () => {
+    const result = await runCli(["resume", "run-id-without-store", "--json"]);
+    assert.equal(result.code, 1);
 });
 
 test("crawl --store and native crawlFile produce the same report", async () => {
@@ -378,7 +344,6 @@ test("crawl --store and native crawlFile produce the same report", async () => {
         1,
         fixturesDir,
         "on-fetch-failure",
-        undefined,
         undefined,
         undefined,
         undefined,

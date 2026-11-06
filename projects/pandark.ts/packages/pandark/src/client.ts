@@ -8,7 +8,6 @@ export type PandarkCrawlOptions = {
     browserFallback?: string;
     challengePolicy?: string;
     browserEndpoint?: string;
-    cacheDir?: string;
     storePath?: string;
 };
 
@@ -33,16 +32,16 @@ export type PandarkClient = {
         exitCode: number;
         reportJson: string;
         committedPages: string[];
-        checkpointJson?: string;
+        runId?: string;
     }>;
     resume: (
-        checkpointJson: string,
+        runId: string,
         options?: Omit<PandarkCrawlOptions, "depth" | "budget">,
     ) => Promise<{
         exitCode: number;
         reportJson: string;
         committedPages: string[];
-        checkpointJson?: string;
+        runId?: string;
     }>;
     extract: (
         inputPath: string,
@@ -87,20 +86,18 @@ export function createPandark(bindings?: PandarkBindings): PandarkClient {
                 options?.browserFallback,
                 options?.challengePolicy,
                 options?.browserEndpoint,
-                options?.cacheDir,
                 undefined,
                 undefined,
                 undefined,
                 options?.storePath,
             ),
-        resume: (checkpointJson, options) =>
+        resume: (runId, options) =>
             native.resumeCrawlFile(
-                checkpointJson,
+                runId,
                 options?.browserFixturesDir,
                 options?.browserFallback,
                 options?.challengePolicy,
                 options?.browserEndpoint,
-                options?.cacheDir,
                 options?.storePath,
             ),
         extract: (inputPath, options) => {

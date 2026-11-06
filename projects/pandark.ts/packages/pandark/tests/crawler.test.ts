@@ -103,6 +103,7 @@ test("resumeCrawlFile binding resolves without blocking the event loop", { timeo
         "utf8",
     );
 
+    const storePath = join(dir, "run.yydx");
     const binding = loadPandarkNode();
     const paused = await binding.crawlFile(
         seed,
@@ -111,9 +112,14 @@ test("resumeCrawlFile binding resolves without blocking the event loop", { timeo
         challengeDir,
         "on-fetch-failure",
         "pause-for-operator",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        storePath,
     );
-    const checkpointJson = paused.checkpointJson;
-    assert.ok(checkpointJson, "an operator pause should produce a checkpoint");
+    const runId = paused.runId;
+    assert.ok(runId, "a store-backed crawl should return a run id");
 
     await writeFile(
         join(readyDir, "ready.snapshot.json"),
@@ -138,9 +144,12 @@ test("resumeCrawlFile binding resolves without blocking the event loop", { timeo
     setImmediate(tick);
 
     const pendingResume = binding.resumeCrawlFile(
-        checkpointJson,
+        runId,
         `${challengeDir},${readyDir}`,
         "on-fetch-failure",
+        undefined,
+        undefined,
+        storePath,
     );
     assert.equal(typeof pendingResume.then, "function", "resumeCrawlFile must return a Promise");
     const resumed = await pendingResume;

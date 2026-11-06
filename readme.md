@@ -67,8 +67,8 @@ Run `npx pandark doctor` if the native binding fails to load on your machine.
 | Inspect before extract | `pandark inspect FILE`                    | Links, metadata, diagnostics                  |
 | Plan a crawl           | `pandark plan SEED --depth N --budget M`  | Frontier preview + plan report                |
 | Fetch one URL          | `pandark fetch SEED`                      | Raw fetch payload JSON                        |
-| Crawl with limits      | `pandark crawl SEED --depth N --budget M` | Report, `committedPages`, optional checkpoint |
-| Resume                 | `pandark resume CHECKPOINT`               | Continues a paused run                        |
+| Crawl with limits      | `pandark crawl SEED --store run.yydx`     | Report, `committedPages`, resumable run id   |
+| Resume                 | `pandark resume RUN_ID --store run.yydx`  | Continues a paused run                        |
 
 **Budget:** `--budget` caps fetch attempts for the run. **Reports:** `--report` writes diagnostics; it does not dump
 every page to disk—check `committedPages` and export yourself. **Dynamic sites:** bring `--browser-endpoint` or

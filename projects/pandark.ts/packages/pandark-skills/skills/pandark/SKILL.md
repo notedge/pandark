@@ -168,9 +168,7 @@ Always prefer `pandark … --json` when the user or agent needs structured outpu
 | `--browser-fixtures-dir <dir>` | path                        | Offline/dev: JSON snapshots keyed by URL |
 | `--browser-endpoint <url>`     | HTTP base URL               | Remote browser worker (when deployed)    |
 | `--challenge-policy`           | see below                   | Behavior on login/challenge pages        |
-| `--checkpoint-out <file>`      | path                        | Exact checkpoint file on pause           |
-| `--checkpoint-dir <dir>`       | path                        | Auto-named checkpoint on pause           |
-| `--cache-dir <dir>`            | path                        | Persistent fetch cache for crawl/resume  |
+| `--store <file.yydx>`          | path                        | Store frontier, pages, objects and run id |
 | `--report <file>`              | path                        | Write crawl JSON report to disk          |
 
 **Challenge policies** (CLI uses kebab-case):
@@ -185,20 +183,20 @@ Always prefer `pandark … --json` when the user or agent needs structured outpu
 When `--challenge-policy pause-for-operator` hits a challenge page:
 
 1. Crawl exits with code **3**
-2. With `--checkpoint-out` or `--checkpoint-dir`, a checkpoint JSON is written
+2. The run id is printed in `--json` output; the store path holds frontier and committed pages
 3. User resolves login/CAPTCHA out of band (or supplies new browser snapshots)
-4. Resume with the **same** `--browser-fallback` and related flags:
+4. Resume with the **same** `--browser-fallback` and the same `--store`:
 
 ```bash
-pandark resume ./checkpoints/pandark-checkpoint-example-com-….json \
+pandark resume <run-id> \
+  --store ./run.yydx \
   --browser-fallback on-fetch-failure \
   --challenge-policy pause-for-operator \
-  --checkpoint-dir ./checkpoints \
   --json
 ```
 
-Resume rejects a mismatched `browser_fallback` strategy vs the checkpoint fingerprint. Keep flags consistent across
-crawl and resume.
+Resume rejects a mismatched `browser_fallback` strategy vs the fingerprint persisted at run start. Keep flags
+consistent across crawl and resume.
 
 ### 5. Extract and inspect
 
