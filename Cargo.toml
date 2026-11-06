@@ -20,13 +20,13 @@ edition = "2024"
 boost-diagnostic = { git = "https://github.com/oovm/rust-boost", rev = "9aa52745d6eae2d7748c76e4e3e6555e1f6e4b86", default-features = false, features = ["std", "serde"] }
 boost-log = { git = "https://github.com/oovm/rust-boost", rev = "9aa52745d6eae2d7748c76e4e3e6555e1f6e4b86" }
 # Crawler implementation. Pinned to `document.rs` so the local tree keeps only the Node-API adapter.
-crawler = { git = "https://github.com/notedge/document.rs", rev = "11ca698310b4dbacd432da2a3336c27dba5af481" }
-crawler-fetch = { git = "https://github.com/notedge/document.rs", rev = "11ca698310b4dbacd432da2a3336c27dba5af481" }
-crawler-types = { git = "https://github.com/notedge/document.rs", rev = "11ca698310b4dbacd432da2a3336c27dba5af481" }
+crawler = { git = "https://github.com/notedge/document.rs", rev = "145c410d59efc819775ffb3f0956e13aeaf89e9e" }
+crawler-fetch = { git = "https://github.com/notedge/document.rs", rev = "145c410d59efc819775ffb3f0956e13aeaf89e9e" }
+crawler-types = { git = "https://github.com/notedge/document.rs", rev = "145c410d59efc819775ffb3f0956e13aeaf89e9e" }
 # Extraction only: the WASM adapter must not pull the native `crawler` facade
 # (which owns `crawler-store` and its optional embedded YYDB).
-crawler-extract = { git = "https://github.com/notedge/document.rs", rev = "11ca698310b4dbacd432da2a3336c27dba5af481" }
-document-formats = { git = "https://github.com/notedge/document.rs", rev = "11ca698310b4dbacd432da2a3336c27dba5af481", default-features = false, features = ["markdown", "html"] }
+crawler-extract = { git = "https://github.com/notedge/document.rs", rev = "145c410d59efc819775ffb3f0956e13aeaf89e9e" }
+document-formats = { git = "https://github.com/notedge/document.rs", rev = "145c410d59efc819775ffb3f0956e13aeaf89e9e", default-features = false, features = ["markdown", "html"] }
 
 # External dependencies
 serde = { version = "1.0.229", features = ["derive"] }
