@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { loadPandarkNode } from "../src/node/load.js";
 import {
     PandarkWasmCapabilityError,
     instantiatePandarkWasm,
@@ -26,7 +29,24 @@ const PAGE_HTML = `<!doctype html>
 </html>
 `;
 
+const PARITY_HTML = `<!doctype html>
+<html lang="en">
+  <head><title>Parity page</title></head>
+  <body>
+    <h1>Parity fixture</h1>
+    <p>The native and WebAssembly entries must agree on the extracted document.</p>
+    <table><tr><td colspan="2">merged</td></tr><tr><td>a</td><td>b</td></tr></table>
+  </body>
+</html>
+`;
+
 const artifactBytes = (): Uint8Array<ArrayBuffer> => new Uint8Array(readFileSync(WASM_PATH));
+
+const withoutTopLevelId = (document: Record<string, unknown>): Record<string, unknown> => {
+    const rest = { ...document };
+    delete rest.id;
+    return rest;
+};
 
 test("G-ARCH-5 wasm artifact imports nothing and exports the ABI surface", () => {
     const module = new WebAssembly.Module(artifactBytes());
@@ -89,6 +109,50 @@ test("G-ARCH-5 capability fixture completes fetch -> extract -> report", async (
     assert.ok(stored.has(reportKey), "the report envelope must be returned to the host");
     assert.ok(stored.get(pageKey)?.includes("Capability fixture"), "the document must keep the extracted heading text");
     assert.ok(outcome.reportJson.includes(SCHEMA_REPORT));
+});
+
+test("G-ARCH-5 wasm and native entries extract the same document and loss codes", async () => {
+    const seed = "https://example.com/parity";
+    const adapter = await instantiatePandarkWasm(artifactBytes());
+    const outcome = adapter.run(
+        { seeds: [seed], maxRequests: 4 },
+        {
+            pages: [
+                {
+                    url: seed,
+                    finalUrl: seed,
+                    status: 200,
+                    contentType: "text/html",
+                    headers: { "content-type": "text/html" },
+                    body: PARITY_HTML,
+                    provenance: "test",
+                },
+            ],
+            clock: 1_700_000_000,
+        },
+    );
+    const stored = new Map(outcome.stored.map((record) => [record.key, record.payload]));
+    const wasmDocument = JSON.parse(stored.get(`pandark-wasm/page/${seed}`) as string) as Record<string, unknown>;
+
+    const dir = await mkdtemp(join(tmpdir(), "pandark-wasm-parity-"));
+    const input = join(dir, "parity.html");
+    await writeFile(input, PARITY_HTML, "utf8");
+    const native = await loadPandarkNode().extractFile(input);
+    const nativeDocument = JSON.parse(native.documentJson ?? "null") as Record<string, unknown>;
+
+    assert.equal(outcome.pages[0].status, native.status, "both entries must report the same extraction status");
+    // The document root id is a fresh node id per run, so parity compares every other field.
+    assert.deepEqual(
+        withoutTopLevelId(wasmDocument),
+        withoutTopLevelId(nativeDocument),
+        "the wasm and native entries must serialize the same document graph",
+    );
+
+    const expectedLossCodes = ["import.html.table_spans", "import.html.partial_coverage"];
+    const wasmLossCodes = (wasmDocument.coverage as { loss: Array<{ code: string }> }).loss.map((loss) => loss.code);
+    const nativeLossCodes = (nativeDocument.coverage as { loss: Array<{ code: string }> }).loss.map((loss) => loss.code);
+    assert.deepEqual(wasmLossCodes, expectedLossCodes);
+    assert.deepEqual(nativeLossCodes, expectedLossCodes);
 });
 
 test("G-ARCH-5 missing fetch fixture raises a structured capability error", async () => {
