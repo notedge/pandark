@@ -531,13 +531,27 @@ test("extractToMarkdown loss codes match the extract document report", async () 
         new TextEncoder().encode(html),
         "https://example.com/merged",
     );
-    const native = await binding.extractFile(input, "https://example.com/merged");
+    // The CLI has no source-url flag, so the native entry must resolve the same
+    // `file://` source to keep the report field-by-field comparable.
+    const native = await binding.extractFile(input);
     const document = JSON.parse(native.documentJson ?? "null");
+    const expectedLossCodes = ["import.html.table_spans", "import.html.partial_coverage"];
+    const lossCodes = document.coverage.loss.map((loss: { code: string }) => loss.code);
 
     assert.equal(markdown.diagnosticNamespace, "notedown.formats.html");
+    assert.deepEqual(markdown.diagnosticCodes, expectedLossCodes);
+    assert.deepEqual(lossCodes, expectedLossCodes);
+    // Merged cells are flattened into a pipe table with a trailing empty column.
+    assert.ok(markdown.markdown.includes("| merged |  |"), "merged cells flatten into a pipe table");
+
+    const cliResult = await runCli(["extract", input, "--json"]);
+    assert.equal(cliResult.code, native.exitCode, cliResult.stderr);
+    const cliPayload = JSON.parse(cliResult.stdout);
+    assert.equal(cliPayload.status, native.status);
+    assert.deepEqual(cliPayload.report, JSON.parse(native.reportJson));
     assert.deepEqual(
-        markdown.diagnosticCodes,
-        document.coverage.loss.map((loss: { code: string }) => loss.code),
+        cliPayload.document.coverage.loss.map((loss: { code: string }) => loss.code),
+        expectedLossCodes,
     );
 });
 
@@ -558,10 +572,15 @@ test("nested table loss codes match across the native extraction entries", async
     const native = await binding.extractFile(input);
     const document = JSON.parse(native.documentJson ?? "null");
     const lossCodes = document.coverage.loss.map((loss: { code: string }) => loss.code);
+    const expectedLossCodes = [
+        "import.html.table_nested",
+        "import.html.table_cell_blocks",
+        "import.html.partial_coverage",
+    ];
 
     assert.equal(markdown.diagnosticNamespace, "notedown.formats.html");
-    assert.ok(lossCodes.includes("import.html.table_nested"), "nested table flattening is reported");
-    assert.deepEqual(markdown.diagnosticCodes, lossCodes);
+    assert.deepEqual(markdown.diagnosticCodes, expectedLossCodes);
+    assert.deepEqual(lossCodes, expectedLossCodes);
 
     const cliResult = await runCli(["extract", input, "--json"]);
     assert.equal(cliResult.code, native.exitCode, cliResult.stderr);
@@ -570,6 +589,6 @@ test("nested table loss codes match across the native extraction entries", async
     assert.deepEqual(cliPayload.report, JSON.parse(native.reportJson));
     assert.deepEqual(
         cliPayload.document.coverage.loss.map((loss: { code: string }) => loss.code),
-        lossCodes,
+        expectedLossCodes,
     );
 });
