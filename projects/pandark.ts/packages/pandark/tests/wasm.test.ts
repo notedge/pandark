@@ -155,6 +155,53 @@ test("G-ARCH-5 wasm and native entries extract the same document and loss codes"
     assert.deepEqual(nativeLossCodes, expectedLossCodes);
 });
 
+test("G-ARCH-5 redirect fixture keeps the requested url and surfaces the final url", async () => {
+    const requested = "http://example.com/old";
+    const finalUrl = "https://example.com/new";
+    const adapter = await instantiatePandarkWasm(artifactBytes());
+    const outcome = adapter.run(
+        { seeds: [requested], maxRequests: 2 },
+        {
+            pages: [
+                {
+                    url: requested,
+                    finalUrl,
+                    status: 200,
+                    contentType: "text/html",
+                    headers: { "content-type": "text/html", location: finalUrl },
+                    body: `<!doctype html><html lang="en"><head><title>Redirected</title></head><body><h1>Redirected page</h1></body></html>`,
+                    provenance: "network",
+                },
+            ],
+            clock: 1_700_000_000,
+        },
+    );
+
+    assert.equal(outcome.pages.length, 1, "one requested seed must produce exactly one page outcome");
+    const page = outcome.pages[0];
+    assert.equal(page.url, requested, "the requested url is preserved");
+    assert.equal(page.finalUrl, finalUrl, "the final url after the redirect is surfaced");
+    // The store identity stays on the requested url, so no second fetch happens for the final url.
+    assert.equal(page.storeKey, `pandark-wasm/page/${requested}`);
+    assert.deepEqual(
+        outcome.stored.map((record) => record.key),
+        [`pandark-wasm/page/${requested}`, `pandark-wasm/report/${requested}`],
+    );
+
+    const report = JSON.parse(outcome.reportJson);
+    assert.equal(report.seed, requested);
+    assert.equal(report.extracted, 1);
+    assert.equal(report.failed, 0);
+
+    const document = JSON.parse(outcome.stored[0].payload);
+    assert.equal(document.metadata.title, "Redirected");
+    assert.equal(document.blocks[0].block.Section.title[0].Text.text, "Redirected page");
+    assert.deepEqual(
+        document.coverage.loss.map((loss: { code: string }) => loss.code),
+        ["import.html.partial_coverage"],
+    );
+});
+
 test("G-ARCH-5 missing fetch fixture raises a structured capability error", async () => {
     const adapter = await instantiatePandarkWasm(artifactBytes());
     assert.throws(
