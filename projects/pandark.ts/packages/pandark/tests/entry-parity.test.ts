@@ -22,42 +22,68 @@ const describe = (surface: ExportSurface): Record<string, string> => {
     return described;
 };
 
-/** The three difference classes the gate reports: node-only, wasm-only, and names present on both with different shapes. */
-function diffSurfaces(node: Record<string, string>, wasm: Record<string, string>): {
-    nodeOnly: string[];
-    wasmOnly: string[];
-    mismatched: Array<{ name: string; node: string; wasm: string }>;
-} {
-    const nodeNames = new Set(Object.keys(node));
-    const wasmNames = new Set(Object.keys(wasm));
+/** The three difference classes between an earlier surface and a later one. */
+function diffSurfaces(
+    earlier: Record<string, string>,
+    later: Record<string, string>,
+): { earlierOnly: string[]; laterOnly: string[]; mismatched: Array<{ name: string; earlier: string; later: string }> } {
+    const earlierNames = new Set(Object.keys(earlier));
+    const laterNames = new Set(Object.keys(later));
     return {
-        nodeOnly: [...nodeNames].filter((name) => !wasmNames.has(name)).sort(),
-        wasmOnly: [...wasmNames].filter((name) => !nodeNames.has(name)).sort(),
-        mismatched: [...nodeNames]
-            .filter((name) => wasmNames.has(name) && node[name] !== wasm[name])
+        earlierOnly: [...earlierNames].filter((name) => !laterNames.has(name)).sort(),
+        laterOnly: [...laterNames].filter((name) => !earlierNames.has(name)).sort(),
+        mismatched: [...earlierNames]
+            .filter((name) => laterNames.has(name) && earlier[name] !== later[name])
             .sort()
-            .map((name) => ({ name, node: node[name], wasm: wasm[name] })),
+            .map((name) => ({ name, earlier: earlier[name], later: later[name] })),
     };
 }
 
-test("G-ARCH-5 node and wasm entries only differ on their runtime adapter surface", async () => {
+// Runtime adapter surfaces. Platform entries own these names. The root entry is the
+// authoring/domain surface plus exactly one documented integrator loader re-export
+// (`loadPandarkNode`, readme line 47); it must never re-expose the wasm primitives.
+const NODE_RUNTIME_EXPORTS = ["loadPandarkNode"];
+const WASM_RUNTIME_EXPORTS = [
+    "PandarkWasmCapabilityError",
+    "WASM_CAPABILITIES",
+    "instantiatePandarkWasm",
+    "loadPandarkWasm",
+    "locatePandarkWasm",
+];
+const ROOT_DOCUMENTED_RUNTIME_REEXPORTS = ["loadPandarkNode"];
+
+test("G-ARCH-5 root, node and wasm entries share no runtime loader and drift in three classes", async () => {
+    const rootEntry = (await import("../src/index.js")) as ExportSurface;
     const nodeEntry = (await import("../src/node/index.js")) as ExportSurface;
     const wasmEntry = (await import("../src/wasm/index.js")) as ExportSurface;
 
-    // Intentional differences: the node entry may only expose the native carrier loader, while
-    // the wasm entry exposes its loader plus the instantiation primitives the portable artifact needs.
-    // Any new export on one side, or a shape change on a shared name, fails this gate.
-    const expected = {
-        nodeOnly: ["loadPandarkNode"],
-        wasmOnly: [
-            "PandarkWasmCapabilityError",
-            "WASM_CAPABILITIES",
-            "instantiatePandarkWasm",
-            "loadPandarkWasm",
-            "locatePandarkWasm",
-        ],
-        mismatched: [],
-    };
+    const root = describe(rootEntry);
+    const node = describe(nodeEntry);
+    const wasm = describe(wasmEntry);
 
-    assert.deepEqual(diffSurfaces(describe(nodeEntry), describe(wasmEntry)), expected);
+    // Root vs node: root may only duplicate the documented integrator loader, with the same shape.
+    const rootNode = diffSurfaces(root, node);
+    assert.deepEqual(
+        { nodeOnly: rootNode.laterOnly, mismatched: rootNode.mismatched },
+        { nodeOnly: [], mismatched: [] },
+    );
+    assert.ok(rootNode.earlierOnly.length > 0, "root keeps its own authoring surface");
+
+    // Root vs wasm: the wasm primitives are never re-exported from root.
+    const rootWasm = diffSurfaces(root, wasm);
+    assert.deepEqual(
+        { wasmOnly: rootWasm.laterOnly, mismatched: rootWasm.mismatched },
+        { wasmOnly: WASM_RUNTIME_EXPORTS, mismatched: [] },
+    );
+
+    // Node vs wasm: the two runtime entries stay disjoint, with no shape drift on shared names.
+    const nodeWasm = diffSurfaces(node, wasm);
+    assert.deepEqual(nodeWasm, { earlierOnly: NODE_RUNTIME_EXPORTS, laterOnly: WASM_RUNTIME_EXPORTS, mismatched: [] });
+
+    // Mechanical predicate: the root entry may duplicate only the documented integrator loader.
+    const runtimeNames = new Set([...NODE_RUNTIME_EXPORTS, ...WASM_RUNTIME_EXPORTS]);
+    const collisions = Object.keys(root)
+        .filter((name) => runtimeNames.has(name))
+        .sort();
+    assert.deepEqual(collisions, ROOT_DOCUMENTED_RUNTIME_REEXPORTS, "root must not re-expose undocumented runtime loaders");
 });
